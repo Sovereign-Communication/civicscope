@@ -38,12 +38,13 @@ Harness at harness/jev_completion.py.
 | Phase | Status | Evidence |
 |---|---|---|
 | CIVICSCOPE-COMPLETION | **complete** | **PR #1 MERGED** `c025229`; chunked sweep live, 118 tests + 18 live API contracts, 0 axe violations |
-| CIVICSCOPE-CI | **open** | GitHub Actions cannot run on this account: the runner reports the account is locked due to a billing issue. `.github/workflows/ci.yml` is committed but unexercised. Equivalent commands pass locally: `npm run verify` 118 tests, `npm run test:live` 18, `npm run gate` 46/46 deterministic. |
+| CIVICSCOPE-CI | **complete** | Moved to `Sovereign-Communication/civicscope`, where Actions run. CI is green on all three jobs. The gate takes the site under test from `GATE_SITE` rather than a hardcoded personal hostname. |
 | CIVICSCOPE-R1-PLATFORM | **complete** | Chunked country-wide sweep, per-chunk cache, resumable manifest, state pre-filter. Live-verified: 794 rows in 1.4s per chunk, 43 chunks national, table fills progressively. |
 | CIVICSCOPE-R2-SCHOOLS | **open** | Per-school data exists for New York only. The other 49 states are district-level, disclosed in the UI. Illinois, Texas and Colorado are the next candidates; each needs per-school data, coordinates, CORS and no key. |
 | CIVICSCOPE-R3-DOMAIN | **open** | Domain not registered. `civicscope.fyi` selected at $5.66/yr flat; purchase pending. |
 | CIVICSCOPE-R4-A11Y-PERF | **open** | axe-core reports 0 violations at WCAG 2.2 AA against the production build. Not yet audited with a fully loaded 33k-row table, and the table is not yet virtualized. |
 | CIVICSCOPE-R5-DOGFOOD | **open** | No recorded dogfood receipt with cost and fallback rate. Manual browser sessions were used during development but not captured as a receipt. |
+| CIVICSCOPE-R6-DATA-INTEGRITY | **complete** | No Census missing-value sentinel can reach a user. `-666666666`, `-999999999`, `-888888888` and NCES `-2` all parse to null; absent cells read "not available". Verified against the live API across a full 800-ZCTA chunk, and asserted in `src/live/data-integrity.test.ts`, which runs in CI with the key as a secret. |
 
 ## Scoring the JEV-COMPLETION phase for this repository
 

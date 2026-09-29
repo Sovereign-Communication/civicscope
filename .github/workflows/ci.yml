@@ -37,7 +37,12 @@ jobs:
 
   live-contracts:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    env:
+      # The data-integrity suite proves no Census missing-value sentinel can
+      # reach a user. It needs a real key, without which those tests would skip
+      # and the guarantee would be unverified.
+      CENSUS_KEY: ${{ secrets.CENSUS_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -57,7 +62,15 @@ jobs:
 
   completion-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    env:
+      # The gate verifies the deployed site. Supplied here rather than defaulted
+      # in the script, so moving the project between accounts or domains does
+      # not silently change what CI measures.
+      GATE_SITE: ${{ vars.GATE_SITE || 'https://civicscope.pages.dev' }}
+      # The accessibility audit needs a served build. The gate starts one, so the
+      # browser suite has something to load.
+      SKIP_E2E: '0'
     steps:
       - uses: actions/checkout@v4
 
@@ -69,8 +82,11 @@ jobs:
       - name: Install
         run: npm ci
 
-      # The deterministic completion gate. The Jev semantic layer is skipped
-      # unless a key is present, so this job is hermetic and never depends on a
-      # paid or credentialed service being reachable.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # The deterministic completion gate plus the axe-core accessibility audit.
+      # The Jev semantic layer is skipped unless a key is present, so this job
+      # never depends on a credentialed service being reachable.
       - name: Completion gate
         run: npm run gate

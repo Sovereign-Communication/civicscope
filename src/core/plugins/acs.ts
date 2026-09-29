@@ -96,19 +96,33 @@ function source(tableId: string, url: string): SourceRef {
  */
 const ACS_SENTINELS = new Set([-666666666, -999999999, -888888888])
 
-/** True when a raw ACS value is one of the missing-value sentinels. */
+/**
+ * True when a raw ACS value is one of the missing-value sentinels.
+ *
+ * Tolerant of surrounding whitespace and trailing separators, because these
+ * values arrive as strings from a comma-delimited payload and a stray character
+ * is the difference between a null and a confidently wrong number.
+ */
 export function isAcsSentinel(v: unknown): boolean {
-  const n = typeof v === 'number' ? v : Number(v)
+  if (typeof v === 'number') return ACS_SENTINELS.has(v)
+  if (typeof v !== 'string') return false
+  const n = Number(v.trim().replace(/[,;]$/, ''))
   return Number.isFinite(n) && ACS_SENTINELS.has(n)
 }
 
 export function toNum(v: unknown): number | null {
-  if (v === null || v === undefined || v === '' || v === '-') return null
+  if (v === null || v === undefined || v === '-') return null
+  if (typeof v === 'string') {
+    const t = v.trim().replace(/[,;]$/, '')
+    if (t === '') return null
+    const n = Number(t)
+    if (!Number.isFinite(n)) return null
+    // A sentinel is an absent estimate, not a number.
+    return ACS_SENTINELS.has(n) ? null : n
+  }
   const n = typeof v === 'number' ? v : Number(v)
   if (!Number.isFinite(n)) return null
-  // A sentinel is an absent estimate, not a number.
-  if (ACS_SENTINELS.has(n)) return null
-  return n
+  return ACS_SENTINELS.has(n) ? null : n
 }
 
 /** One row per geography, keyed by metric, for the screening table. */

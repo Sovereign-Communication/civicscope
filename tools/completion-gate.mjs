@@ -31,7 +31,7 @@
  * present, the weighted score meets the threshold.
  */
 
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -41,12 +41,42 @@ const ROOT = process.cwd()
 // the shell concatenation DEP0190 warns about cannot be exploited here.
 process.emitWarning = ((orig) => (w, ...a) => (w?.name === 'DeprecationWarning' && w.code === 'DEP0190' ? undefined : orig(w, ...a)))(process.emitWarning)
 const THRESHOLD = Number(process.env.GATE_THRESHOLD ?? 99)
+
+/**
+ * The deployed site under test.
+ *
+ * Configurable because the default was a personal Pages hostname, which made
+ * the gate depend on an account rather than the project, and failed in CI the
+ * moment the project moved to an organisation. CI supplies it explicitly.
+ */
+const SITE = (
+  process.env.GATE_SITE ??
+  process.env.E2E_BASE_URL ??
+  'https://civicscope.pages.dev'
+).replace(/\/+$/, '')
+
 const OUT = join(ROOT, 'gate-report.json')
 
 const c = { r: '\x1b[31m', g: '\x1b[32m', y: '\x1b[33m', d: '\x1b[90m', b: '\x1b[1m', x: '\x1b[0m' }
 const pass = (s) => `${c.g}PASS${c.x} ${s}`
 const fail = (s) => `${c.r}FAIL${c.x} ${s}`
 const warn = (s) => `${c.y}WARN${c.x} ${s}`
+
+
+/** Polls a local server until it answers, so a preview is ready before the audit. */
+async function waitForServer(url, timeoutMs = 30000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { method: 'GET' })
+      if (res.status < 500) return true
+    } catch {
+      /* not up yet */
+    }
+    await new Promise((r) => setTimeout(r, 750))
+  }
+  return false
+}
 
 // ---------------------------------------------------------------- layer 1
 
@@ -92,9 +122,9 @@ console.log(`${c.b}CivicScope completion gate${c.x}\n`)
 // in CI the workflow runs the gate without a server, so the a11y job is skipped
 // there and covered by the separate CI job instead of being reported as a
 // failure that is really a missing server.
-const e2eBase = process.env.E2E_BASE_URL
+const e2eBase = process.env.E2E_BASE_URL ?? SITE
 const e2eSkip = process.env.SKIP_E2E === '1'
-const e2eEnv = { ...process.env, E2E_BASE_URL: e2eBase ?? 'https://civicscope.pages.dev' }
+const e2eEnv = { ...process.env, E2E_BASE_URL: e2eBase }
 
 const gates = [
   ['typecheck + build', 'npm', ['run', 'build'], {}],
@@ -104,9 +134,47 @@ const gates = [
 
 if (!e2eSkip) {
   // Accessibility is a legal requirement (ADA Title III) for a public-facing
-  // app, so it gates. axe-core runs against a real browser and the production
-  // build, with the CSP enforced exactly as it is in production.
-  gates.push(['WCAG 2.2 AA audit (axe-core, real browser)', 'npx', ['vitest', 'run', '--config', 'vitest.e2e.config.ts', '--reporter=dot'], e2eEnv])
+  // app, so it gates. axe-core runs against a real browser.
+  //
+  // The browser suite needs a served build. When the deployed site is available
+  // we test that, which is what actually ships. Otherwise a local preview is
+  // started for the duration, so the audit is never silently skipped just
+  // because nothing is serving the build yet.
+  let server
+  let base = e2eBase
+  if (process.env.E2E_BASE_URL) {
+    base = process.env.E2E_BASE_URL
+  } else {
+    const port = 4317
+    try {
+      server = spawn(process.execPath, [join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), 'preview', '--port', String(port)], {
+        cwd: ROOT,
+        stdio: 'ignore',
+        detached: false,
+      })
+      const target = `http://localhost:${port}`
+      const ready = await waitForServer(target)
+      base = ready ? target : e2eBase
+      if (!ready) console.log(`${c.y}  note: local preview did not start; auditing ${base}${c.x}`)
+    } catch (err) {
+      console.log(`${c.y}  note: could not start a local preview (${err.message}); auditing ${base}${c.x}`)
+    }
+  }
+
+  gates.push([
+    'WCAG 2.2 AA audit (axe-core, real browser)',
+    'npx',
+    ['vitest', 'run', '--config', 'vitest.e2e.config.ts', '--reporter=dot'],
+    { ...process.env, E2E_BASE_URL: base },
+  ])
+
+  process.on('exit', () => {
+    try {
+      server?.kill()
+    } catch {
+      /* already gone */
+    }
+  })
 }
 
 for (const [label, cmd, args, env] of gates) {
@@ -305,11 +373,11 @@ async function fetchWithRetry(url, attempts = 3) {
 // --- production freshness: a stale deploy is a real failure mode here
 if (process.env.SKIP_NETWORK !== '1') {
   try {
-    const html = await fetchWithRetry('https://civicscope.pages.dev/')
+    const html = await fetchWithRetry(`${SITE}/`)
     const ref = html.match(/\/assets\/index-[A-Za-z0-9_-]+\.js/)?.[0]
     add(Boolean(ref), 'production serves a build', ref ?? 'no bundle referenced')
     if (ref) {
-      const js = await fetchWithRetry(`https://civicscope.pages.dev${ref}`)
+      const js = await fetchWithRetry(`${SITE}${ref}`)
       add(js.includes('countrycode'), 'deployed bundle contains the geocoding fix', ref)
       add(js.includes('B25077'), 'deployed bundle contains the corrected home-value table', ref)
       add(!js.includes('B25035_001E'), 'deployed bundle is free of the old home-value table', ref)
@@ -317,12 +385,12 @@ if (process.env.SKIP_NETWORK !== '1') {
     }
     // The SEO surface is easy to generate and easy to silently lose to the SPA
     // fallback, so it is checked on the deployed site rather than in dist.
-    const sm = await fetchWithRetry('https://civicscope.pages.dev/sitemap.xml')
+    const sm = await fetchWithRetry(`${SITE}/sitemap.xml`)
     add(sm.includes('<urlset'), 'production serves a real sitemap, not the SPA shell')
     add((sm.match(/<url>/g) ?? []).length > 30000, `sitemap covers every ZIP code (${(sm.match(/<url>/g) ?? []).length} URLs)`)
-    const rb = await fetchWithRetry('https://civicscope.pages.dev/robots.txt')
+    const rb = await fetchWithRetry(`${SITE}/robots.txt`)
     add(rb.includes('User-agent'), 'production serves a real robots.txt')
-    const zp = await fetchWithRetry('https://civicscope.pages.dev/z/78701/')
+    const zp = await fetchWithRetry(`${SITE}/z/78701/`)
     add(zp.includes('Open CivicScope and look up'), 'production serves a real per-ZIP page')
   } catch (err) {
     add(false, 'production reachability check', String(err.message))
