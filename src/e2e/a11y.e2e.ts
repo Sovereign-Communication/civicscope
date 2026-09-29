@@ -29,11 +29,19 @@ beforeAll(async () => {
   // configuration error rather than a real finding.
   context = await browser.newContext()
   page = await context.newPage()
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+
+  // Fail loudly if the target is unreachable. An audit that silently skips
+  // because nothing was served reports a pass it did not earn, which is the
+  // worst possible failure for an accessibility gate.
+  const res = await page.goto(BASE, { waitUntil: 'domcontentloaded' }).catch(() => null)
+  if (!res || res.status() >= 400) {
+    throw new Error(
+      `accessibility audit target is unreachable at ${BASE}. Start a served build or set E2E_BASE_URL.`,
+    )
+  }
 
   // The figure-level assertions need a working key, so the key is injected the
-  // same way the app's own setter does. Without it the a11y suite silently
-  // skips the only checks that examine real data.
+  // same way the app's own setter does.
   if (process.env.CENSUS_KEY) {
     await page.evaluate((k) => localStorage.setItem('civicscope.censusKey.v1', k), process.env.CENSUS_KEY)
     await page.reload({ waitUntil: 'domcontentloaded' })

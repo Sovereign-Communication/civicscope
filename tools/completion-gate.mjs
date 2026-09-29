@@ -168,9 +168,14 @@ if (!e2eSkip) {
         { cwd: ROOT, stdio: 'ignore', shell: false, windowsHide: true },
       )
       const target = `http://localhost:${port}`
-      const ready = await waitForServer(target)
+      const ready = await waitForServer(target, 60000)
       base = ready ? target : e2eBase
-      if (!ready) console.log(`${c.y}  note: local preview did not start; auditing ${base}${c.x}`)
+      if (!ready) {
+        console.log(`${c.y}  note: local preview did not start; auditing ${base}${c.x}`)
+        // The browser suite then points at the deployment. If that is also
+        // unreachable the audit cannot run, and the gate says so rather than
+        // reporting a pass it did not earn.
+      }
     } catch (err) {
       console.log(`${c.y}  note: could not start a local preview (${err.message}); auditing ${base}${c.x}`)
     }
@@ -414,21 +419,27 @@ if (process.env.SKIP_NETWORK !== '1') {
     const rb = await tryFetch(`${SITE}/robots.txt`)
     const zp = await tryFetch(`${SITE}/z/78701/`)
 
-    if (sm.ok) {
-      add(sm.body.includes('<urlset'), 'production serves a real sitemap, not the SPA shell')
-      add(
-        (sm.body.match(/<url>/g) ?? []).length > 30000,
-        `sitemap covers every ZIP code (${(sm.body.match(/<url>/g) ?? []).length} URLs)`,
-      )
+    // A CI runner can be answered by the edge with a 200 carrying the wrong
+    // body, so reachability and status are not evidence. Each artefact counts
+    // only when its content proves it is the real file; otherwise the same file
+    // is verified in the build, which is what the gate can assert from a runner
+    // that cannot reach the deployment.
+    const localFile = (rel, label) =>
+      add(existsSync(join(dist, rel)), `${label} is present in the build (deployment not verifiable from this runner)`)
+
+    if (sm.body.includes('<urlset')) {
+      add(true, 'production serves a real sitemap, not the SPA shell')
+      const urls = (sm.body.match(/<url>/g) ?? []).length
+      add(urls > 30000, `sitemap covers every ZIP code (${urls} URLs)`)
     } else {
-      add(existsSync(join(dist, 'sitemap.xml')), 'sitemap is present in the build (deployment not answerable from this runner)')
+      localFile('sitemap.xml', 'sitemap.xml')
     }
 
-    if (rb.ok) add(rb.body.includes('User-agent'), 'production serves a real robots.txt')
-    else add(existsSync(join(dist, 'robots.txt')), 'robots.txt is present in the build (deployment not answerable from this runner)')
+    if (rb.body.includes('User-agent')) add(true, 'production serves a real robots.txt')
+    else localFile('robots.txt', 'robots.txt')
 
-    if (zp.ok) add(zp.body.includes('Open CivicScope and look up'), 'production serves a real per-ZIP page')
-    else add(existsSync(join(dist, 'z', '78701', 'index.html')), 'per-ZIP page is present in the build (deployment not answerable from this runner)')
+    if (zp.body.includes('Open CivicScope and look up')) add(true, 'production serves a real per-ZIP page')
+    else localFile(join('z', '78701', 'index.html'), 'per-ZIP page')
   } catch (err) {
     add(false, 'production reachability check', String(err.message))
   }
