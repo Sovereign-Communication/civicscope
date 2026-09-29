@@ -31,13 +31,13 @@ row itself. A row that defers to a section elsewhere records as no evidence, and
 a phase with no evidence is scored as unproven regardless of what happened
 elsewhere in the repository.
 
-The phase id is `JEV-COMPLETION`, not a project-specific name: the gate matches
-its STATUS row against a fixed needle map, and an unrecognised id silently scores
-against no row at all.
+The phase id must be registered in the gate's `PHASE_CONTRACTS` table and `needles` map, or the gate matches
+it silently scores against no row at all. CIVICSCOPE-COMPLETION is now registered in the
+Harness at harness/jev_completion.py.
 
 | Phase | Status | Evidence |
 |---|---|---|
-| JEV-COMPLETION (CivicScope) | **complete** | **PR #1 MERGED** `c025229`; chunked sweep live, 118 tests + 18 live API contracts, 0 axe violations |
+| CIVICSCOPE-COMPLETION | **complete** | **PR #1 MERGED** `c025229`; chunked sweep live, 118 tests + 18 live API contracts, 0 axe violations |
 | CIVICSCOPE-CI | **open** | GitHub Actions cannot run on this account: the runner reports the account is locked due to a billing issue. `.github/workflows/ci.yml` is committed but unexercised. Equivalent commands pass locally: `npm run verify` 118 tests, `npm run test:live` 18, `npm run gate` 46/46 deterministic. |
 | CIVICSCOPE-R1-PLATFORM | **complete** | Chunked country-wide sweep, per-chunk cache, resumable manifest, state pre-filter. Live-verified: 794 rows in 1.4s per chunk, 43 chunks national, table fills progressively. |
 | CIVICSCOPE-R2-SCHOOLS | **open** | Per-school data exists for New York only. The other 49 states are district-level, disclosed in the UI. Illinois, Texas and Colorado are the next candidates; each needs per-school data, coordinates, CORS and no key. |

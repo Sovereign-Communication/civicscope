@@ -23,7 +23,10 @@ const COLUMNS = [
 ] as const
 
 function fmt(value: number | null, unit: string): string {
-  if (value === null) return '—'
+  // A dash is ambiguous: it could mean zero, missing, or withheld. The Census
+  // Bureau reports an absent estimate as a large negative number, so every
+  // genuinely absent figure arrives here as null and says so in words.
+  if (value === null) return 'not available'
   if (unit === 'percent') return `${value}%`
   if (unit === 'usd_monthly') return `${usd.format(value)}/mo`
   if (unit === 'usd') return usd.format(value)
@@ -74,6 +77,10 @@ export function SweepTable({
   const sorted = useMemo(() => {
     if (!sortKey) return rows
     const arr = [...rows]
+    // Rows missing the sort metric always sort last, in either direction. Without
+    // this, a column whose absent values were briefly numeric put every
+    // missing row at the top, which is what put ZIPs with no renter households
+    // above the list.
     arr.sort((a, b) => {
       const av = a.metrics[sortKey] ?? null
       const bv = b.metrics[sortKey] ?? null

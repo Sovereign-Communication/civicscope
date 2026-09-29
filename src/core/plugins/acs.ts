@@ -75,10 +75,40 @@ function source(tableId: string, url: string): SourceRef {
   }
 }
 
-export function toNum(v: unknown): number | null {
-  if (v === null || v === undefined || v === '-') return null
+/**
+ * ACS missing-value sentinels.
+ *
+ * The Census Bureau does not return null or blank for an absent estimate. It
+ * returns a large negative number, documented as:
+ *
+ *   -666666666  N/A — the estimate is not applicable. Verified live: ZCTA 00786
+ *                has no renter households, so median rent burden is N/A and the
+ *                API returns -666666666 for it.
+ *   -999999999  missing
+ *   -888888888  not comparable (disjunct)
+ *
+ * Ratio tables such as B25071 return the same value with a decimal part, so the
+ * comparison is made numerically rather than by string.
+ *
+ * These must never reach the screen. Displayed as a number, -666666666 renders
+ * as "$-666,666,666/mo" and "-666666666%", which is not a placeholder but a
+ * confidently wrong figure — the exact failure this project exists to prevent.
+ */
+const ACS_SENTINELS = new Set([-666666666, -999999999, -888888888])
+
+/** True when a raw ACS value is one of the missing-value sentinels. */
+export function isAcsSentinel(v: unknown): boolean {
   const n = typeof v === 'number' ? v : Number(v)
-  return Number.isFinite(n) ? n : null
+  return Number.isFinite(n) && ACS_SENTINELS.has(n)
+}
+
+export function toNum(v: unknown): number | null {
+  if (v === null || v === undefined || v === '' || v === '-') return null
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n)) return null
+  // A sentinel is an absent estimate, not a number.
+  if (ACS_SENTINELS.has(n)) return null
+  return n
 }
 
 /** One row per geography, keyed by metric, for the screening table. */
