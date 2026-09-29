@@ -63,6 +63,20 @@ const fail = (s) => `${c.r}FAIL${c.x} ${s}`
 const warn = (s) => `${c.y}WARN${c.x} ${s}`
 
 
+/** True when a URL answers at all, used to separate 'unreachable' from 'wrong'. */
+async function isReachable(url, timeoutMs = 15000) {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { signal: ctrl.signal })
+    return res.status < 500
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Polls a local server until it answers, so a preview is ready before the audit. */
 async function waitForServer(url, timeoutMs = 30000) {
   const deadline = Date.now() + timeoutMs
@@ -147,11 +161,11 @@ if (!e2eSkip) {
   } else {
     const port = 4317
     try {
-      server = spawn(process.execPath, [join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), 'preview', '--port', String(port)], {
-        cwd: ROOT,
-        stdio: 'ignore',
-        detached: false,
-      })
+      server = spawn(
+        process.execPath,
+        [join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), 'preview', '--port', String(port), '--strictPort', '--host', '127.0.0.1'],
+        { cwd: ROOT, stdio: 'ignore', shell: false, windowsHide: true },
+      )
       const target = `http://localhost:${port}`
       const ready = await waitForServer(target)
       base = ready ? target : e2eBase
@@ -385,13 +399,25 @@ if (process.env.SKIP_NETWORK !== '1') {
     }
     // The SEO surface is easy to generate and easy to silently lose to the SPA
     // fallback, so it is checked on the deployed site rather than in dist.
-    const sm = await fetchWithRetry(`${SITE}/sitemap.xml`)
-    add(sm.includes('<urlset'), 'production serves a real sitemap, not the SPA shell')
-    add((sm.match(/<url>/g) ?? []).length > 30000, `sitemap covers every ZIP code (${(sm.match(/<url>/g) ?? []).length} URLs)`)
-    const rb = await fetchWithRetry(`${SITE}/robots.txt`)
-    add(rb.includes('User-agent'), 'production serves a real robots.txt')
-    const zp = await fetchWithRetry(`${SITE}/z/78701/`)
-    add(zp.includes('Open CivicScope and look up'), 'production serves a real per-ZIP page')
+    // The deployed site can be unreachable from a CI runner for reasons that have
+    // nothing to do with this repository. When it cannot be reached at all, that
+    // is reported once and the local build is checked instead, so the gate still
+    // measures something real. When it IS reached and is wrong, that is a
+    // genuine failure and fails the gate.
+    const reachable = await isReachable(SITE)
+    add(reachable, `the deployed site is reachable (${SITE})`)
+    if (reachable) {
+      const sm = await fetchWithRetry(`${SITE}/sitemap.xml`)
+      add(sm.includes('<urlset'), 'production serves a real sitemap, not the SPA shell')
+      add((sm.match(/<url>/g) ?? []).length > 30000, `sitemap covers every ZIP code (${(sm.match(/<url>/g) ?? []).length} URLs)`)
+      const rb = await fetchWithRetry(`${SITE}/robots.txt`)
+      add(rb.includes('User-agent'), 'production serves a real robots.txt')
+      const zp = await fetchWithRetry(`${SITE}/z/78701/`)
+      add(zp.includes('Open CivicScope and look up'), 'production serves a real per-ZIP page')
+    } else {
+      add(existsSync(join(dist, 'sitemap.xml')), 'sitemap is present in the build (deployed site unreachable from this runner)')
+      add(existsSync(join(dist, 'robots.txt')), 'robots.txt is present in the build (deployed site unreachable from this runner)')
+    }
   } catch (err) {
     add(false, 'production reachability check', String(err.message))
   }
