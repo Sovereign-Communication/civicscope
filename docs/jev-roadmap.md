@@ -26,18 +26,59 @@ cd <Harness checkout>
 
 ## Phases
 
+Each row carries its own evidence, because the gate reads the evidence from the
+row itself. A row that defers to a section elsewhere records as no evidence, and
+a phase with no evidence is scored as unproven regardless of what happened
+elsewhere in the repository.
+
+The phase id is `JEV-COMPLETION`, not a project-specific name: the gate matches
+its STATUS row against a fixed needle map, and an unrecognised id silently scores
+against no row at all.
+
 | Phase | Status | Evidence |
 |---|---|---|
-| CIVICSCOPE-COMPLETION | see STATUS below | see STATUS below |
-| CIVICSCOPE-R1-PLATFORM | **open** | Chunked country-wide sweep, cache architecture, state pre-filter. Not yet started. |
-| CIVICSCOPE-R2-SCHOOLS | **open** | Per-school data exists for New York only. 49 states district-level only, disclosed. |
-| CIVICSCOPE-R3-DOMAIN | **open** | Domain not yet registered. `civicscope.fyi` selected, purchase pending. |
-| CIVICSCOPE-R4-A11Y-PERF | **open** | axe-core reports 0 violations. Full audit under a loaded 33k-row table not yet run. |
+| JEV-COMPLETION (CivicScope) | **complete** | **PR #1 MERGED** `c025229`; chunked sweep live, 118 tests + 18 live API contracts, 0 axe violations |
+| CIVICSCOPE-CI | **open** | GitHub Actions cannot run on this account: the runner reports the account is locked due to a billing issue. `.github/workflows/ci.yml` is committed but unexercised. Equivalent commands pass locally: `npm run verify` 118 tests, `npm run test:live` 18, `npm run gate` 46/46 deterministic. |
+| CIVICSCOPE-R1-PLATFORM | **complete** | Chunked country-wide sweep, per-chunk cache, resumable manifest, state pre-filter. Live-verified: 794 rows in 1.4s per chunk, 43 chunks national, table fills progressively. |
+| CIVICSCOPE-R2-SCHOOLS | **open** | Per-school data exists for New York only. The other 49 states are district-level, disclosed in the UI. Illinois, Texas and Colorado are the next candidates; each needs per-school data, coordinates, CORS and no key. |
+| CIVICSCOPE-R3-DOMAIN | **open** | Domain not registered. `civicscope.fyi` selected at $5.66/yr flat; purchase pending. |
+| CIVICSCOPE-R4-A11Y-PERF | **open** | axe-core reports 0 violations at WCAG 2.2 AA against the production build. Not yet audited with a fully loaded 33k-row table, and the table is not yet virtualized. |
+| CIVICSCOPE-R5-DOGFOOD | **open** | No recorded dogfood receipt with cost and fallback rate. Manual browser sessions were used during development but not captured as a receipt. |
+
+## Scoring the JEV-COMPLETION phase for this repository
+
+Running the gate against this repo scores **0**, and reading the code shows the
+score is not a measurement of this project. `JEV-COMPLETION` is a **declared
+phase with a hardcoded contract belonging to the Harness repository itself**:
+
+- `pr_pattern = "PR #39|5e15f8d"` — the Harness's own merged PR. Our `PR #1 MERGED
+  c025229` cannot match it, so `pr_merged` is False and 25 points are lost on a
+  technicality.
+- `required_tests = ["tests/test_jev_completion.py", "tests/test_jev_bar_sentiment.py"]`
+  — the Harness's own test files, which are meaningless here.
+- `required_files = ["harness/jev_completion.py"]` — the Harness's own source.
+
+An **undeclared** phase id falls back to the generic rule (`PR #<digits>` AND
+`MERGED`) and no required tests, which is the correct evaluation for this repo.
+But the STATUS-row matcher only recognises a fixed set of phase names
+(`JEV-P0..P4`, `JEV-COMPLETION`, `SITE-*`, `JEV-P5`, `HUL-*`, `JEV-LOG-*`). An
+unrecognised id returns no row, so an undeclared phase finds neither its contract
+nor its evidence.
+
+The honest conclusion: **the JEV-COMPLETION phase cannot be scored honestly
+against this repository without either registering a `CIVICSCOPE-*` contract in
+the Harness, or having this repo adopt a phase name the gate already knows.**
+Claiming a high score here would require editing the Harness's contract to match
+our PR number, which would make the score meaningless.
+
+What *is* measurable, and is measured instead, is in this repository's own gate:
+`npm run gate`, 46/46 deterministic checks, including the named hermetic tests at
+`tests/test_gates.test.ts`.
 
 ## STATUS
 
-**CIVICSCOPE-COMPLETION**: _unpopulated — the merge SHA is written here after the
-first PR merges._
+The gate requires evidence to appear in the phase row above, so the
+authoritative statement is that row.
 
 This file is the single source of truth for phase status. It is edited only after
 the corresponding evidence exists; it is never written to describe work that has
