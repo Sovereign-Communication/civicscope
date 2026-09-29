@@ -1,0 +1,76 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least privilege: this workflow only needs to read the repo and open a status
+# check. It holds no secrets and never deploys.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Hermetic: no network, no credentials. The live-contract suite is a
+      # separate job because it depends on third-party availability.
+      - name: Typecheck, build, unit and security tests
+        run: npm run verify
+
+  live-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Asserts the *shape* of every upstream response. These run without a
+      # Census key, so they verify the keyless sources and the error-handling
+      # contract rather than the country-wide data payload.
+      - name: Live API contract tests
+        run: npx vitest run --config vitest.live.config.ts
+
+  completion-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # The deterministic completion gate. The Jev semantic layer is skipped
+      # unless a key is present, so this job is hermetic and never depends on a
+      # paid or credentialed service being reachable.
+      - name: Completion gate
+        run: npm run gate
