@@ -6,6 +6,9 @@
  * can allocate results differently per person, which is precisely the conduct
  * that fair housing enforcement targets. This layer has no backend to call.
  */
+import { isFresh, readCache, writeCache } from './cache'
+import { paced } from './ratelimit'
+
 
 /** In-flight requests keyed by URL, so concurrent callers share one fetch. */
 const inFlight = new Map<string, Promise<unknown>>()
@@ -60,6 +63,13 @@ export interface GetJsonOptions {
   /** Counts against the visible quota meter when true. */
   metered?: boolean
   headers?: Record<string, string>
+  /**
+   * How long a cached response stays fresh. Defaults generously, because the
+   * underlying data is annual survey data that cannot change within a day.
+   */
+  ttlMs?: number
+  /** Set false to force a network read, for an explicit refresh. */
+  cache?: boolean
 }
 
 /**
@@ -76,26 +86,42 @@ const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504, 529])
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /**
- * Fetches with bounded retries on transport errors and overload statuses.
+ * Backoff schedule.
  *
- * Every data source this project uses is a public service, and all of them
- * return 503 under load. Without this, a release gate fails on the network
- * rather than on the work, which trains people to ignore the gate. Retrying a
- * 429/503 is correct behaviour for a client, not a workaround.
+ * Exponential with full jitter, which is the standard choice for avoiding a
+ * synchronised retry storm: without jitter, every client that hit the same
+ * overloaded moment comes back at the same moment. The 429 case backs off much
+ * harder, because being throttled means the budget is spent and a fast retry
+ * simply spends more of it.
+ */
+function backoffMs(attempt: number, status: number): number {
+  const base = status === 429 ? 3000 : 750
+  const ceiling = status === 429 ? 30_000 : 12_000
+  const exponential = Math.min(ceiling, base * 2 ** (attempt - 1))
+  return Math.round(exponential * (0.5 + Math.random()))
+}
+
+/**
+ * Fetches with bounded retries, honouring Retry-After when the service
+ * supplies it and backing off exponentially with jitter otherwise.
+ *
+ * This is deliberately at the HTTP layer rather than wrapped around individual
+ * tests, so every call site gets the same behaviour and a new data source
+ * cannot opt out of it by accident.
  */
 export async function fetchResilient(
   url: string,
   init: RequestInit = {},
-  attempts = 3,
+  attempts = 4,
 ): Promise<Response> {
   let lastErr: unknown
   for (let i = 1; i <= attempts; i++) {
     try {
       const res = await fetch(url, init)
       if (!RETRYABLE_STATUS.has(res.status) || i === attempts) return res
-      // Honour Retry-After when the service supplies it.
-      const wait = Number(res.headers.get('retry-after') ?? 0) * 1000
-      await sleep(wait > 0 ? Math.min(wait, 8000) : 1200 * i)
+
+      const retryAfter = Number(res.headers.get('retry-after') ?? 0) * 1000
+      await sleep(retryAfter > 0 ? Math.min(retryAfter, 30_000) : backoffMs(i, res.status))
     } catch (err) {
       lastErr = err
       if (i === attempts) throw err
@@ -110,15 +136,33 @@ export async function getJson<T>(url: string, opts: GetJsonOptions): Promise<T> 
   if (existing) return existing as Promise<T>
 
   const p = (async (): Promise<T> => {
+    // The cache is consulted before anything is spent: a hit costs no request,
+    // no pacing slot, and none of the daily budget. That is what makes a repeat
+    // visit free and keeps a shared key usable.
+    if (opts.cache !== false) {
+      const cached = await readCache<T>(url)
+      if (cached && isFresh(cached, opts.ttlMs)) {
+        return cached.body
+      }
+    }
+
     if (opts.metered) countRequest()
-    const res = await fetchResilient(url, {
-      signal: opts.signal,
-      headers: { Accept: 'application/json', ...opts.headers },
-    })
+
+    // Pacing caps concurrency and spaces requests, so a 34-chunk sweep does not
+    // arrive as 34 simultaneous heavy queries.
+    const res = await paced(() =>
+      fetchResilient(url, {
+        signal: opts.signal,
+        headers: { Accept: 'application/json', ...opts.headers },
+      }),
+    )
+
     if (!res.ok) {
       throw new SourceUnavailableError(`Request failed (${res.status})`, url, res.status)
     }
-    return (await res.json()) as T
+    const body = (await res.json()) as T
+    if (opts.cache !== false) await writeCache(url, body)
+    return body
   })()
 
   inFlight.set(url, p)

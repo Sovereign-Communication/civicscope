@@ -9,6 +9,7 @@
 
 import { getCensusKey } from '../censusKey'
 import { manifestStore, sweepCache } from '../cache'
+import { budgetState, QuotaExhaustedError } from '../ratelimit'
 import { areaRowFromRaw, SCREEN_VARS, type AreaRow } from '../plugins/acs'
 import { CHUNK_SIZE, chunkKey, fetchChunk, groupByState, listAllZctas, planChunks, type ZctasByPrefix } from './chunk'
 
@@ -35,6 +36,8 @@ export interface SweepManifest {
   scope: string
   /** True when every chunk was served from local cache rather than fetched. */
   fromCache?: boolean
+  /** Remaining requests in today's budget, so the UI can say so plainly. */
+  budget?: { used: number; limit: number; remaining: number; day: string }
 }
 
 export const SWEEP_VERSION = 'acs5:2023:screen:v1'
@@ -58,6 +61,8 @@ export interface SweepProgress {
   scope: string
   /** True when every chunk was served from local cache rather than fetched. */
   fromCache?: boolean
+  /** Remaining requests in today's budget, so the UI can say so plainly. */
+  budget?: { used: number; limit: number; remaining: number; day: string }
 }
 
 /**
@@ -119,6 +124,7 @@ export async function runSweep(options: {
       rows: merged.size,
       failed,
       scope: label,
+      budget: budgetState(),
     }
     options.onProgress?.(progress)
     return progress
@@ -151,6 +157,14 @@ export async function runSweep(options: {
     } catch (err) {
       state.status = 'failed'
       state.error = err instanceof Error ? err.message : 'unknown error'
+      // Running the budget dry is not a fault in the data, so the remaining
+      // chunks are left pending rather than failed: the manifest resumes them
+      // after the budget resets, and everything already cached still renders.
+      if (err instanceof QuotaExhaustedError) {
+        state.status = 'pending'
+        state.error = 'waiting for the daily request budget to reset'
+        break
+      }
     }
 
     manifest.updatedAt = Date.now()

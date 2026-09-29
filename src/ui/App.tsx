@@ -278,6 +278,12 @@ export default function App() {
                       {num.format(q.sweepProgress.rows)} ZIP codes ready
                       {q.sweepProgress.failed > 0 && ` · ${q.sweepProgress.failed} failed`}
                     </p>
+                    {q.sweepProgress.budget && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        {q.sweepProgress.budget.remaining} of {q.sweepProgress.budget.limit} requests left
+                        today. Areas already loaded are cached, so returning to this page costs nothing.
+                      </p>
+                    )}
                   </>
                 ) : (
                   <p className="mt-1 text-sm text-slate-700">Working out which areas to load…</p>

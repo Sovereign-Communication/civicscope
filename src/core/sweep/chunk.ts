@@ -23,6 +23,7 @@
  */
 
 import { fetchResilient } from '../http'
+import { paced } from '../ratelimit'
 
 const ZCTA_LAYER =
   'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/2/query'
@@ -76,7 +77,7 @@ export async function listAllZctas(signal: AbortSignal): Promise<string[]> {
     const where = encodeURIComponent(`ZCTA5 >= '${lo}' AND ZCTA5 <= '${hi}'`)
     for (let offset = 0; ; offset += ENUM_PAGE) {
       const url = `${ZCTA_LAYER}?where=${where}&outFields=ZCTA5&returnGeometry=false&resultRecordCount=${ENUM_PAGE}&resultOffset=${offset}&f=json`
-      const res = await fetchResilient(url, { signal, headers: { Accept: 'application/json' } })
+      const res = await paced(() => fetchResilient(url, { signal, headers: { Accept: 'application/json' } }))
       if (!res.ok) throw new Error(`ZCTA enumeration failed: HTTP ${res.status}`)
       const body = (await res.json()) as { features?: { attributes?: { ZCTA5?: string } }[] }
       const features = body.features ?? []
@@ -200,7 +201,7 @@ export function fetchChunk(
   const url = `https://api.census.gov/data/2023/acs/acs5?get=${['NAME', ...vars].join(',')}&${geography}&key=${encodeURIComponent(censusKey)}`
 
   return (async () => {
-    const res = await fetchResilient(url, { signal, headers: { Accept: 'application/json' } })
+    const res = await paced(() => fetchResilient(url, { signal, headers: { Accept: 'application/json' } }))
 
     // Shape validation first: a 200 can still be an HTML error page, and a 400
     // for an over-long geography arrives as HTML too.
