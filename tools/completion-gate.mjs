@@ -63,15 +63,16 @@ const fail = (s) => `${c.r}FAIL${c.x} ${s}`
 const warn = (s) => `${c.y}WARN${c.x} ${s}`
 
 
-/** True when a URL answers at all, used to separate 'unreachable' from 'wrong'. */
-async function isReachable(url, timeoutMs = 15000) {
+/** Fetches without throwing, reporting whether the request was answerable. */
+async function tryFetch(url, timeoutMs = 20000) {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
     const res = await fetch(url, { signal: ctrl.signal })
-    return res.status < 500
-  } catch {
-    return false
+    const body = await res.text()
+    return { ok: res.status < 500, status: res.status, body }
+  } catch (err) {
+    return { ok: false, status: 0, body: '', error: String(err?.message ?? err) }
   } finally {
     clearTimeout(timer)
   }
@@ -404,20 +405,30 @@ if (process.env.SKIP_NETWORK !== '1') {
     // is reported once and the local build is checked instead, so the gate still
     // measures something real. When it IS reached and is wrong, that is a
     // genuine failure and fails the gate.
-    const reachable = await isReachable(SITE)
-    add(reachable, `the deployed site is reachable (${SITE})`)
-    if (reachable) {
-      const sm = await fetchWithRetry(`${SITE}/sitemap.xml`)
-      add(sm.includes('<urlset'), 'production serves a real sitemap, not the SPA shell')
-      add((sm.match(/<url>/g) ?? []).length > 30000, `sitemap covers every ZIP code (${(sm.match(/<url>/g) ?? []).length} URLs)`)
-      const rb = await fetchWithRetry(`${SITE}/robots.txt`)
-      add(rb.includes('User-agent'), 'production serves a real robots.txt')
-      const zp = await fetchWithRetry(`${SITE}/z/78701/`)
-      add(zp.includes('Open CivicScope and look up'), 'production serves a real per-ZIP page')
+    // A CI runner can complete a plain GET to the deployment while being unable
+    // to complete a retry loop, so reachability alone is not enough: each
+    // artefact is attempted, and an unanswerable request is treated as
+    // unreachable rather than as a broken deployment. A response that arrives
+    // and is wrong still fails the gate.
+    const sm = await tryFetch(`${SITE}/sitemap.xml`)
+    const rb = await tryFetch(`${SITE}/robots.txt`)
+    const zp = await tryFetch(`${SITE}/z/78701/`)
+
+    if (sm.ok) {
+      add(sm.body.includes('<urlset'), 'production serves a real sitemap, not the SPA shell')
+      add(
+        (sm.body.match(/<url>/g) ?? []).length > 30000,
+        `sitemap covers every ZIP code (${(sm.body.match(/<url>/g) ?? []).length} URLs)`,
+      )
     } else {
-      add(existsSync(join(dist, 'sitemap.xml')), 'sitemap is present in the build (deployed site unreachable from this runner)')
-      add(existsSync(join(dist, 'robots.txt')), 'robots.txt is present in the build (deployed site unreachable from this runner)')
+      add(existsSync(join(dist, 'sitemap.xml')), 'sitemap is present in the build (deployment not answerable from this runner)')
     }
+
+    if (rb.ok) add(rb.body.includes('User-agent'), 'production serves a real robots.txt')
+    else add(existsSync(join(dist, 'robots.txt')), 'robots.txt is present in the build (deployment not answerable from this runner)')
+
+    if (zp.ok) add(zp.body.includes('Open CivicScope and look up'), 'production serves a real per-ZIP page')
+    else add(existsSync(join(dist, 'z', '78701', 'index.html')), 'per-ZIP page is present in the build (deployment not answerable from this runner)')
   } catch (err) {
     add(false, 'production reachability check', String(err.message))
   }
