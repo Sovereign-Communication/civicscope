@@ -17,6 +17,7 @@ import { geocode } from '../core/geocode'
 import { resolveTract } from '../core/plugins/geography'
 import { normalizeCensusKey, validateCensusKey } from '../core/censusKey'
 import { lookupSchoolDistrict } from '../core/plugins/schools'
+import { withNetworkRetry } from './resilience'
 
 const sig = () => new AbortController().signal
 
@@ -119,7 +120,7 @@ describe('live: NCES EDGE school districts', () => {
     expect(ratio?.value).toBeGreaterThan(0)
   }, 60000)
 
-  it('never presents the -2 missing-value sentinel as a figure', async () => {
+  it('never presents the -2 missing-value sentinel as a figure', withNetworkRetry('NCES sentinel', async () => {
     // NCES encodes "not available" as -2. A real-looking negative spend figure
     // would be a confident lie, so it must be filtered out.
     for (const [lat, lon, zcta] of [
@@ -134,7 +135,7 @@ describe('live: NCES EDGE school districts', () => {
         }
       }
     }
-  }, 60000)
+  }))
 
   it('rejects a supervisory union instead of calling it a school district', async () => {
     // All of New York City sits inside "NYC Chancellor's Office", an LEA_TYPE 3
