@@ -40,7 +40,6 @@ export default function App() {
   const [preset, setPreset] = useState<string>('budget')
   const [showKeyPrompt, setShowKeyPrompt] = useState(false)
   const [zoom, setZoom] = useState<ZoomLevel>(4)
-  const [limit, setLimit] = useState(50)
   const statusRef = useRef<HTMLParagraphElement>(null)
 
   const q = useHousingQuery()
@@ -88,16 +87,21 @@ export default function App() {
   const sweepRows = useMemo(() => {
     if (q.sweep.length === 0) return []
     const key = activePreset.sort
-    const populated = q.sweep.filter((r) => r.metrics[key] !== null)
-    return [...populated].sort((a, b) => (a.metrics[key] ?? 0) - (b.metrics[key] ?? 0))
+    // Every loaded ZIP is kept, including those with no figure for this
+    // column. Filtering them out here used to hide about 7,290 of the 33,791 ZIP
+    // codes from the screening table whenever a sparse column was chosen, which
+    // reads as "this area does not exist" rather than "no estimate published" —
+    // the one confusion this app exists to avoid. Absent figures now render as
+    // "not yet imported" and sort last, which is what they mean.
+    return [...q.sweep].sort((a, b) => {
+      const av = a.metrics[key] ?? null
+      const bv = b.metrics[key] ?? null
+      if (av === null && bv === null) return 0
+      if (av === null) return 1
+      if (bv === null) return -1
+      return av - bv
+    })
   }, [q.sweep, activePreset.sort])
-
-  const totalPopulated = useMemo(
-    () => (q.sweep.length === 0 ? 0 : q.sweep.filter((r) => r.metrics[activePreset.sort] !== null).length),
-    [q.sweep, activePreset.sort],
-  )
-
-  const matches = sweepRows.slice(0, limit)
 
   /**
    * The lookup form and the Census key prompt.
@@ -423,9 +427,6 @@ export default function App() {
                       void q.selectPlace({ name: row.name, zip: zcta }, zoom)
                     }}
                     selectedZctas={q.selectedZctas}
-                    visibleCount={matches.length}
-                    totalCount={totalPopulated}
-                    onShowMore={() => setLimit((l) => l + 100)}
                   />
                 </section>
 

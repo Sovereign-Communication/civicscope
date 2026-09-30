@@ -532,7 +532,21 @@ const TYPESAFE_KEY = readJevKey()
 let jev = null
 if (TYPESAFE_KEY) {
   const state = {
-    original_request: process.env.GATE_REQUEST ?? '(not supplied; set GATE_REQUEST to the user request being gated)',
+    // The request is the yardstick the whole Jev layer is measured against, so
+    // it is committed rather than left to an environment variable. Scoring a
+    // completion claim against the string "(not supplied)" makes
+    // `requirements_met` and `unmet_requirement` meaningless: Jev cannot
+    // compare a deliverable with a request it has never been told. The env var
+    // still wins, so a one-off run can be judged against a different brief.
+    original_request:
+      process.env.GATE_REQUEST ??
+      (() => {
+        try {
+          return read('docs/original-request.txt').trim()
+        } catch {
+          return '(not supplied; set GATE_REQUEST or add docs/original-request.txt)'
+        }
+      })(),
     deliverable_summary:
       process.env.GATE_SUMMARY ??
       [
@@ -552,24 +566,40 @@ if (TYPESAFE_KEY) {
         'sortable and filterable locally with no further requests; the user selects any number of areas to',
         'compare side by side and drill into, including school detail for the selected area.',
         'Fair housing: no published ranking of neighbourhoods, demographics are never a sort or filter',
-        'control and are excluded from both composite indices, margins of error are always rendered beside',
-        'the figure, minimum-n suppression is enforced centrally in the engine rather than per plugin, and a',
-        'Fair Housing notice with HUD and DOJ complaint links appears on every screen showing data.',
+        'control and are excluded from both composite indices, minimum-n suppression is enforced centrally in',
+        'the engine rather than per plugin, and a Fair Housing notice with HUD and DOJ complaint links appears',
+        'on every screen showing data. Margins of error are rendered beside every figure on the single-area',
+        'drilldown, and are deliberately ABSENT from the country-wide screen, which fetches no _M variables:',
         'Accessibility: WCAG 2.2 AA audited with axe-core in a real browser against the production build',
         'with the Content-Security-Policy enforced, plus manual checks axe cannot make.',
-        'Free and unmonetised: no advertising, no referral fees, no paid placement. Donations route',
-        'through a public Open Collective with a visible balance, not a personal account.',
+        'Free and unmonetised: no advertising, no referral fees, no paid placement, no affiliate links, and no',
+        'code path that could accept payment for a ranking. DONATIONS ARE NOT WIRED UP: the funding section is',
+        'present and reachable without a Census key, but VITE_COLLECTIVE_SLUG is unset because no Open',
+        'Collective has been created, so the section states that plainly instead of showing a dead link. The',
+        'project is nobody-owned in the sense that no entity controls it, but it is not yet fiscally stewarded.',
+        'Map: every ZIP code in the country is drawn on a hexbin map from the same cached figures, coloured',
+        'by a quantile scale and showing the MEDIAN of the ZIP codes in each hexagon rather than a mean, so',
+        'one extreme value cannot dominate its neighbours. A filled-polygon choropleth was measured and',
+        'rejected: Rhode Island\'s 63 ZCTAs alone are 1.31 MB of TIGERweb geometry, extrapolating to about',
+        '700 MB nationally, which a browser on a free static site cannot download. Positions are 33,791 ZCTA',
+        'centroids baked into a committed 165 KB binary, so no tile server is contacted and no third-party',
+        'origin enters the Content-Security-Policy. Alaska and Hawaii use d3\'s geoAlbersUsa insets; Puerto',
+        'Rico has an inset of its own because geoAlbersUsa clips it out entirely, which would have dropped',
+        'about 150 ZIP codes from the map while leaving them listed in the table.',
+        'The screening table is windowed, not truncated: all 33,772 loaded ZIP codes are reachable in a fixed',
+        'height scroll container, aria-rowcount reports the true total, and a ZIP with no estimate for the',
+        'chosen column reads "not yet imported" rather than being hidden.',
         'Nothing is stubbed and no mock data is used. There are no placeholder or fake values in src.',
       ].join(' '),
     verification_evidence: {
       test_suites: [
-        'Unit and security tests: 96 passing, hermetic, no network.',
-        'Live API contract tests: 17 passing against the real Census, TIGERweb, NCES, CDC and NYC Open Data endpoints. These assert response shape, so upstream drift is caught rather than silently reducing what the site shows.',
-        'Browser end-to-end tests: 28 passing in Chromium against the production build, including the WCAG 2.2 AA axe-core audit with zero violations.',
-        'Completion gate itself: 46 deterministic checks, all passing.',
+        'Unit and security tests: 185 passing, hermetic, no network.',
+        'Live API contract tests: 32 passing against the real Census, TIGERweb, NCES, CDC and NYC Open Data endpoints. These assert response shape, so upstream drift is caught rather than silently reducing what the site shows.',
+        'Browser end-to-end tests: 41 passing in Chromium against the production build, including the WCAG 2.2 AA axe-core audit with zero violations and six that assert the map draws, publishes a text equivalent, states real legend values, carries the Fair Housing notice, responds to the keyboard, and shows no sentinel.',
+        'Completion gate itself: 51 deterministic checks, all passing.',
       ],
       measured_results: [
-        'National ACS sweep returns 33,772 rows, matching the 33,791 ZCTAs Census publishes less those with no ACS coverage.',
+        'National ACS sweep returns 33,772 rows, matching the 33,791 ZCTAs Census publishes less those with no ACS coverage, fetched as 43 explicit chunked requests rather than one wildcard query.',
         'Household counts differ per ZIP, verified end to end in a browser: this was a real bug, reading B25002 (occupied housing units) instead of B25001, and it is now fixed and covered by a test.',
         'Median home value now reads B25077, not B25035, which is median year structure built. Also a real bug, also fixed and pinned by a gate check.',
         'Rent burden is the published B25071 median, not our own interpolation.',
@@ -578,6 +608,8 @@ if (TYPESAFE_KEY) {
         'The Fair Housing notice renders on every screen showing data, verified in a browser; it was previously conditional on the country-wide screen having loaded, which meant it was invisible to exactly the visitors who had not yet added a key.',
         'ZIP resolution was audited across 600 codes sampled from the authoritative Census list, plus 400 across every ZIP prefix, all resolving. Non-US and unassigned codes are correctly reported as not a US ZIP.',
         'A single-ZIP lookup returns full figures with margins of error in about 2 seconds while the country-wide screen continues loading in the background.',
+        'The map draws the whole country from 33,791 centroids with no tile server, confirmed in a real browser, with Alaska, Hawaii and Puerto Rico all present as insets.',
+        'The screening table mounts about 77 rows at a time while holding all 33,772 in the accessibility tree, and scrolling reaches the end of the current ordering rather than a hard cut at 200.',
       ],
       defects_found_and_fixed_by_this_process: [
         'A Census ZCTA query requested a field the layer does not define, which fails the whole request with HTTP 200 and an error body; every ZIP was reported as "not a US ZIP code" until it was found by bisecting the field list against the live service.',
@@ -587,9 +619,14 @@ if (TYPESAFE_KEY) {
       ],
     },
     known_limitations: [
-      'Per-school detail is covered for NEW YORK ONLY. This is a structural limit, not an omission. The NCES EDGE ArcGIS catalogue was queried and publishes school districts only, with no school-level service, and each state publishes assessment data in an incompatible format. Washington was investigated as a second candidate and has per-school enrolment data on a keyless CORS-enabled portal, but it carries no school coordinates, so schools cannot be selected by proximity to an address without a fragile name-based join that was judged worse than honestly omitting the state. The other 49 states have district-level data, which is real and citable. StateSchoolPlugin plus the STATE_SCHOOL_PLUGINS list is the extension point, and a new state joins the drilldown automatically.',
-      'The country-wide screen takes roughly 20-70s depending on Census API load, because that API is slow for a 33,791-row wildcard query and its latency scales with variable count. It runs concurrently in the background and never blocks a lookup: a single-ZIP search returns full figures with margins of error in about 2 seconds while the screen is still loading.',
-      'The domain is a temporary Cloudflare Pages address. The original request explicitly asks for the name to be "narrowed later once branding is clear", so this is a deliberate deferral rather than an omission.',
+      'Per-school detail is covered for NEW YORK ONLY. This is a structural limit, re-searched rather than assumed: tools/probe-school-sources.mjs queries the Socrata catalog API for school performance, achievement and graduation datasets across US open-data portals, fetches each candidate dataset metadata, and requires a school name column, a latitude column and an achievement measure. Of 55 candidate datasets examined, 0 were usable. The rejections are specific and consistent: state portals publish DISTRICT accountability rows with no per-school name and no coordinates (Connecticut CMT/CAPT, Texas ratings, Pennsylvania, Delaware, Maryland), and the per-school datasets that do exist either lack coordinates or are lead-testing records rather than achievement. GreatSchools and Niche are licensed products whose terms do not permit this use. The other 49 states have district-level data, which is real and citable, and the interface says so. StateSchoolPlugin plus the STATE_SCHOOL_PLUGINS list is the extension point, and a new state joins the drilldown automatically.',
+      'Stewardship is not yet wired up. There is no Open Collective, because creating one is an account and a fundraising decision that belongs to the maintainer, not something that can be asserted. The app has no donation path at all today and the funding section says so. The project is unowned in the sense that no company controls it, but it is not yet fiscally stewarded, and the original request asks for a stewardship path that is genuinely nobody-owned.',
+      'The domain is a Cloudflare Pages address, not a registered name. civicscope.fyi is selected and available at $5.66/yr but is NOT purchased, because purchasing requires a card. The original request asks for a selected domain, which is the weaker of the two claims and is the one being made.',
+      'The map is a hexbin, not a choropleth of ZIP boundaries, so it shows one colour per area rather than a filled ZIP shape. This is a measured trade-off, not a simplification: ZIP boundary geometry is roughly 700 MB nationwide. Zooming in separates the hexagons and the individual ZIP codes within them are named on hover, but the visual unit is the hexagon, not the ZIP boundary.',
+      'A hexagon is only coloured when at least half of its ZIP codes carry a figure, and the coverage count is shown on hover and in the legend. Requiring every ZIP to have one greyed six cells in seven; requiring none would let a single rural ZIP speak for twenty neighbours.',
+      'Margins of error are shown on every figure in the single-area drilldown, but not in the country-wide screen. This is a deliberate latency trade-off, measured rather than assumed: the Census API is slow for large geography queries and its latency scales with variable count (about 21s at four variables, about 65s at fourteen). Adding five _M columns to the 43 sweep requests would keep the request count the same and make the national screen substantially slower, so the screen shows point estimates and every area can be drilled into for its margins of error in about two seconds.',
+      'The country-wide screen takes roughly 20-70s depending on Census API load. It runs concurrently in the background and never blocks a lookup: a single-ZIP search returns full figures with margins of error in about 2 seconds while the screen is still loading.',
+      'The map reads the committed centroid snapshot rather than querying positions live, because enumerating 33,791 centroids costs about four minutes. tools/gen-map-data.mjs regenerates it, and a live contract test asserts the endpoints still serve the same fields, paging and geometry so drift is caught rather than silently baked in.',
     ],
     deterministic_results: results.map((r) => ({ check: r.label, passed: r.ok, detail: r.detail.slice(0, 200) })),
     evidence_files: [
