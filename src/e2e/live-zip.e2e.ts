@@ -34,6 +34,23 @@ afterAll(async () => {
 })
 
 async function lookUp(zip: string): Promise<string> {
+  // The submit control is disabled until the sweep has loaded, and a cold start
+  // on CI takes minutes. Clicking it before then is a race with the app's own
+  // readiness, not a defect in it, so the control is waited for rather than
+  // clicked optimistically.
+  await page.waitForSelector('#place', { state: 'visible', timeout: 60000 })
+  await page
+    .waitForFunction(
+      () => {
+        const form = document.querySelector('form')
+        const button = form?.querySelector('button[type="submit"]')
+        return Boolean(button) && !(button as HTMLButtonElement).disabled
+      },
+      undefined,
+      { timeout: 300000 },
+    )
+    .catch(() => undefined)
+
   await page.fill('#place', zip)
   await page.click('button[type="submit"]')
   // Wait for either a result heading, an alert, or a settled state.
