@@ -115,7 +115,11 @@ describe.skipIf(!KEY)('data integrity: school figures are real', () => {
     // answer, not a missing one.
     const found = await lookupSchoolDistrict(40.7484, -73.9857, sig())
     expect(found.kind).toBe('administrative')
-  }, 60000)
+    // NCES EDGE is a public service and has been seen to take well over a minute
+  // under load. This assertion is about a supervisory union never being reported
+  // as a district, which is true regardless of how slow the service is, so the
+  // budget reflects the upstream rather than the test.
+}, 300000)
 
   it('returns a real district with positive figures, never a sentinel', async () => {
     // Chicago, verified to fall inside an operating district. Manhattan is
