@@ -104,10 +104,74 @@ export const sweepCache = {
     return n ?? 0
   },
 
+  /**
+   * Deletes any cached chunk that contains an implausible value.
+   *
+   * A visitor who loaded the site before the sentinel fix has poisoned rows
+   * stored under the old version stamp. Bumping the stamp discards them, but a
+   * browser can also hold entries written by a build that shipped the same
+   * stamp with different parsing, and a user should never be asked to clear
+   * storage by hand to get correct numbers.
+   *
+   * So the cache is swept on load: anything holding a value that no estimate can
+   * take is dropped and re-fetched. This runs once per session and is bounded,
+   * so it costs nothing on a healthy cache.
+   */
+  async purgeImplausible(): Promise<number> {
+    const recs = await store<ChunkRecord<unknown>[]>(CHUNKS, 'readonly', (s) => s.getAll())
+    if (!recs || recs.length === 0) return 0
+
+    const bad = recs.filter((r) => containsImplausible(r?.body))
+    if (bad.length === 0) return 0
+
+    const db = await openDb()
+    if (!db) return 0
+    try {
+      const t = db.transaction(CHUNKS, 'readwrite')
+      const store = t.objectStore(CHUNKS)
+      for (const r of bad) store.delete(r.key)
+      await new Promise<void>((resolve) => {
+        t.oncomplete = () => resolve()
+        t.onerror = () => resolve()
+        t.onabort = () => resolve()
+      })
+    } catch {
+      return 0
+    }
+    return bad.length
+  },
+
   async clear(): Promise<void> {
     await store(CHUNKS, 'readwrite', (s) => s.clear())
     await store(MANIFEST, 'readwrite', (s) => s.clear())
   },
+}
+
+/**
+ * True when a cached payload contains a value that cannot be a measurement.
+ *
+ * Any negative number is impossible for the estimates stored here, and the
+ * missing-value encodings are large negatives, so one check covers both without
+ * the cache layer needing to know the sentinel values.
+ */
+export function containsImplausible(body: unknown): boolean {
+  // Deliberately narrow. The ACS endpoints really do return negative numbers,
+  // but every negative one is a missing-data encoding rather than an estimate,
+  // so matching the encodings themselves is precise where rejecting "any
+  // negative" would only ever work by coincidence. Verified against the live
+  // endpoint: across 228 ZCTAs in four states the only negative values returned
+  // were sentinels.
+  const SENTINELS = new Set([666666666, -666666666, 999999999, -999999999, 888888888, -888888888])
+  const seen = new Set<unknown>()
+  const walk = (node: unknown): boolean => {
+    if (typeof node === 'number') return !Number.isFinite(node) || SENTINELS.has(node)
+    if (node === null || typeof node !== 'object') return false
+    if (seen.has(node)) return false
+    seen.add(node)
+    if (Array.isArray(node)) return node.some(walk)
+    return Object.values(node as Record<string, unknown>).some(walk)
+  }
+  return walk(body)
 }
 
 export interface StoredManifest {

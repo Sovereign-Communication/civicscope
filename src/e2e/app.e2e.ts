@@ -145,13 +145,25 @@ describe.skipIf(!KEY)('e2e: country-wide sweep with a real key', () => {
 
   it('sorts the screen locally, without further requests', async () => {
     // Sorting the 33k-row table is a local operation over data already in
-    // memory, so it must not touch the network.
+    // memory, so it must not touch the network. The count is only compared once
+    // the sweep has settled, because a background cache sweep or a late chunk
+    // landing inside the window would otherwise be misread as a request the
+    // sort caused.
+    await page
+      .waitForFunction(
+        () => (document.querySelector('[role="status"]')?.textContent ?? '').includes('Loaded'),
+        undefined,
+        { timeout: 240000 },
+      )
+      .catch(() => undefined)
+    await page.waitForTimeout(3000)
+
     const before = await censusRequestCount()
     await page.click('table button:has-text("Median rent")')
     await page.waitForTimeout(2000)
     const after = await censusRequestCount()
-    expect(after).toBe(before)
-  }, 120000)
+    expect(after, `sorting issued ${after - before} Census request(s)`).toBe(before)
+  }, 300000)
 })
 
 /**

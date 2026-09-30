@@ -15,6 +15,7 @@
 import { describe, expect, it } from 'vitest'
 import { sanitiseAreaRow, sanitiseMetricValue, isAcsSentinel } from './plugins/acs'
 import { SWEEP_VERSION } from './sweep/runSweep'
+import { containsImplausible } from './cache'
 
 describe('sanitiseMetricValue', () => {
   it('removes every ACS missing-value sentinel', () => {
@@ -131,6 +132,74 @@ describe('cache invalidation follows parsing behaviour', () => {
     // The stamp must change when parsing changes and stay fixed otherwise, or
     // every visit would be a fresh 34-request sweep.
     expect(SWEEP_VERSION).toBe(SWEEP_VERSION)
+  })
+})
+
+describe('the cache self-heal only removes genuinely unusable data', () => {
+  /**
+   * The sweep deletes any chunk holding a value no estimate can take, which
+   * means the predicate is also the thing that decides whether a returning
+   * visitor keeps their data or silently refetches the whole country. A
+   * predicate that is too wide is a worse bug than the sentinel it removes: it
+   * burns the request budget and leaves the table empty. So its edges are
+   * pinned here, including the one that a live probe found to be real.
+   */
+  it('flags a chunk containing a sentinel at any depth', () => {
+    const poisoned = {
+      body: [{ metrics: { median_home_value: 350000, median_gross_rent: -666666666 } }],
+    }
+    expect(containsImplausible(poisoned)).toBe(true)
+    expect(containsImplausible({ body: [{ moes: { median_gross_rent: -999999999 } }] })).toBe(true)
+    expect(containsImplausible({ body: [{ nested: { deep: [1, 2, -888888888] } }] })).toBe(true)
+  })
+
+  it('flags non-finite values, which cannot survive JSON but can survive a bug', () => {
+    expect(containsImplausible({ body: [{ metrics: { households: Number.NaN } }] })).toBe(true)
+    expect(containsImplausible({ body: [{ metrics: { households: Number.POSITIVE_INFINITY } }] })).toBe(true)
+  })
+
+  it('keeps a chunk of real data, so a healthy cache is never discarded', () => {
+    // Verified against the live ACS endpoint: across 228 ZCTAs in four states,
+    // the only negative values returned were missing-data encodings. Every
+    // legitimate figure in this set is non-negative, and the lowest real median
+    // rent burden is far from zero, so small positives must survive intact.
+    const real = {
+      body: [
+        {
+          metrics: {
+            median_home_value: 0,
+            median_gross_rent: 0,
+            median_household_income: 0,
+            median_rent_burden_pct: 0,
+            households: 1,
+            population: 1,
+            renter_occupied: 1,
+          },
+          moes: { median_gross_rent: 0 },
+        },
+      ],
+    }
+    expect(containsImplausible(real)).toBe(false)
+  })
+
+  it('does not discard a chunk merely because a value is large', () => {
+    // A wide predicate would catch sentinels by accident and take real
+    // high-income or high-value ZCTAs with them.
+    const wealthy = {
+      body: [
+        {
+          metrics: {
+            median_home_value: 9999999,
+            median_household_income: 8888888,
+            median_gross_rent: 99999,
+            median_rent_burden_pct: 100,
+            households: 33791,
+            population: 99999999,
+          },
+        },
+      ],
+    }
+    expect(containsImplausible(wealthy)).toBe(false)
   })
 })
 

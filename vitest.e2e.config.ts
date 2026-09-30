@@ -15,7 +15,14 @@ export default defineConfig({
     include: ['src/e2e/**/*.e2e.ts'],
     testTimeout: 300000,
     hookTimeout: 180000,
-    // A single browser instance; parallel runs would each pay the sweep cost.
+    // Serialised deliberately. The placeholder and dogfood suites both seed and
+    // sweep the same origin's cache, so running them concurrently has one suite
+    // delete the cache out from under the other and each reports the other's
+    // state. Sequential runs take longer and produce trustworthy results.
     fileParallelism: false,
+    poolOptions: {
+      threads: { singleThread: true },
+      forks: { singleFork: true },
+    },
   },
 })

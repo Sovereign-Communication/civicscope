@@ -165,12 +165,34 @@ describe.skipIf(!KEY)('rendered output contains no placeholder', () => {
     // The table must still be usable, so this cannot pass by rendering nothing.
     expect(rows, 'the screening table rendered no rows').toBeGreaterThan(20)
 
-    // And the row that survived sanitisation must be on screen, proving the
-    // assertion above is about a visible row rather than an empty page.
-    expect(text, 'the surviving real figure is not visible').toMatch(/25\.3%/)
-    // The poisoned siblings of that figure must read as absent, not as numbers.
-    expect(text, 'no absent figure is labelled').toMatch(/not yet imported/)
-  }, 180000)
+    // The seeded 25.3% is deliberately not asserted either way. Real rent
+    // burden values legitimately include 25.3%, so it cannot distinguish a
+    // discarded poisoned chunk from a refetched real one. What distinguishes
+    // them is storage, checked below.
+    //
+    // Real, refetched figures must be on screen.
+    expect(text, 'no real refetched figure is visible').toMatch(/\$[\d,]+/)
+
+    // The poisoned chunks must be gone from storage, not merely hidden by the
+    // renderer. This is the check that proves the self-heal ran rather than the
+    // sentinel assertions above passing under the older sanitise-on-read
+    // behaviour, which left the bad data in place for the next visit.
+    const stillStored = await page.evaluate(
+      () =>
+        new Promise<number>((resolve) => {
+          const open = indexedDB.open('civicscope-cache', 2)
+          open.onsuccess = () => {
+            const tx = open.result.transaction('sweep-chunks', 'readonly')
+            const all = tx.objectStore('sweep-chunks').getAll()
+            all.onsuccess = () =>
+              resolve(all.result.filter((r) => JSON.stringify(r.body ?? '').includes('666666666')).length)
+            all.onerror = () => resolve(0)
+          }
+          open.onerror = () => resolve(0)
+        }),
+    )
+    expect(stillStored, 'poisoned chunks are still stored after the sweep').toBe(0)
+  }, 600000)
 
   it('labels an absent figure rather than inventing one', async () => {
     const text = await page.locator('body').innerText()

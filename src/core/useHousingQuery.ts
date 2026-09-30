@@ -10,6 +10,7 @@ import { CHUNK_SIZE, groupByState, listAllZctas, type ZctasByPrefix } from './sw
 import { describeScope, estimateChunks, stateOptions, toggleState, type StateOption } from './sweep/states'
 import { formatPlace, geocode } from './geocode'
 import { getCensusKey, CENSUS_KEY_EVENT } from './censusKey'
+import { sweepCache } from './cache'
 import { getQuota, onQuotaChange, type QuotaState } from './http'
 import { scoreBoth, type Composite } from './scoring'
 import type { MetricValue, QueryContext, ResolvedPlace, ZoomLevel } from './types'
@@ -310,6 +311,28 @@ export function useHousingQuery() {
     window.addEventListener(CENSUS_KEY_EVENT, onKeyChange)
     return () => window.removeEventListener(CENSUS_KEY_EVENT, onKeyChange)
   }, [loadSweep])
+
+  /**
+   * Self-heal the cache before anything is read.
+   *
+   * A visitor who loaded the site before the sentinel fix is holding rows that
+   * render as -666666666. Bumping the version stamp discards them, but asking
+   * someone to clear site data by hand to be shown correct numbers is not an
+   * acceptable answer. So the cache is swept once per session: any chunk holding
+   * an impossible value is dropped and simply re-fetched.
+   */
+  useEffect(() => {
+    let cancelled = false
+    void sweepCache.purgeImplausible().then((dropped) => {
+      if (cancelled || dropped === 0) return
+      if (import.meta.env.DEV) {
+        console.info(`CivicScope: discarded ${dropped} cached chunk(s) holding unusable values`)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (getCensusKey()) void loadSweep()
