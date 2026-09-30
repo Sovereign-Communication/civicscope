@@ -215,15 +215,19 @@ export const METRIC_DEFS_BY_KEY = new Map(METRIC_DEFS.map((d) => [d.key, d]))
  * 33k rows takes 10ms. The time is server-side in the Census API, and it grows
  * with the variable count.
  *
- * So the screen loads in two stages. The first request carries only the four
- * figures the screening table actually displays, which is roughly a third of
- * the latency, and it is enough to make the country sortable. Margins of error
- * and the remaining columns arrive in a second request afterwards, for the
- * areas the user actually drills into.
+ * So the screen loads in two stages. The first request carries only the five
+ * figures the screening table and the map actually display, which is roughly a
+ * third of the latency, and it is enough to make the country sortable. Median
+ * home value is in the first request rather than the second because the map
+ * needs it for the whole country, and adding a column to a request that is
+ * already being made costs latency but not another request. Margins of error and
+ * the remaining columns arrive in a second request afterwards, for the areas
+ * the user actually drills into.
  */
 export const SCREEN_VARS = [
   VARS.medianGrossRent,
   VARS.medianRentBurden,
+  VARS.medianHomeValue,
   VARS.medianHouseholdIncome,
   VARS.households,
 ]

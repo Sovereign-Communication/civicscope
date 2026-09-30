@@ -8,8 +8,9 @@ import { SweepTable } from './SweepTable'
 import { Comparison } from './Comparison'
 import { FundingSection } from './Funding'
 import { StateFilter } from './StateFilter'
+import { MapView } from './MapView'
 
-type View = 'explore' | 'methodology'
+type View = 'explore' | 'map' | 'methodology'
 
 /**
  * Screening presets.
@@ -98,6 +99,101 @@ export default function App() {
 
   const matches = sweepRows.slice(0, limit)
 
+  /**
+   * The lookup form and the Census key prompt.
+   *
+   * Shared by Explore and Map rather than duplicated, because a visitor who
+   * opens the map and then wants to compare a specific ZIP has to be able to
+   * search from there. Two copies of a search box that subtly drift apart is a
+   * worse bug than one shared component.
+   */
+  const searchPanel = (
+    <>
+      <section aria-labelledby="search-heading" className="rounded-lg border border-slate-200 bg-white p-4">
+        <h2 id="search-heading" className="text-sm font-semibold text-slate-900">
+          Look up a specific ZIP code
+        </h2>
+        <form onSubmit={submit} className="mt-3 flex flex-wrap gap-2">
+          <label htmlFor="place" className="sr-only">
+            US ZIP code
+          </label>
+          <input
+            id="place"
+            type="text"
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            placeholder="e.g. 78701"
+            inputMode="numeric"
+            autoComplete="off"
+            className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+          >
+            Add to comparison
+          </button>
+        </form>
+
+        <fieldset className="mt-4">
+          <legend className="text-sm font-medium text-slate-800">How much detail to fetch</legend>
+          <p className="mt-1 text-xs text-slate-600">
+            Deeper levels fetch more datasets for the areas you select. The country-wide screen is already
+            loaded either way.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {([2, 3, 4] as ZoomLevel[]).map((z) => (
+              <label
+                key={z}
+                className={`cursor-pointer rounded-md border px-3 py-2 text-sm ${
+                  zoom === z ? 'border-slate-700 bg-slate-100 text-slate-900' : 'border-slate-300 text-slate-700'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="zoom"
+                  value={z}
+                  checked={zoom === z}
+                  onChange={() => setZoom(z)}
+                  className="sr-only"
+                />
+                {ZOOM_LABELS[z]}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <p ref={statusRef} role="status" aria-live="polite" className="mt-3 min-h-5 text-sm text-slate-700" />
+
+        {q.status === 'error' && (
+          <p className="mt-2 rounded-md bg-red-50 p-3 text-sm text-red-900" role="alert">
+            {q.error}
+          </p>
+        )}
+      </section>
+
+      {q.sweepStatus === 'needs-key' && !showKeyPrompt && (
+        <button
+          type="button"
+          onClick={() => setShowKeyPrompt(true)}
+          className="mt-4 w-full rounded-lg border border-amber-300 bg-amber-50 p-4 text-left text-sm hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-900"
+        >
+          <span className="font-semibold text-amber-950">Load every ZIP code in the country — free.</span>
+          <span className="mt-1 block text-amber-900">
+            The Census Bureau requires a free API key so they can track usage. It takes about a minute, and your
+            key is stored only in this browser. We never see it and keep no record of your searches.
+          </span>
+        </button>
+      )}
+
+      {showKeyPrompt && (
+        <div className="mt-4">
+          <KeyPrompt onDismiss={() => setShowKeyPrompt(false)} />
+        </div>
+      )}
+    </>
+  )
+
   return (
     <div className="min-h-screen bg-slate-50">
       <a
@@ -119,8 +215,9 @@ export default function App() {
             <ul className="flex gap-1 text-sm">
               {(
                 [
-                  ['explore', 'Explore'],
-                  ['methodology', 'Methodology'],
+      ['explore', 'Explore'],
+      ['map', 'Map'],
+      ['methodology', 'Methodology'],
                 ] as const
               ).map(([id, label]) => (
                 <li key={id}>
@@ -144,92 +241,51 @@ export default function App() {
       <main id="main" className="mx-auto max-w-7xl px-4 py-6">
         {view === 'methodology' ? (
           <Methodology />
-        ) : (
+        ) : view === 'map' ? (
           <>
-            <section aria-labelledby="search-heading" className="rounded-lg border border-slate-200 bg-white p-4">
-              <h2 id="search-heading" className="text-sm font-semibold text-slate-900">
-                Look up a specific ZIP code
-              </h2>
-              <form onSubmit={submit} className="mt-3 flex flex-wrap gap-2">
-                <label htmlFor="place" className="sr-only">
-                  US ZIP code
-                </label>
-                <input
-                  id="place"
-                  type="text"
-                  value={term}
-                  onChange={(e) => setTerm(e.target.value)}
-                  placeholder="e.g. 78701"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+            {searchPanel}
+
+            {q.sweepStatus === 'needs-key' ? (
+              <p className="mt-6 text-sm text-slate-700">
+                Add a free Census key above to load every ZIP code, then the map draws them.
+              </p>
+            ) : q.sweep.length === 0 ? (
+              <p className="mt-6 text-sm text-slate-700" role="status" aria-live="polite">
+                Loading the country-wide figures the map draws from…
+              </p>
+            ) : (
+              <>
+                <MapView
+                  rows={q.sweep}
+                  onSelect={(zctas) => {
+                    for (const zcta of zctas.slice(0, 6)) {
+                      const row = q.sweep.find((r) => r.zcta === zcta)
+                      if (row) void q.selectPlace({ name: row.name, zip: zcta }, zoom)
+                    }
+                  }}
                 />
-                <button
-                  type="submit"
-                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
-                >
-                  Add to comparison
-                </button>
-              </form>
 
-              <fieldset className="mt-4">
-                <legend className="text-sm font-medium text-slate-800">How much detail to fetch</legend>
-                <p className="mt-1 text-xs text-slate-600">
-                  Deeper levels fetch more datasets for the areas you select. The country-wide screen is
-                  already loaded either way.
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {([2, 3, 4] as ZoomLevel[]).map((z) => (
-                    <label
-                      key={z}
-                      className={`cursor-pointer rounded-md border px-3 py-2 text-sm ${
-                        zoom === z ? 'border-slate-700 bg-slate-100 text-slate-900' : 'border-slate-300 text-slate-700'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="zoom"
-                        value={z}
-                        checked={zoom === z}
-                        onChange={() => setZoom(z)}
-                        className="sr-only"
-                      />
-                      {ZOOM_LABELS[z]}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
+                <Comparison drilldowns={q.drilldowns} onDeselect={q.deselect} />
 
-              <p ref={statusRef} role="status" aria-live="polite" className="mt-3 min-h-5 text-sm text-slate-700" />
-
-              {q.status === 'error' && (
-                <p className="mt-2 rounded-md bg-red-50 p-3 text-sm text-red-900" role="alert">
-                  {q.error}
-                </p>
-              )}
-            </section>
-
-            {q.sweepStatus === 'needs-key' && !showKeyPrompt && (
-              <button
-                type="button"
-                onClick={() => setShowKeyPrompt(true)}
-                className="mt-4 w-full rounded-lg border border-amber-300 bg-amber-50 p-4 text-left text-sm hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-900"
-              >
-                <span className="font-semibold text-amber-950">Load every ZIP code in the country — free.</span>
-                <span className="mt-1 block text-amber-900">
-                  The Census Bureau requires a free API key so they can track usage. It takes about a minute,
-                  and your key is stored only in this browser. We never see it and keep no record of your
-                  searches.
-                </span>
-              </button>
+                {q.sweepFromCache && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Loaded from this browser&rsquo;s local cache. Figures come from the American Community
+                    Survey {VINTAGE_LABEL} and update annually; use Refresh in the cache panel to re-fetch.
+                  </p>
+                )}
+              </>
             )}
 
-            {showKeyPrompt && (
-              <div className="mt-4">
-                <KeyPrompt onDismiss={() => setShowKeyPrompt(false)} />
+            {q.selected.length > 0 && <FundingSection />}
+            {q.selected.length > 0 && (
+              <div className="mt-8">
+                <FairHousingNotice />
               </div>
             )}
-
+          </>
+        ) : (
+          <>
+            {searchPanel}
             {q.sweepStatus === 'needs-key' && !showKeyPrompt && (
               <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
                 <h2 className="text-sm font-semibold text-slate-900">What you can do without a key</h2>

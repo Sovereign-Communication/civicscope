@@ -366,7 +366,7 @@ add(
 const headers = read('public/_headers')
 const connectSrc = headers.split('\n').find((l) => l.includes('Content-Security-Policy:'))?.match(/connect-src([^;]*)/)?.[1] ?? ''
 const originHosts = new Set()
-for (const f of ['src/core/plugins/acs.ts', 'src/core/plugins/keyless.ts', 'src/core/plugins/geography.ts', 'src/core/plugins/schools.ts', 'src/core/plugins/ny-schools.ts', 'src/core/geocode.ts']) {
+for (const f of ['src/core/map/centroids.ts', 'src/core/map/projection.ts', 'src/core/map/binning.ts', 'src/core/map/scale.ts', 'src/core/plugins/acs.ts', 'src/core/plugins/keyless.ts', 'src/core/plugins/geography.ts', 'src/core/plugins/schools.ts', 'src/core/plugins/ny-schools.ts', 'src/core/geocode.ts']) {
   for (const m of read(f).matchAll(/https:\/\/([a-z0-9.\-]+)/gi)) originHosts.add(m[1].toLowerCase())
 }
 const missingOrigin = [...originHosts].filter((h) => !connectSrc.includes(h))

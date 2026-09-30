@@ -145,25 +145,38 @@ describe.skipIf(!KEY)('e2e: country-wide sweep with a real key', () => {
 
   it('sorts the screen locally, without further requests', async () => {
     // Sorting the 33k-row table is a local operation over data already in
-    // memory, so it must not touch the network. The count is only compared once
-    // the sweep has settled, because a background cache sweep or a late chunk
-    // landing inside the window would otherwise be misread as a request the
-    // sort caused.
+    // memory, so it must not touch the network.
+    //
+    // The count is only taken once the sweep has genuinely finished. Waiting on
+    // a "Loaded" string is not enough: the app re-renders progress while late
+    // chunks are still landing, and a request arriving inside the measurement
+    // window is indistinguishable from one the sort caused. This waits for the
+    // progress line to disappear, then for the row count to stop changing, so a
+    // race with the sweep is reported as a race rather than as a network call
+    // from the sort.
     await page
       .waitForFunction(
-        () => (document.querySelector('[role="status"]')?.textContent ?? '').includes('Loaded'),
+        () => !/\d+ of 43 areas/.test(document.body.innerText ?? ''),
         undefined,
-        { timeout: 240000 },
+        { timeout: 400000 },
       )
       .catch(() => undefined)
+
+    let previous = -1
+    for (let i = 0; i < 20; i++) {
+      const rows = await page.locator('table tbody tr').count()
+      if (rows === previous) break
+      previous = rows
+      await page.waitForTimeout(1500)
+    }
     await page.waitForTimeout(3000)
 
     const before = await censusRequestCount()
     await page.click('table button:has-text("Median rent")')
-    await page.waitForTimeout(2000)
+    await page.waitForTimeout(2500)
     const after = await censusRequestCount()
     expect(after, `sorting issued ${after - before} Census request(s)`).toBe(before)
-  }, 300000)
+  }, 500000)
 })
 
 /**

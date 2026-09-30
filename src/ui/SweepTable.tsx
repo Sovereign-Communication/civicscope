@@ -18,6 +18,7 @@ const COLUMNS = [
   { key: 'zcta', label: 'ZIP', sort: null },
   { key: 'median_rent_burden_pct', label: 'Rent burden', sort: 'median_rent_burden_pct' as const },
   { key: 'median_gross_rent', label: 'Median rent', sort: 'median_gross_rent' as const },
+  { key: 'median_home_value', label: 'Home value', sort: 'median_home_value' as const },
   { key: 'median_household_income', label: 'Median income', sort: 'median_household_income' as const },
   { key: 'households', label: 'Households', sort: 'households' as const },
 ] as const

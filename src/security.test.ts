@@ -61,13 +61,20 @@ describe('deployment security headers', () => {
 describe('CSP allowlist matches the code', () => {
   const originsInCode = new Set<string>()
 
-  // Plugin sources live in core/plugins; the geocoder lives directly in core.
+  // Plugin sources live in core/plugins; the geocoder and the map live directly
+  // in core. The map is included so that if it ever starts talking to a tile
+  // server or a geocoding API, this test forces the allowlist to say so rather
+  // than letting the request fail silently in production.
   const sources = [
     join(root, 'core', 'plugins', 'acs.ts'),
     join(root, 'core', 'plugins', 'keyless.ts'),
     join(root, 'core', 'plugins', 'geography.ts'),
     join(root, 'core', 'plugins', 'schools.ts'),
     join(root, 'core', 'geocode.ts'),
+    join(root, 'core', 'map', 'centroids.ts'),
+    join(root, 'core', 'map', 'projection.ts'),
+    join(root, 'core', 'map', 'binning.ts'),
+    join(root, 'core', 'map', 'scale.ts'),
   ]
   for (const path of sources) {
     const src = readFileSync(path, 'utf8')

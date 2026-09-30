@@ -162,7 +162,11 @@ describe('gate: data-source table', () => {
     for (const f of [
       'src/core/plugins/acs.ts',
       'src/core/plugins/keyless.ts',
-      'src/core/plugins/geography.ts',
+      'src/core/map/centroids.ts',
+    'src/core/map/projection.ts',
+    'src/core/map/binning.ts',
+    'src/core/map/scale.ts',
+    'src/core/plugins/geography.ts',
       'src/core/plugins/schools.ts',
       'src/core/plugins/ny-schools.ts',
       'src/core/geocode.ts',
