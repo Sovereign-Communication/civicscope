@@ -106,7 +106,7 @@ describe('live: Census key validation', () => {
     const result = await validateCensusKey('c'.repeat(40), ctrl.signal)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('network')
-  }, 20000)
+  }, 300000)
 })
 
 describe('live: NCES EDGE school districts', () => {
@@ -118,7 +118,7 @@ describe('live: NCES EDGE school districts', () => {
     expect(spend?.value).toBeGreaterThan(0)
     const ratio = found.metrics.find((m) => m.key === 'student_teacher_ratio')
     expect(ratio?.value).toBeGreaterThan(0)
-  }, 60000)
+  }, 300000)
 
   it('never presents the -2 missing-value sentinel as a figure', withNetworkRetry('NCES sentinel', async () => {
     // NCES encodes "not available" as -2. A real-looking negative spend figure
@@ -135,7 +135,7 @@ describe('live: NCES EDGE school districts', () => {
         }
       }
     }
-  }))
+  }), 300000)
 
   it('rejects a supervisory union instead of calling it a school district', async () => {
     // All of New York City sits inside "NYC Chancellor's Office", an LEA_TYPE 3
@@ -143,14 +143,14 @@ describe('live: NCES EDGE school districts', () => {
     // would be a wrong answer, not a missing one.
     const found = await lookupSchoolDistrict(40.7506, -73.9972, sig())
     expect(found.kind).not.toBe('district')
-  }, 60000)
+  }, 300000)
 
   it('works in non-contiguous states', async () => {
     const hi = await lookupSchoolDistrict(21.3069, -157.8583, sig()) // Honolulu HI
     expect(hi.kind).toBe('district')
     const ak = await lookupSchoolDistrict(61.2181, -149.9003, sig()) // Anchorage AK
     expect(ak.kind).toBe('district')
-  }, 60000)
+  }, 300000)
 })
 
 describe.skipIf(!process.env.CENSUS_KEY)('live: chunked ACS sweep', () => {

@@ -132,7 +132,7 @@ describe.skipIf(!KEY)('data integrity: school figures are real', () => {
       expect(FORBIDDEN, `${m.key} held ${m.value}`).not.toContain(m.value)
       expect(m.value, `${m.key} was not positive`).toBeGreaterThan(0)
     }
-  }, 60000)
+  }, 300000)
 })
 
 describe('data integrity: the sweep is planned within the measured ceiling', () => {
