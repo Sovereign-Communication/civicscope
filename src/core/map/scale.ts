@@ -26,15 +26,33 @@ export const MAP_METRICS = [
 export type MapMetricKey = (typeof MAP_METRICS)[number]['key']
 
 /**
- * Sequential ramp, dark to light, in a single hue.
+ * Sequential ramp, light to dark, in a single hue: higher values are darker.
  *
- * Steps are chosen so adjacent bins stay distinguishable in greyscale, which
- * keeps the map readable for a colour-blind viewer and in print. The no-data
- * colour is deliberately a desaturated grey rather than a pale ramp step, so an
- * area with no figure can never be mistaken for an area with a low one.
+ * This was inverted at first and the inversion is worth recording, because it is
+ * the kind of thing that looks deliberate and is simply wrong. Darker ink on a
+ * pale background reads as MORE, everywhere a reader has seen a map before:
+ * population choropleths, weather heatmaps, dark-mode interfaces. A ramp that
+ * darkens toward the low end therefore draws the eye to the lowest values and
+ * gives the reader the opposite of what they were expecting. The original
+ * choice was made so that dark text would stay legible on a light fill, which
+ * is a real concern for a labelled choropleth and irrelevant here, because most
+ * hexagons carry no label.
+ *
+ * Every step keeps real chroma, including the palest, so no step can be
+ * mistaken for the flat grey used for absent data. That collision is the cost
+ * of flipping the ramp and it is why the pale end is a tinted blue rather than
+ * the near-white it would otherwise be.
  */
-export const RAMP = ['#1e3a8a', '#2c5aa0', '#3d7fb8', '#5c9fd0', '#8bbcde', '#bcd8ea']
-export const NO_DATA_COLOR = '#e2e8f0'
+export const RAMP = ['#dbeafe', '#93c5fd', '#60a5fa', '#3b82f6', '#1d4ed8', '#172554']
+
+/**
+ * Absent data.
+ *
+ * A flat neutral grey with no blue in it at all, and lighter than every ramp
+ * step, so "no figure" cannot be read as "a low figure". It is the only colour
+ * on the map that is not in the blue family.
+ */
+export const NO_DATA_COLOR = '#e7e5e4'
 export const NO_DATA_LABEL = 'not yet imported'
 
 export interface Bin {

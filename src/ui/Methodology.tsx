@@ -21,7 +21,7 @@ export function Methodology() {
   return (
     <div className="space-y-8">
       <section aria-labelledby="about-heading">
-        <h2 id="about-heading" className="text-lg font-semibold text-slate-900">
+        <h2 id="about-heading" className="section-title">
           How CivicScope works
         </h2>
         <div className="mt-2 space-y-3 text-sm leading-relaxed text-slate-700">
@@ -46,7 +46,7 @@ export function Methodology() {
       </section>
 
       <section aria-labelledby="privacy-heading">
-        <h2 id="privacy-heading" className="text-lg font-semibold text-slate-900">
+        <h2 id="privacy-heading" className="section-title">
           What we collect
         </h2>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
@@ -60,22 +60,22 @@ export function Methodology() {
       </section>
 
       <section aria-labelledby="stewardship-heading">
-        <h2 id="stewardship-heading" className="text-lg font-semibold text-slate-900">
+        <h2 id="stewardship-heading" className="section-title">
           Who owns this
         </h2>
-        <p className="mt-2 text-sm text-slate-700">
+        <p className="section-note mt-2">
           Nobody, in the sense that matters operationally: there is no company behind this, nobody is paid to
           work on it, and there is no way for anyone to buy a better result. It carries no advertising, no
           referral fees and no paid placement.
         </p>
-        <p className="mt-2 text-sm text-slate-700">
+        <p className="section-note mt-2">
           Three things are true and worth stating plainly rather than glossing. The repository sits in a GitHub
           organisation, which is an organisation that can delete it, so it is not unowned in the strict sense.
           There is no donation route yet, because creating a funding collective is an account and a decision
           rather than something code can do. And nothing here is funded, so nothing here is guaranteed &mdash; a
           source can change and the maintainer can stop.
         </p>
-        <p className="mt-2 text-sm text-slate-700">
+        <p className="section-note mt-2">
           What survives all of that is the part that matters for your trust in a number: every figure here is
           fetched from its publisher directly by your browser, and can be re-fetched independently to check it.
           The full position, including what would have to change for the claim to be stronger, is in{' '}
@@ -84,7 +84,7 @@ export function Methodology() {
       </section>
 
       <section aria-labelledby="data-heading">
-        <h2 id="data-heading" className="text-lg font-semibold text-slate-900">
+        <h2 id="data-heading" className="section-title">
           Data sources
         </h2>
         <p className="mt-1 text-sm text-slate-600">
@@ -124,7 +124,7 @@ export function Methodology() {
       </section>
 
       <section aria-labelledby="scoring-heading">
-        <h2 id="scoring-heading" className="text-lg font-semibold text-slate-900">
+        <h2 id="scoring-heading" className="section-title">
           How the indices are calculated
         </h2>
         <p className="mt-1 text-sm text-slate-700">
@@ -178,7 +178,7 @@ export function Methodology() {
       </section>
 
       <section aria-labelledby="fair-heading">
-        <h2 id="fair-heading" className="text-lg font-semibold text-slate-900">
+        <h2 id="fair-heading" className="section-title">
           Fair housing commitments
         </h2>
         <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-slate-700">
@@ -206,7 +206,7 @@ export function Methodology() {
       </section>
 
       <section aria-labelledby="attr-heading">
-        <h2 id="attr-heading" className="text-lg font-semibold text-slate-900">
+        <h2 id="attr-heading" className="section-title">
           Attribution
         </h2>
         <div className="mt-2 space-y-1 text-sm text-slate-700">

@@ -113,7 +113,7 @@ export default function App() {
    */
   const searchPanel = (
     <>
-      <section aria-labelledby="search-heading" className="rounded-lg border border-slate-200 bg-white p-4">
+      <section aria-labelledby="search-heading" className="panel panel-padded">
         <h2 id="search-heading" className="text-sm font-semibold text-slate-900">
           Look up a specific ZIP code
         </h2>
@@ -198,25 +198,38 @@ export default function App() {
     </>
   )
 
+  /*
+   * The shell.
+   *
+   * The header is sticky and translucent with a backdrop blur, so the view
+   * switcher is reachable without scrolling back up through a full-country
+   * table. The wordmark is set larger and tighter than the strapline, and the
+   * strapline is de-emphasised, because the product name is the only thing on
+   * the line that is not descriptive.
+   *
+   * The nav contract is unchanged deliberately: the buttons keep their labels,
+   * their `aria-current`, and their order, because the accessibility suite and
+   * the gate both select on them.
+   */
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-white focus:px-4 focus:py-2 focus:shadow"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg"
       >
         Skip to main content
       </a>
 
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-slate-900">CivicScope</h1>
-            <p className="text-sm text-slate-600">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
+          <div className="min-w-0">
+            <h1 className="text-[1.375rem] font-semibold tracking-tight text-slate-900">CivicScope</h1>
+            <p className="text-[0.8125rem] leading-snug text-slate-600">
               Every ZIP code in the US, from federal data, in your browser.
             </p>
           </div>
           <nav aria-label="Primary">
-            <ul className="flex gap-1 text-sm">
+            <ul className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 text-sm">
               {(
                 [
       ['explore', 'Explore'],
@@ -229,8 +242,10 @@ export default function App() {
                     type="button"
                     onClick={() => setView(id)}
                     aria-current={view === id ? 'page' : undefined}
-                    className={`rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
-                      view === id ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+                    className={`rounded-md px-3 py-1.5 font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
+                      view === id
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
                     }`}
                   >
                     {label}
@@ -292,7 +307,7 @@ export default function App() {
           <>
             {searchPanel}
             {q.sweepStatus === 'needs-key' && !showKeyPrompt && (
-              <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+              <section className="mt-4 panel panel-padded">
                 <h2 className="text-sm font-semibold text-slate-900">What you can do without a key</h2>
                 <p className="mt-1 text-sm text-slate-700">
                   Add a ZIP code above to see its detail. Geocoding, census-tract boundaries, school district
@@ -317,7 +332,7 @@ export default function App() {
               </div>
             )}
             {q.sweepStatus === 'loading' && (
-              <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4" role="status" aria-busy="true">
+              <section className="mt-4 panel panel-padded" role="status" aria-busy="true">
                 <h2 className="text-sm font-semibold text-slate-900">
                   Loading {q.sweepProgress?.scope ?? 'housing data'}
                 </h2>
@@ -334,7 +349,7 @@ export default function App() {
                         }}
                       />
                     </div>
-                    <p className="mt-2 text-sm text-slate-700">
+                    <p className="section-note mt-2">
                       {q.sweepProgress.done} of {q.sweepProgress.total} areas ·{' '}
                       {num.format(q.sweepProgress.rows)} ZIP codes ready
                       {q.sweepProgress.failed > 0 && ` · ${q.sweepProgress.failed} failed`}
@@ -349,7 +364,7 @@ export default function App() {
                 ) : (
                   <p className="mt-1 text-sm text-slate-700">Working out which areas to load…</p>
                 )}
-                <p className="mt-2 text-sm text-slate-700">
+                <p className="section-note mt-2">
                   <strong>You do not have to wait.</strong> Look up a ZIP code above and you will get its full
                   figures immediately — that request is separate and takes a couple of seconds.
                 </p>
@@ -380,7 +395,7 @@ export default function App() {
               <>
                 <section aria-labelledby="screen-heading" className="mt-6">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h2 id="screen-heading" className="text-lg font-semibold text-slate-900">
+                    <h2 id="screen-heading" className="section-title">
                       Screen every ZIP code
                     </h2>
                     <p className="text-xs text-slate-500">

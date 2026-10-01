@@ -33,7 +33,7 @@ export function StateFilter({
   const listId = useId()
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="panel panel-padded">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Narrow to a state or several</h2>

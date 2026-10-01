@@ -22,13 +22,13 @@ export function Comparison({
 
   return (
     <section aria-labelledby="comparison-heading" className="mt-8">
-      <h2 id="comparison-heading" className="text-lg font-semibold text-slate-900">
+      <h2 id="comparison-heading" className="section-title">
         Comparing {entries.length} {entries.length === 1 ? 'area' : 'areas'}
       </h2>
 
       <div className="mt-3 space-y-4">
         {entries.map((d) => (
-          <article key={d.zcta} className="rounded-lg border border-slate-200 bg-white p-4">
+          <article key={d.zcta} className="panel panel-padded">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h3 className="text-base font-semibold text-slate-900">

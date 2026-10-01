@@ -29,7 +29,7 @@ export const FUNDING = {
 
 export function FundingSection() {
   return (
-    <section aria-labelledby="funding-heading" className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+    <section aria-labelledby="funding-heading" className="mt-6 panel panel-padded">
       <h2 id="funding-heading" className="text-sm font-semibold text-slate-900">
         This tool is free, and stays free
       </h2>
@@ -37,7 +37,7 @@ export function FundingSection() {
         CivicScope carries no advertising, sells no listings, and takes no payment for placement in any result.
         It runs on free hosting and free government data, so there is nothing for a sponsor to buy.
       </p>
-      <p className="mt-2 text-sm text-slate-700">
+      <p className="section-note mt-2">
         If it is useful to you and you would like to help cover hosting costs, you can contribute through
         Open Collective. That is a public collective with a visible balance — not a personal account — so the
         money does not belong to any individual and is auditable by anyone.

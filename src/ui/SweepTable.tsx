@@ -48,7 +48,22 @@ const UNIT_OF: Record<string, string> = {
   population: 'count',
 }
 
-function fmt(value: number | null, unit: string): string {
+/**
+ * Formats a margin of error, or returns null when there is nothing to show.
+ *
+ * Separate from `fmt` on purpose. `fmt` is the display formatter and returns the
+ * absent label for anything it will not vouch for, which is right for a figure
+ * and wrong for a margin: a rent-burden margin is routinely larger than 100
+ * points, so routing it through `fmt` produced a literal "+/- not yet imported"
+ * beside a perfectly valid 9%. A margin is also not a currency or a percentage
+ * in its own right, so it carries no unit suffix either.
+ */
+function fmtMargin(value: number | null): string | null {
+  if (value === null || !Number.isFinite(value) || value < 0) return null
+  if (value === 0) return '0'
+  return num.format(Math.round(value))
+}
+  function fmt(value: number | null, unit: string): string {
   if (value === null || !Number.isFinite(value) || value < 0) return 'not yet imported'
   if (unit === 'percent') return value > 100 ? 'not yet imported' : `${value}%`
   if (unit === 'usd_monthly') return `${usd.format(value)}/mo`
@@ -123,11 +138,11 @@ export function SweepTable({
 
   function header(col: (typeof COLUMNS)[number]) {
     if (!col.sort) {
-      return <th scope="col" className="px-2 py-2 text-left font-semibold text-slate-700">{col.label}</th>
+      return <th scope="col" className="px-3 py-2 text-left text-[0.8125rem] font-semibold text-slate-700">{col.label}</th>
     }
     const active = sortKey === col.sort
     return (
-      <th scope="col" className="px-2 py-2 text-left font-semibold text-slate-700" aria-sort={active ? (asc ? 'ascending' : 'descending') : 'none'}>
+      <th scope="col" className="px-3 py-2 text-right text-[0.8125rem] font-semibold text-slate-700" aria-sort={active ? (asc ? 'ascending' : 'descending') : 'none'}>
         <button
           type="button"
           onClick={() => {
@@ -178,7 +193,7 @@ export function SweepTable({
       <div
         ref={scroller}
         onScroll={(e) => setStart(Math.floor((e.target as HTMLDivElement).scrollTop / ROW_HEIGHT) - OVERSCAN)}
-        className="mt-3 max-h-[560px] overflow-auto rounded-lg border border-slate-200 bg-white"
+        className="mt-3 max-h-[560px] overflow-auto panel"
       >
         <table className="w-full text-left text-sm">
           <caption className="px-3 py-2 text-left text-xs text-slate-600">
@@ -186,7 +201,7 @@ export function SweepTable({
             {num.format(visible.length)} areas in total and is scrolled rather than truncated, so every ZIP
             code is reachable. Every column is sortable; no ordering is recommended.
           </caption>
-          <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50">
+          <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 backdrop-blur">
             <tr>
               {COLUMNS.map((c) => header(c))}
               <th scope="col" className="px-2 py-2">
@@ -208,15 +223,15 @@ export function SweepTable({
             {window.map((r) => {
               const isSelected = selectedZctas.includes(r.zcta)
               return (
-                <tr key={r.zcta} className="border-b border-slate-100 hover:bg-slate-50" style={{ height: ROW_HEIGHT }}>
-                  <th scope="row" className="px-2 py-1.5 font-mono font-normal text-slate-900">
+                <tr key={r.zcta} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/40 hover:bg-blue-50/60" style={{ height: ROW_HEIGHT }}>
+                  <th scope="row" className="px-3 py-1.5 text-left font-mono text-[0.8125rem] font-medium tabular-nums text-slate-900">
                     {r.zcta}
                   </th>
                   {COLUMNS.filter((c) => c.sort).map((c) => {
                     const value = r.metrics[c.sort!] ?? null
-                    const margin = r.moes?.[c.sort!] ?? null
+                    const marginText = fmtMargin(r.moes?.[c.sort!] ?? null)
                     return (
-                      <td key={c.key} className="px-2 py-1.5 tabular-nums text-slate-700">
+                      <td key={c.key} className="px-3 py-1.5 text-right text-[0.8125rem] tabular-nums text-slate-700">
                         {fmt(value, UNIT_OF[c.sort!] ?? 'count')}
                         {/*
                           The margin is rendered beside the figure rather than in
@@ -224,15 +239,18 @@ export function SweepTable({
                           its precision attached is the thing this app exists to
                           avoid. It only appears when the publisher supplies one.
                         */}
-                        {margin !== null && value !== null ? (
-                          <span className="ml-1 text-slate-500">
-                            &plusmn;{fmt(margin, UNIT_OF[c.sort!] ?? 'count').replace(/^\$|^\d/, '')}
+                        {marginText !== null && value !== null ? (
+                          <span
+                            className="ml-1 text-[0.6875rem] tabular-nums text-slate-500"
+                            title={`Margin of error plus or minus ${marginText}`}
+                          >
+                            &plusmn;{marginText}
                           </span>
                         ) : null}
                       </td>
                     )
                   })}
-                  <td className="px-2 py-1.5">
+                  <td className="px-3 py-1.5 text-right">
                     <button
                       type="button"
                       onClick={() => onAdd(r.zcta)}

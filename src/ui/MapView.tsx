@@ -1,6 +1,25 @@
 /** The state the map opens in, and the target every reset returns to. */
 const INITIAL_VIEWPORT: Viewport = { width: 900, height: 560, scale: 1, offsetX: 0, offsetY: 0 }
 
+/**
+ * Relative luminance of a hex colour, by the WCAG formula.
+ *
+ * Needed because the ramp now runs light to dark: a fixed label colour would be
+ * dark-on-dark over exactly the hexagons that matter most, which are the high
+ * values. Anything above roughly 0.45 takes white text.
+ */
+function isLight(hex: string): boolean {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return true
+  const n = parseInt(m[1]!, 16)
+  const channel = (c: number) => {
+    const srgb = c / 255
+    return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4
+  }
+  const l = 0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255)
+  return l > 0.32
+}
+
 /** Below this zoom, hexagons are too small and too many to letter. */
 const LABEL_MIN_SCALE = 2.6
 /** Labels are pointless in a hexagon smaller than this. */
@@ -255,6 +274,22 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
       outlinePath(viewport)(ctx)
     }
 
+    /*
+     * Hexagons, then labels on top of them.
+     *
+     * These are one loop rather than two because a label's ink has to be chosen
+     * from its own hexagon's fill, and splitting them meant recomputing the
+     * colour and luminance for every cell a second time.
+     *
+     * The ramp runs light for low values to dark for high, so the eye is drawn
+     * to the high end the way it is on every map a reader has seen before.
+     * Both the separating hairline and the label ink therefore follow each
+     * fill's luminance: a fixed white hairline vanishes against the dark end,
+     * which is the end that matters most.
+     */
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const labelling = radius >= LABEL_MIN_RADIUS
     for (const bin of geoms) {
       const r = radius
       const isSelected = bin.zctas.some((z) => selectedZctas.includes(z))
@@ -269,39 +304,23 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
       ctx.closePath()
       ctx.fillStyle = color
       ctx.fill()
-      // An outline keeps adjacent hexagons separable and gives the no-data grey
-      // a visible edge rather than blending into the background.
-      ctx.strokeStyle = isSelected ? '#0f172a' : '#ffffff'
+
+      const pale = isLight(color)
+      ctx.strokeStyle = isSelected ? '#0f172a' : pale ? '#ffffff' : 'rgba(255,255,255,0.32)'
       ctx.lineWidth = isSelected ? 2.5 : 0.75
       ctx.stroke()
-    }
 
-    /*
-     * Labels, once there is room for them.
-     *
-     * An unlabelled hexbin map tells you where a figure is high and where it is
-     * low but never where you are, which is the objection Jev raised after the
-     * accuracy and completeness review: the colours were right and the places
-     * were anonymous. Below the threshold nothing is drawn, because a hexagon
-     * too small to hold its own name is better left blank than lettered with
-     * overlapping text.
-     */
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    for (const bin of geoms) {
+      if (!labelling) continue
       if (bin.count !== 1 && viewport.scale < LABEL_MIN_SCALE) continue
-      if (radius < LABEL_MIN_RADIUS) continue
       const text = bin.count === 1 ? bin.zctas[0]! : String(bin.count)
-      ctx.font = `${Math.max(9, Math.min(13, radius * 0.62))}px ui-monospace, monospace`
-      const w = ctx.measureText(text).width
+      ctx.font = `${Math.max(9, Math.min(13, r * 0.62))}px ui-monospace, monospace`
       // Skip anything that would not fit its own hexagon, which is what stops a
-      // dense area turning into an unreadable grey smear of letters.
-      if (w > radius * 1.75) continue
-      // A dark halo keeps the label legible over both ends of the colour ramp.
+      // dense area turning into an unreadable smear of letters.
+      if (ctx.measureText(text).width > r * 1.75) continue
       ctx.lineWidth = 2.5
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)'
+      ctx.strokeStyle = pale ? 'rgba(255,255,255,0.9)' : 'rgba(15,23,42,0.55)'
       ctx.strokeText(text, bin.cx, bin.cy)
-      ctx.fillStyle = '#0f172a'
+      ctx.fillStyle = pale ? '#0f172a' : '#ffffff'
       ctx.fillText(text, bin.cx, bin.cy)
     }
   }, [assets, fit, viewport, geoms, bins, selectedZctas, outlinePath])
@@ -384,11 +403,11 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
   const covered = useMemo(() => geoms.filter((g) => g.value !== null).length, [geoms])
 
   return (
-    <section aria-labelledby={headingId} className="mt-8">
-      <h2 id={headingId} className="text-lg font-semibold text-slate-900">
+    <section aria-labelledby={headingId} className="mt-8 panel panel-padded">
+      <h2 id={headingId} className="section-title">
         Map
       </h2>
-      <p className="mt-1 max-w-3xl text-sm text-slate-700">
+      <p className="section-note mt-1">
         One hexagon per area, coloured by the selected figure. Each hexagon covers one or more ZIP codes and
         shows the median of those that have a figure, and only where at least half of them do. Zoom in and the
         hexagons separate: at the deepest zoom each one holds a single ZIP code and shows that ZIP code's published
@@ -430,7 +449,7 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
 
       <div
         ref={wrapRef}
-        className="relative mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white"
+        className="relative mt-3 overflow-hidden panel"
       >
         <canvas
           ref={canvasRef}
@@ -523,12 +542,12 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
           using a mouse or a touchscreen, so the same three actions are offered
           as buttons.
         */}
-        <div className="absolute right-2 top-2 flex flex-col gap-1">
+        <div className="absolute right-2 top-2 flex flex-col gap-1 rounded-lg border border-slate-200 bg-white/90 p-1 shadow-sm backdrop-blur">
           <button
             type="button"
             onClick={() => zoomAtData(1.5)}
             aria-label="Zoom in"
-            className="h-8 w-8 rounded-md border border-slate-300 bg-white text-lg leading-none text-slate-900 shadow-sm hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+            className="h-7 w-7 rounded-md text-lg leading-none text-slate-700 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
           >
             <span aria-hidden="true">+</span>
           </button>
@@ -536,7 +555,7 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
             type="button"
             onClick={() => zoomAtData(1 / 1.5)}
             aria-label="Zoom out"
-            className="h-8 w-8 rounded-md border border-slate-300 bg-white text-lg leading-none text-slate-900 shadow-sm hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+            className="h-7 w-7 rounded-md text-lg leading-none text-slate-700 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
           >
             <span aria-hidden="true">&minus;</span>
           </button>
@@ -544,12 +563,12 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
             type="button"
             onClick={() => setViewport({ ...INITIAL_VIEWPORT, width: viewport.width, height: viewport.height })}
             aria-label="Reset the map to the whole country"
-            className="h-8 w-8 rounded-md border border-slate-300 bg-white text-xs leading-none text-slate-900 shadow-sm hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+            className="h-7 w-7 rounded-md text-xs leading-none text-slate-700 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
           >
             <span aria-hidden="true">&#8634;</span>
           </button>
         </div>
-        <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-white/80 px-1.5 py-0.5 text-[11px] text-slate-700">
+        <p className="pointer-events-none absolute bottom-2 left-2 max-w-[22rem] rounded bg-white/85 px-2 py-1 text-[11px] leading-snug text-slate-600 backdrop-blur">
           Drag to pan, scroll or pinch to zoom, or use the buttons. Arrow keys pan, + and &minus; zoom, 0
           resets. Click an area to compare it.
         </p>
@@ -563,7 +582,7 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
           {bins.length === 0 ? ' (no figures loaded yet)' : ''}
         </p>
         {bins.length > 0 ? (
-          <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-slate-700">
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-[0.8125rem] text-slate-700">
             {bins.map((bin) => (
               <li key={bin.color} className="flex items-center gap-1.5">
                 <span

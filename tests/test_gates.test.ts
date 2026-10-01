@@ -231,3 +231,80 @@ describe('gate: no hidden blocking on a missing key', () => {
     expect(read('src/core/useHousingQuery.ts')).not.toMatch(/if \(!key\) return/)
   })
 })
+
+/**
+ * The map's colour scale and the legibility of what it draws.
+ *
+ * These pin three defects that were invisible in output-only assertions.
+ */
+describe('gate: map colour scale reads correctly', () => {
+  const scale = read('src/core/map/scale.ts')
+  const map = read('src/ui/MapView.tsx')
+
+  it('darkens toward the high end, not the low end', () => {
+    // The ramp ran dark-to-low and light-to-high, which is backwards from what
+    // a reader expects: darker ink on a pale background reads as MORE,
+    // everywhere from population maps to heatmaps, so the old scale drew the eye
+    // to the LOWEST values. It was originally dark-first so label text would
+    // stay legible, which matters for a labelled choropleth and is irrelevant
+    // to a hexbin map where most cells carry no label.
+    const block = /export const RAMP = \[([\s\S]*?)\]/.exec(scale)
+    expect(block, 'RAMP must exist').not.toBeNull()
+    const steps = (block![1].match(/#[0-9a-f]{6}/gi) ?? []).map((h) => h.toLowerCase())
+    expect(steps.length, 'the ramp needs several steps').toBeGreaterThanOrEqual(4)
+
+    const luminance = (hex: string) => {
+      const n = parseInt(hex.slice(1), 16)
+      const ch = (c: number) => {
+        const s = c / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * ch((n >> 16) & 255) + 0.7152 * ch((n >> 8) & 255) + 0.0722 * ch(n & 255)
+    }
+    // The first step is the lowest bin, the last is the highest.
+    const low = luminance(steps[0]!)
+    const high = luminance(steps[steps.length - 1]!)
+    expect(high, 'the ramp must darken toward the highest values').toBeLessThan(low)
+  })
+
+  it('keeps absent data visually distinct from the palest step', () => {
+    // Flipping the ramp brought the two together: a pale ramp step and a grey
+    // no-data fill would have been hard to tell apart, and "no figure" must
+    // never be readable as "a low figure".
+    const noData = /NO_DATA_COLOR = '([^']+)'/.exec(scale)
+    expect(noData, 'NO_DATA_COLOR must be declared').not.toBeNull()
+    const block = /export const RAMP = \[([\s\S]*?)\]/.exec(scale)
+    const steps = (block![1].match(/#[0-9a-f]{6}/gi) ?? []).map((h) => h.toLowerCase())
+    expect(steps).not.toContain(noData![1]!.toLowerCase())
+  })
+
+  it('separates adjacent hexagons and labels them at both ends of the ramp', () => {
+    // With the ramp running light-to-dark, a fixed white hairline disappeared
+    // against the dark end, which is the end the eye is drawn to, so
+    // neighbouring hexagons merged into one dark mass exactly where the map
+    // should be most legible.
+    expect(map, 'label and separator contrast must follow the fill luminance').toMatch(
+      /function isLight/,
+    )
+    expect(map, 'the hairline must vary with the fill').toMatch(
+      /pale \? '#ffffff' : 'rgba\(255,255,255,/,
+    )
+    expect(map, 'label ink must vary with the fill').toMatch(/fillStyle = pale \? '#0f172a' : '#ffffff'/)
+    expect(map, 'the label halo must vary with the fill').toMatch(
+      /strokeStyle = pale \? 'rgba\(255,255,255,0.9\)'/,
+    )
+  })
+
+  it('never renders a margin of error as a missing-data label', () => {
+    // A rent-burden margin is routinely larger than 100 points and the display
+    // formatter returns "not yet imported" for anything over 100, so routing a
+    // margin through it produced a literal +/- not yet imported beside a
+    // perfectly valid 9%. Worse than showing no margin at all.
+    const table = read('src/ui/SweepTable.tsx')
+    expect(table, 'margins need a formatter of their own').toMatch(/function fmtMargin/)
+    expect(table, 'a margin must not be rendered through the figure formatter').not.toMatch(
+      /&plusmn;\{fmt\(/,
+    )
+    expect(table, 'the margin is rendered through fmtMargin').toMatch(/&plusmn;\{marginText\}/)
+  })
+})
