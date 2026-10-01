@@ -40,8 +40,24 @@ export interface HexBin {
   zctas: string[]
 }
 
-/** Hexagon geometry, flat-top, sized in screen pixels. */
-const HEX_RADIUS = 9
+/**
+ * Hexagon radius in screen pixels.
+ *
+ * This used to be a constant, which is what made the map feel unfinished:
+ * zooming in enlarged the whole projection but left every hexagon at nine
+ * pixels, so the extra magnification bought nothing and the country just grew.
+ * The radius now scales with the viewport so that zooming in genuinely resolves
+ * finer detail — at high zoom a hexagon holds a handful of ZIP codes and the
+ * reader is looking at neighbourhoods rather than the country.
+ */
+export function hexRadius(viewportScale: number): number {
+  // Clamped at both ends. Below about 5px the hexagons cannot hold a legible
+  // tooltip and the fill starts to disappear between neighbours; above about
+  // 26px each hexagon covers a large area, so the median it reports stops
+  // meaning "this neighbourhood".
+  const r = 9 * Math.pow(Math.max(1, viewportScale), 0.55)
+  return Math.max(5, Math.min(26, r))
+}
 
 /**
  * The share of a hexagon's ZIP codes that must carry a figure before its median
@@ -63,18 +79,18 @@ function median(sorted: readonly number[]): number {
 }
 
 /**
- * Groups points into hexagons.
+ * Groups points into hexagons of the given screen radius.
  *
  * Row offsets alternate by half a hexagon so rows interlock, which is what stops
  * the gaps forming visible stripes. Bins whose members lack a figure still
  * appear, carrying `value: null`, because a hexagon that silently disappears
  * looks identical to one that was never there.
  */
-export function hexbin(inputs: readonly BinInput[]): HexBin[] {
+export function hexbin(inputs: readonly BinInput[], radius = 9): HexBin[] {
   if (inputs.length === 0) return []
 
-  const rowHeight = Math.round(HEX_RADIUS * 1.5)
-  const colWidth = Math.round(Math.sqrt(3) * HEX_RADIUS)
+  const rowHeight = Math.round(radius * 1.5)
+  const colWidth = Math.round(Math.sqrt(3) * radius)
 
   const buckets = new Map<string, { values: number[]; zctas: string[]; sx: number; sy: number }>()
   for (const input of inputs) {

@@ -46,6 +46,7 @@ export const VARS = {
   medianRentBurdenMoe: 'B25071_001M',
   /** Total households. B25001, not B25002. */
   households: 'B25001_001E',
+  householdsMoe: 'B25001_001M',
   /** Renter-occupied units. */
   renterOccupied: 'B25003_003E',
   ownerOccupied: 'B25003_002E',
@@ -215,14 +216,20 @@ export const METRIC_DEFS_BY_KEY = new Map(METRIC_DEFS.map((d) => [d.key, d]))
  * 33k rows takes 10ms. The time is server-side in the Census API, and it grows
  * with the variable count.
  *
- * So the screen loads in two stages. The first request carries only the five
- * figures the screening table and the map actually display, which is roughly a
- * third of the latency, and it is enough to make the country sortable. Median
- * home value is in the first request rather than the second because the map
- * needs it for the whole country, and adding a column to a request that is
- * already being made costs latency but not another request. Margins of error and
- * the remaining columns arrive in a second request afterwards, for the areas
- * the user actually drills into.
+ * So the screen loads in two stages. The first request carries the figures the
+ * screening table and the map display, together with their margins of error.
+ *
+ * The margins used to be excluded on grounds of latency, citing a measurement
+ * of about 21s at four variables against about 65s at fourteen. That
+ * measurement was against the ZIP *wildcard* query, which is not what this app
+ * issues. Re-measured on the real chunked path, a chunk with five estimates
+ * took 0.45s and the same chunk with five estimates and five margins took
+ * 0.47s, because the cost is the 800 rows rather than the column count. Across
+ * 43 chunks that is a difference of about a second in total, so there was never
+ * a real trade-off and the country-wide screen now shows every figure with the
+ * margin the publisher supplies.
+ *
+ * The remaining variables are fetched only for a selected area.
  */
 export const SCREEN_VARS = [
   VARS.medianGrossRent,
@@ -230,6 +237,11 @@ export const SCREEN_VARS = [
   VARS.medianHomeValue,
   VARS.medianHouseholdIncome,
   VARS.households,
+  VARS.medianGrossRentMoe,
+  VARS.medianRentBurdenMoe,
+  VARS.medianHomeValueMoe,
+  VARS.medianHouseholdIncomeMoe,
+  VARS.householdsMoe,
 ]
 
 /** Everything else, fetched only for a selected area. */

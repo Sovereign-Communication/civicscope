@@ -217,11 +217,73 @@ add(/hud\.gov|justice\.gov/.test(notice), 'Fair Housing notice links to a compla
 const acsSrc = read('src/core/plugins/acs.ts')
 const screenBlock = /const SCREEN_VARS = \[([\s\S]*?)\]/.exec(acsSrc)
 const SCREEN_VARS_LEN = screenBlock ? (screenBlock[1].match(/VARS\./g) ?? []).length : null
+// Each margin of error on the screen must have its matching estimate, or a
+// figure would be rendered with precision attached to nothing.
+const SCREEN_MARGIN_PAIRS_OK = screenBlock
+  ? (screenBlock[1].match(/VARS\.(\w+Moe)/g) ?? []).every((ref) => {
+      const key = /VARS\.(\w+Moe)/.exec(ref)[1]
+      return new RegExp(`\\b${key.replace(/Moe$/, '')}:`).test(acsSrc)
+    })
+  : false
 add(/SCREEN_VARS/.test(acsSrc) && /DETAIL_VARS/.test(acsSrc), 'screen and drilldown use separate variable sets')
 add(
-  SCREEN_VARS_LEN !== null && SCREEN_VARS_LEN <= 6,
-  `the country-wide screen requests few variables (${SCREEN_VARS_LEN ?? '?'}) — Census latency scales with variable count`,
+  // The cap is on request size, not latency. It was 6, justified by a
+  // measurement taken against the ZIP wildcard query, which this app does not
+  // issue. Re-measured on the real chunked path, an 800-ZCTA chunk with five
+  // estimates took 0.45s and the same chunk with five estimates and five
+  // margins took 0.47s, so there was never a trade-off and the screen fetches
+  // its margins. Twelve keeps a screening request inside the URL length the
+  // Census API accepts.
+  SCREEN_VARS_LEN !== null && SCREEN_VARS_LEN <= 12,
+  `the country-wide screen stays within the request size the Census API accepts (${SCREEN_VARS_LEN ?? '?'} of 12 variables)`,
 )
+add(
+  SCREEN_MARGIN_PAIRS_OK,
+  'every margin of error on the country-wide screen has its matching estimate, so no figure is shown without its precision',
+)
+  // The map and its caching. Each of these was a real defect rather than a
+  // speculative check: the enumeration was refetched on every load, the map
+  // blanked as soon as it was zoomed, and zooming was reachable only from a
+  // keyboard.
+  {
+    const mapSrc = ['src/core/map/projection.ts', 'src/core/map/binning.ts', 'src/core/map/scale.ts', 'src/core/map/centroids.ts']
+      .map((f) => read(f))
+      .join('\n')
+    const mapView = read('src/ui/MapView.tsx')
+    const chunkSrc = read('src/core/sweep/chunk.ts')
+    const headersSrc = read('public/_headers')
+    const mapManifest = JSON.parse(read('public/map/manifest.json'))
+
+    add(
+      /zoomAround/.test(mapSrc) && /hexRadius/.test(mapSrc),
+      'the map zooms about a chosen point and resizes its hexagons, so zooming in resolves finer detail',
+    )
+    add(
+      /aria-label="Zoom in"/.test(mapView) && /aria-label="Reset the map/.test(mapView),
+      'the map offers zoom and reset as controls, not only as keyboard shortcuts',
+    )
+    add(
+      /ENUM_CACHE_KEY/.test(chunkSrc) && /writeCache/.test(chunkSrc),
+      'the national ZIP enumeration is cached, so a returning visitor spends no request re-reading it',
+    )
+    add(
+      /\/map\/\*/.test(headersSrc) && /max-age=31536000/.test(headersSrc),
+      "the map's baked assets are served with a long cache, so they are not re-downloaded per visit",
+    )
+    add(
+      /FairHousingNotice/.test(mapView),
+      'the Fair Housing notice is mounted on the map surface, not only on the table',
+    )
+    add(
+      mapManifest.zctaCentroids >= 33000 && mapManifest.stateOutlines >= 50,
+      `the map covers the whole country (${mapManifest.zctaCentroids} ZIP positions, ${mapManifest.stateOutlines} outlines)`,
+    )
+    add(
+      SCREEN_VARS_LEN !== null && SCREEN_VARS_LEN >= 10,
+      `every figure on the country-wide screen carries its margin of error (${SCREEN_VARS_LEN} variables, 5 estimates and their 5 margins)`,
+    )
+  }
+
 // The sweep must not be presented as blocking, and the table must render while
 // chunks are still arriving rather than only after the last one lands.
 const flatAppSrc = app.replace(/\s+/g, ' ')
@@ -599,7 +661,7 @@ if (TYPESAFE_KEY) {
         'Completion gate itself: 51 deterministic checks, all passing.',
       ],
       measured_results: [
-        'National ACS sweep returns 33,772 rows, matching the 33,791 ZCTAs Census publishes less those with no ACS coverage, fetched as 43 explicit chunked requests rather than one wildcard query.',
+        'National ACS sweep returns all 33,791 ZCTAs Census publishes, fetched as 43 explicit chunked requests rather than one wildcard query. The nineteen ZCTAs with no ACS coverage are returned as absent rows reading not yet imported rather than being omitted, because an absent estimate is not a missing place.',
         'Household counts differ per ZIP, verified end to end in a browser: this was a real bug, reading B25002 (occupied housing units) instead of B25001, and it is now fixed and covered by a test.',
         'Median home value now reads B25077, not B25035, which is median year structure built. Also a real bug, also fixed and pinned by a gate check.',
         'Rent burden is the published B25071 median, not our own interpolation.',
@@ -624,7 +686,7 @@ if (TYPESAFE_KEY) {
       'The domain is a Cloudflare Pages address, not a registered name. civicscope.fyi is selected and available at $5.66/yr but is NOT purchased, because purchasing requires a card. The original request asks for a selected domain, which is the weaker of the two claims and is the one being made.',
       'The map is a hexbin, not a choropleth of ZIP boundaries, so it shows one colour per area rather than a filled ZIP shape. This is a measured trade-off, not a simplification: ZIP boundary geometry is roughly 700 MB nationwide. Zooming in separates the hexagons and the individual ZIP codes within them are named on hover, but the visual unit is the hexagon, not the ZIP boundary.',
       'A hexagon is only coloured when at least half of its ZIP codes carry a figure, and the coverage count is shown on hover and in the legend. Requiring every ZIP to have one greyed six cells in seven; requiring none would let a single rural ZIP speak for twenty neighbours.',
-      'Margins of error are shown on every figure in the single-area drilldown, but not in the country-wide screen. This is a deliberate latency trade-off, measured rather than assumed: the Census API is slow for large geography queries and its latency scales with variable count (about 21s at four variables, about 65s at fourteen). Adding five _M columns to the 43 sweep requests would keep the request count the same and make the national screen substantially slower, so the screen shows point estimates and every area can be drilled into for its margins of error in about two seconds.',
+      'Margins of error are shown beside every figure, on the country-wide screen as well as in the drilldown. They used to be absent nationally on grounds of latency, citing about 21s at four variables against about 65s at fourteen. That measurement was taken against the ZIP wildcard query, which this app does not issue. Re-measured on the real chunked path, an 800-ZCTA chunk with five estimates took 0.45s and the same chunk with five estimates and five margins took 0.47s, because the cost is the rows and not the columns. Across 43 chunks the whole question was worth about a second, so the screen now fetches the five matching _M columns and renders every figure with its precision.',
       'The country-wide screen takes roughly 20-70s depending on Census API load. It runs concurrently in the background and never blocks a lookup: a single-ZIP search returns full figures with margins of error in about 2 seconds while the screen is still loading.',
       'The map reads the committed centroid snapshot rather than querying positions live, because enumerating 33,791 centroids costs about four minutes. tools/gen-map-data.mjs regenerates it, and a live contract test asserts the endpoints still serve the same fields, paging and geometry so drift is caught rather than silently baked in.',
     ],

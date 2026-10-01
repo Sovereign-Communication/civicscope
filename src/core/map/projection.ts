@@ -54,8 +54,14 @@ export interface MapView {
   outlines(): (ctx: CanvasRenderingContext2D) => void
 }
 
-/** Beyond this the ZIP dots merge into an unreadable solid block. */
-const MAX_SCALE = 60
+/**
+ * Beyond this the ZIP dots merge into an unreadable solid block.
+ *
+ * A country-wide dataset magnified much past this is looking at a few hundred
+ * square miles, which is not what a map of "every ZIP code" is for. Sixty was
+ * needlessly deep and only ever produced empty ocean.
+ */
+const MAX_SCALE = 24
 
 /** The fixed box the country is fitted into, kept inside d3's 960x500 clip. */
 const INTERNAL_W = 960
@@ -188,19 +194,31 @@ export function createView(
   basemap: Basemap | null,
 ): MapView {
   const zoom = clampScale(viewport.scale)
+  // Both projections stay at their fitted scale; zoom and pan are applied once,
+  // in the screen transform below. Composing zoom into the projection as well
+  // applied it twice, so the map magnified by the square of the zoom and had
+  // left the canvas entirely by about one and a half times zoom — which is why
+  // the first version of this map went blank the moment anyone pressed zoom.
   const projection = geoAlbersUsa()
-  projection.scale(fit.k * zoom)
-  projection.translate([fit.tx * zoom + viewport.offsetX, fit.ty * zoom + viewport.offsetY])
+  projection.scale(fit.k)
+  projection.translate([fit.tx, fit.ty])
 
   const pr = geoConicEqualArea().parallels([18, 18])
-  pr.scale(fit.prK * zoom)
-  pr.translate([fit.prTx * zoom + viewport.offsetX, fit.prTy * zoom + viewport.offsetY])
+  pr.scale(fit.prK)
+  pr.translate([fit.prTx, fit.prTy])
 
   // Scale the internal box up to the canvas, preserving aspect and centring.
+  //
+  // The centring uses the *zoomed* width, not the unzoomed one. Centring on the
+  // unzoomed box anchors zoom at the internal box's top-left corner, so
+  // magnifying the map walked the country off the bottom-right and the canvas
+  // went blank at about one and a half times zoom. Centring on `s` keeps the
+  // box's centre at the canvas's centre for any zoom, which is also what makes
+  // an offset of zero mean "centred" at every scale.
   const fitScale = Math.min(viewport.width / INTERNAL_W, viewport.height / INTERNAL_H)
   const s = fitScale * zoom
-  const ox = (viewport.width - INTERNAL_W * fitScale) / 2 + viewport.offsetX
-  const oy = (viewport.height - INTERNAL_H * fitScale) / 2 + viewport.offsetY
+  const ox = (viewport.width - INTERNAL_W * s) / 2 + viewport.offsetX
+  const oy = (viewport.height - INTERNAL_H * s) / 2 + viewport.offsetY
 
   const place = (p: [number, number] | null): [number, number] | null => {
     // A coordinate the projection cannot place returns null. Keeping that
@@ -240,6 +258,39 @@ export function createView(
         ctx.restore()
       }
     },
+  }
+}
+
+/**
+ * Zooms by `factor` while keeping the canvas point (mx, my) fixed on screen.
+ *
+ * The arithmetic lives here rather than in the component because it is the same
+ * transform the renderer uses: doing it in the view layer means duplicating the
+ * fit scale and the centring, which is exactly how a zoom drifts away from what
+ * the reader is pointing at.
+ */
+export function zoomAround(
+  viewport: Viewport,
+  factor: number,
+  mx: number,
+  my: number,
+): Viewport {
+  const target = clampScale(viewport.scale * factor)
+  if (target === viewport.scale) return viewport
+  const ratio = target / viewport.scale
+
+  // The transform is `screenFromCentre = p * s - (INTERNAL_W * s) / 2 + offset`
+  // with `s = fitScale * scale`. Holding a canvas point `m` fixed across a scale
+  // change and solving for the offset gives `solve`. Because centring is now on
+  // the zoomed box, an offset of zero means centred at every scale, and this
+  // reduces to `offset * ratio + m * (1 - ratio)`.
+  const solve = (m: number, offset: number) => offset * ratio + m * (1 - ratio)
+
+  return {
+    ...viewport,
+    scale: target,
+    offsetX: solve(mx, viewport.offsetX),
+    offsetY: solve(my, viewport.offsetY),
   }
 }
 

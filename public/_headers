@@ -32,3 +32,17 @@
 
 /*.css
   Cache-Control: public, max-age=31536000, immutable
+
+/*
+ * The map's baked assets. These are regenerated only by `npm run gen:map`, and
+ * the generator prints a new manifest when the contents change, so a year-long
+ * cache is safe: a stale map would mean a stale census of ZIP positions, and the
+ * live contract test fails if TIGERweb stops serving the same layer.
+ *
+ * Without this header each visit re-downloads 420 KB of geometry that has not
+ * changed, which is the map equivalent of spending a request on a cache hit.
+/map/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/z/*
+  Cache-Control: public, max-age=86400

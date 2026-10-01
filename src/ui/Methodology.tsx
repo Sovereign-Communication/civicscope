@@ -59,6 +59,30 @@ export function Methodology() {
         </ul>
       </section>
 
+      <section aria-labelledby="stewardship-heading">
+        <h2 id="stewardship-heading" className="text-lg font-semibold text-slate-900">
+          Who owns this
+        </h2>
+        <p className="mt-2 text-sm text-slate-700">
+          Nobody, in the sense that matters operationally: there is no company behind this, nobody is paid to
+          work on it, and there is no way for anyone to buy a better result. It carries no advertising, no
+          referral fees and no paid placement.
+        </p>
+        <p className="mt-2 text-sm text-slate-700">
+          Three things are true and worth stating plainly rather than glossing. The repository sits in a GitHub
+          organisation, which is an organisation that can delete it, so it is not unowned in the strict sense.
+          There is no donation route yet, because creating a funding collective is an account and a decision
+          rather than something code can do. And nothing here is funded, so nothing here is guaranteed &mdash; a
+          source can change and the maintainer can stop.
+        </p>
+        <p className="mt-2 text-sm text-slate-700">
+          What survives all of that is the part that matters for your trust in a number: every figure here is
+          fetched from its publisher directly by your browser, and can be re-fetched independently to check it.
+          The full position, including what would have to change for the claim to be stronger, is in{' '}
+          <code>docs/governance.md</code> in the source repository.
+        </p>
+      </section>
+
       <section aria-labelledby="data-heading">
         <h2 id="data-heading" className="text-lg font-semibold text-slate-900">
           Data sources

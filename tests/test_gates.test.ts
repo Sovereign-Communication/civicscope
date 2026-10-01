@@ -58,11 +58,18 @@ describe('gate: ACS request construction', () => {
   })
 
   it('keeps the country-wide screen to few variables', () => {
-    // Measured live: 1 var ~20s, 4 vars ~21-29s, 14 vars ~65s. Latency scales
-    // with variable count, so the screen must stay small.
-    const block = /const SCREEN_VARS = \[([\s\S]*?)\]/.exec(acs)
-    expect(block, 'SCREEN_VARS must exist as a separate small set').not.toBeNull()
-    expect((block![1].match(/VARS\./g) ?? []).length).toBeLessThanOrEqual(6)
+// The cap used to be 6, justified by a latency measurement taken against
+      // the ZIP *wildcard* query: 1 var ~20s, 4 vars ~21-29s, 14 vars ~65s. That
+      // measurement does not describe this app, which issues 43 chunked queries
+      // of at most 800 ZCTAs. Re-measured on the real path, an 800-row chunk
+      // with five estimates took 0.45s and the same chunk with five estimates
+      // and five margins took 0.47s, because the cost is the rows rather than
+      // the columns. The cap is kept, at 12, so a future change cannot quietly
+      // turn a screening request into one the Census API would refuse on URL
+      // length, which is the constraint that actually applies here.
+      const block = /const SCREEN_VARS = \[([\s\S]*?)\]/.exec(acs)
+      expect(block, 'SCREEN_VARS must exist as a separate small set').not.toBeNull()
+      expect((block![1].match(/VARS\./g) ?? []).length).toBeLessThanOrEqual(12)
   })
 
   it('separates screen variables from detail variables', () => {

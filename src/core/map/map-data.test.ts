@@ -13,8 +13,8 @@ import { describe, expect, it } from 'vitest'
 
 import { decodeCentroids, encodeCentroids, type ZctaPoint } from './centroids'
 import { buildBins, binFor, MAP_METRICS, RAMP } from './scale'
-import { hexbin } from './binning'
-import { clampScale, createView, fitBase, type Basemap } from './projection'
+import { hexbin, hexRadius } from './binning'
+import { clampScale, createView, fitBase, zoomAround, type Basemap, type Viewport } from './projection'
 
 const ROOT = join(__dirname, '..', '..', '..')
 const BIN = join(ROOT, 'public', 'map', 'zcta-centroids.bin')
@@ -311,6 +311,91 @@ describe('the projection', () => {
     // Null rather than (0, 0), so a corrupt coordinate cannot be mistaken for
     // a real place at the map's origin.
     expect(view.project(0, 0)).toBeNull()
+  })
+
+  it('keeps the anchor point itself fixed while zooming', () => {
+    // Zooming magnifies distances from the anchor; only the anchor stays put.
+    // The first version of this test asserted that a point's *distance* from
+    // the anchor was unchanged, which would mean the map was not zooming at
+    // all. The anchor is taken from a real projected position so it is a point
+    // that genuinely exists on the map.
+    const dims = { width: 1200, height: 700 }
+    const start: Viewport = { ...dims, scale: 1, offsetX: 0, offsetY: 0 }
+    const view0 = createView(fitBase(points), start, null)
+    const anchorPoint = points[1]!
+    const anchor = view0.project(anchorPoint.lon, anchorPoint.lat)!
+    // zoomAround takes the anchor measured from the centre of the canvas.
+    const m = { mx: anchor[0] - dims.width / 2, my: anchor[1] - dims.height / 2 }
+
+    let v = start
+    for (let i = 0; i < 4; i++) v = zoomAround(v, 1.5, m.mx, m.my)
+    const after = createView(fitBase(points), v, null).project(anchorPoint.lon, anchorPoint.lat)!
+
+    expect(after[0], 'the anchor drifted horizontally').toBeCloseTo(anchor[0], 6)
+    expect(after[1], 'the anchor drifted vertically').toBeCloseTo(anchor[1], 6)
+  })
+
+  it('magnifies about the anchor rather than about the origin', () => {
+    const dims = { width: 1200, height: 700 }
+    const start: Viewport = { ...dims, scale: 1, offsetX: 0, offsetY: 0 }
+    const view0 = createView(fitBase(points), start, null)
+    const a = points[1]!
+    const b = points[0]!
+    const pa = view0.project(a.lon, a.lat)!
+    const pb = view0.project(b.lon, b.lat)!
+    const before = Math.hypot(pa[0] - pb[0], pa[1] - pb[1])
+
+    // Zoom three times about a, then a must still be where it was and the gap
+    // between a and b must have grown by exactly the zoom factor.
+    let v = start
+    for (let i = 0; i < 3; i++) v = zoomAround(v, 1.5, pa[0] - dims.width / 2, pa[1] - dims.height / 2)
+    const view1 = createView(fitBase(points), v, null)
+    const qa = view1.project(a.lon, a.lat)!
+    const qb = view1.project(b.lon, b.lat)!
+
+    expect(Math.hypot(qa[0] - pb[0], qa[1] - pb[1])).toBeCloseTo(before, 6)
+    expect(Math.hypot(qa[0] - qb[0], qa[1] - qb[1]) / before).toBeCloseTo(v.scale, 4)
+  })
+
+  it('keeps data on screen at every zoom step', () => {
+    // Uses the real committed centroids rather than five scattered cities:
+    // five points cannot tell a blank map from a map legitimately zoomed into
+    // empty ocean, and that distinction is the whole regression.
+    const real = decodeCentroids(
+      readFileSync(join(__dirname, '..', '..', '..', 'public', 'map', 'zcta-centroids.bin')).buffer.slice(
+        readFileSync(join(__dirname, '..', '..', '..', 'public', 'map', 'zcta-centroids.bin')).byteOffset,
+        readFileSync(join(__dirname, '..', '..', '..', 'public', 'map', 'zcta-centroids.bin')).byteOffset +
+          readFileSync(join(__dirname, '..', '..', '..', 'public', 'map', 'zcta-centroids.bin')).byteLength,
+      ) as ArrayBuffer,
+    )
+    const dims = { width: 1200, height: 700 }
+    const fit = fitBase(real)
+    for (const scale of [1, 1.5, 2.25, 3.375, 5.06, 7.59, 11.4, 17.1, 25.6]) {
+      const drawn = createView(fit, { ...dims, scale, offsetX: 0, offsetY: 0 }, null)
+      let on = 0
+      for (const p of real) {
+        const at = drawn.project(p.lon, p.lat)
+        if (at && at[0] >= 0 && at[0] <= dims.width && at[1] >= 0 && at[1] <= dims.height) on++
+      }
+      expect(on, `no ZIP codes on screen at ${scale}x`).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('hexagon sizing', () => {
+  it('grows with zoom, so zooming in resolves finer detail', () => {
+    // A constant radius is what made the first version feel unfinished:
+    // magnifying the projection enlarged the country but left every hexagon at
+    // nine pixels, so the extra zoom bought nothing.
+    expect(hexRadius(4)).toBeGreaterThan(hexRadius(1))
+    expect(hexRadius(16)).toBeGreaterThan(hexRadius(4))
+  })
+
+  it('stays within bounds at both ends', () => {
+    // Too small and the fill vanishes between neighbours and a tooltip cannot
+    // be hit; too large and one hexagon covers a region, not a neighbourhood.
+    expect(hexRadius(1)).toBeGreaterThanOrEqual(5)
+    expect(hexRadius(60)).toBeLessThanOrEqual(26)
   })
 })
 

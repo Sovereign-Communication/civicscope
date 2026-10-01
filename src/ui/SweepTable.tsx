@@ -24,7 +24,7 @@ import { type AreaRow } from '../core/plugins/acs'
 const num = new Intl.NumberFormat('en-US')
 
 /** A row's height in pixels, used to size the window. */
-const ROW_HEIGHT = 34
+const ROW_HEIGHT = 36
 /** Rows rendered above and below the viewport, so a fast scroll shows nothing blank. */
 const OVERSCAN = 8
 /** How many rows to render per screen height. */
@@ -212,11 +212,26 @@ export function SweepTable({
                   <th scope="row" className="px-2 py-1.5 font-mono font-normal text-slate-900">
                     {r.zcta}
                   </th>
-                  {COLUMNS.filter((c) => c.sort).map((c) => (
-                    <td key={c.key} className="px-2 py-1.5 tabular-nums text-slate-700">
-                      {fmt(r.metrics[c.sort!] ?? null, UNIT_OF[c.sort!] ?? 'count')}
-                    </td>
-                  ))}
+                  {COLUMNS.filter((c) => c.sort).map((c) => {
+                    const value = r.metrics[c.sort!] ?? null
+                    const margin = r.moes?.[c.sort!] ?? null
+                    return (
+                      <td key={c.key} className="px-2 py-1.5 tabular-nums text-slate-700">
+                        {fmt(value, UNIT_OF[c.sort!] ?? 'count')}
+                        {/*
+                          The margin is rendered beside the figure rather than in
+                          a separate column, because a survey estimate without
+                          its precision attached is the thing this app exists to
+                          avoid. It only appears when the publisher supplies one.
+                        */}
+                        {margin !== null && value !== null ? (
+                          <span className="ml-1 text-slate-500">
+                            &plusmn;{fmt(margin, UNIT_OF[c.sort!] ?? 'count').replace(/^\$|^\d/, '')}
+                          </span>
+                        ) : null}
+                      </td>
+                    )
+                  })}
                   <td className="px-2 py-1.5">
                     <button
                       type="button"

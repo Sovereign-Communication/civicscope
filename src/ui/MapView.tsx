@@ -1,3 +1,6 @@
+/** The state the map opens in, and the target every reset returns to. */
+const INITIAL_VIEWPORT: Viewport = { width: 900, height: 560, scale: 1, offsetX: 0, offsetY: 0 }
+
 /**
  * The map view.
  *
@@ -16,8 +19,8 @@
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 
-import { hexbin, HEX_CORNERS, type BinInput } from '../core/map/binning'
-import { loadMapAssets, createView, fitBase, type Basemap, type Viewport } from '../core/map/projection'
+import { hexbin, hexRadius, HEX_CORNERS, type BinInput } from '../core/map/binning'
+import { loadMapAssets, createView, fitBase, zoomAround, type Basemap, type Viewport } from '../core/map/projection'
 import type { ZctaPoint } from '../core/map/centroids'
 import {
   buildBins,
@@ -34,6 +37,8 @@ import { FairHousingNotice } from './FairHousingNotice'
 interface Props {
   rows: readonly AreaRow[]
   onSelect: (zctas: string[]) => void
+  /** Areas already in the comparison set, outlined on the map. */
+  selectedZctas: readonly string[]
 }
 
 interface Hover {
@@ -45,23 +50,21 @@ interface Hover {
   zctas: string[]
 }
 
-export function MapView({ rows, onSelect }: Props) {
+export function MapView({ rows, onSelect, selectedZctas }: Props) {
   const headingId = useId()
   const legendId = useId()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
+  // Pointer and touch state for panning. Held in a ref rather than React state
+  // so a drag never triggers a render; only the resulting viewport does.
+  const drag = useRef<{ pointerId: number; x: number; y: number; startX: number; startY: number } | null>(null)
+  const dragged = useRef(false)
 
   const [metric, setMetric] = useState<MapMetricKey>('median_rent_burden_pct')
   const [assets, setAssets] = useState<{ centroids: ZctaPoint[]; basemap: Basemap | null } | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [hover, setHover] = useState<Hover | null>(null)
-  const [viewport, setViewport] = useState<Viewport>({
-    width: 900,
-    height: 560,
-    scale: 1,
-    offsetX: 0,
-    offsetY: 0,
-  })
+  const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEWPORT)
 
   const unit = useMemo(
     () => MAP_METRICS.find((m) => m.key === metric)?.unit ?? 'usd',
@@ -113,6 +116,7 @@ export function MapView({ rows, onSelect }: Props) {
   const geoms = useMemo(() => {
     if (!assets || !fit) return []
     const view = createView(fit, viewport, assets.basemap)
+    const radius = hexRadius(viewport.scale)
     const inputs: BinInput[] = []
     for (const point of assets.centroids) {
       const p = view.project(point.lon, point.lat)
@@ -128,7 +132,7 @@ export function MapView({ rows, onSelect }: Props) {
         zctas: [point.zcta],
       })
     }
-    return hexbin(inputs)
+    return hexbin(inputs, radius)
   }, [assets, fit, viewport, valueByZcta])
 
   // Canvas has no accessibility tree, so an equivalent is published as live
@@ -144,6 +148,34 @@ export function MapView({ rows, onSelect }: Props) {
     )
   }, [geoms, metric])
 
+
+  /**
+   * Zooms about the centre of what is actually drawn.
+   *
+   * Zooming about the geometric centre of the canvas looks correct until the
+   * canvas centre is empty ocean, which is where repeated clicks land: the map
+   * went blank at around seventeen times zoom with every figure off screen. The
+   * centroid of the drawn hexagons is always somewhere worth looking at.
+   */
+  const zoomAtData = useCallback(
+    (factor: number) => {
+      setViewport((v) => {
+        const drawn = geoms.filter(
+          (g) => g.cx >= 0 && g.cx <= v.width && g.cy >= 0 && g.cy <= v.height,
+        )
+        if (drawn.length === 0) return zoomAround(v, factor, v.width / 2, v.height / 2)
+        let sx = 0
+        let sy = 0
+        for (const g of drawn) {
+          sx += g.cx
+          sy += g.cy
+        }
+        return zoomAround(v, factor, sx / drawn.length - v.width / 2, sy / drawn.length - v.height / 2)
+      })
+    },
+    [geoms],
+  )
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || !assets || !fit) return
@@ -158,6 +190,7 @@ export function MapView({ rows, onSelect }: Props) {
     ctx.clearRect(0, 0, viewport.width, viewport.height)
 
     const view = createView(fit, viewport, assets.basemap)
+    const radius = hexRadius(viewport.scale)
 
     // Basemap first, so data sits on top of it.
     if (assets.basemap) {
@@ -169,7 +202,8 @@ export function MapView({ rows, onSelect }: Props) {
     }
 
     for (const bin of geoms) {
-      const r = Math.min(14, 4 + Math.sqrt(bin.count) * 2.2)
+      const r = radius
+      const isSelected = bin.zctas.some((z) => selectedZctas.includes(z))
       const color = bin.value === null ? NO_DATA_COLOR : (binFor(bins, bin.value)?.color ?? NO_DATA_COLOR)
       ctx.beginPath()
       HEX_CORNERS.forEach(([dx, dy], i) => {
@@ -183,11 +217,11 @@ export function MapView({ rows, onSelect }: Props) {
       ctx.fill()
       // An outline keeps adjacent hexagons separable and gives the no-data grey
       // a visible edge rather than blending into the background.
-      ctx.strokeStyle = '#ffffff'
-      ctx.lineWidth = 0.75
+      ctx.strokeStyle = isSelected ? '#0f172a' : '#ffffff'
+      ctx.lineWidth = isSelected ? 2.5 : 0.75
       ctx.stroke()
     }
-  }, [assets, fit, viewport, geoms, bins])
+  }, [assets, fit, viewport, geoms, bins, selectedZctas])
 
   useEffect(() => {
     draw()
@@ -201,7 +235,7 @@ export function MapView({ rows, onSelect }: Props) {
       const x = clientX - rect.left
       const y = clientY - rect.top
       for (const bin of geoms) {
-        const r = Math.min(14, 4 + Math.sqrt(bin.count) * 2.2)
+        const r = hexRadius(viewport.scale)
         const dx = x - bin.cx
         const dy = y - bin.cy
         // Hexagon containment, without solving the polygon: the bounding
@@ -221,7 +255,7 @@ export function MapView({ rows, onSelect }: Props) {
       }
       return null
     },
-    [geoms],
+    [geoms, viewport.scale],
   )
 
   const zoomBy = useCallback((factor: number) => {
@@ -319,9 +353,57 @@ export function MapView({ rows, onSelect }: Props) {
           role="img"
           aria-labelledby={`${headingId} ${legendId}`}
           onKeyDown={onKeyDown}
+          style={{ touchAction: 'none' }}
           onMouseMove={(e) => setHover(hit(e.clientX, e.clientY))}
           onMouseLeave={() => setHover(null)}
+          onPointerDown={(e) => {
+            // Primary button only, and only after the pointer has actually
+            // moved, so a plain click to select an area does not also drag.
+            if (e.button !== 0) return
+            drag.current = {
+              pointerId: e.pointerId,
+              x: e.clientX,
+              y: e.clientY,
+              startX: e.clientX,
+              startY: e.clientY,
+            }
+            ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+          }}
+          onPointerMove={(e) => {
+            const d = drag.current
+            if (!d || d.pointerId !== e.pointerId) return
+            const dx = e.clientX - d.x
+            const dy = e.clientY - d.y
+            // A few pixels of movement means this is a drag, not a click.
+            if (Math.abs(e.clientX - d.startX) + Math.abs(e.clientY - d.startY) < 4) return
+            d.x = e.clientX
+            d.y = e.clientY
+            dragged.current = true
+            setViewport((v) => ({ ...v, offsetX: v.offsetX + dx, offsetY: v.offsetY + dy }))
+          }}
+          onPointerUp={(e) => {
+            if (drag.current?.pointerId === e.pointerId) drag.current = null
+          }}
+          onPointerCancel={() => {
+            drag.current = null
+          }}
+          onWheel={(e) => {
+            // Zooming about the cursor rather than the origin is what makes the
+            // map feel attached to the pointer; without it every zoom yanks the
+            // point under the cursor off screen.
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+            const mx = e.clientX - rect.left - viewport.width / 2
+            const my = e.clientY - rect.top - viewport.height / 2
+            const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18
+            setViewport((v) => zoomAround(v, factor, mx, my))
+          }}
           onClick={() => {
+            // A drag ends with a click event too, so selecting here would add
+            // an area the reader only panned past.
+            if (dragged.current) {
+              dragged.current = false
+              return
+            }
             if (hover && hover.zctas.length > 0) onSelect(hover.zctas)
           }}
           className="block h-[560px] w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
@@ -350,8 +432,41 @@ export function MapView({ rows, onSelect }: Props) {
             ) : null}
           </div>
         ) : null}
+{/*
+          Pointer affordances. Zoom was previously reachable only from the
+          keyboard, which is fine for accessibility and useless for anyone
+          using a mouse or a touchscreen, so the same three actions are offered
+          as buttons.
+        */}
+        <div className="absolute right-2 top-2 flex flex-col gap-1">
+          <button
+            type="button"
+            onClick={() => zoomAtData(1.5)}
+            aria-label="Zoom in"
+            className="h-8 w-8 rounded-md border border-slate-300 bg-white text-lg leading-none text-slate-900 shadow-sm hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+          >
+            <span aria-hidden="true">+</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomAtData(1 / 1.5)}
+            aria-label="Zoom out"
+            className="h-8 w-8 rounded-md border border-slate-300 bg-white text-lg leading-none text-slate-900 shadow-sm hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+          >
+            <span aria-hidden="true">&minus;</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewport({ ...INITIAL_VIEWPORT, width: viewport.width, height: viewport.height })}
+            aria-label="Reset the map to the whole country"
+            className="h-8 w-8 rounded-md border border-slate-300 bg-white text-xs leading-none text-slate-900 shadow-sm hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+          >
+            <span aria-hidden="true">&#8634;</span>
+          </button>
+        </div>
         <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-white/80 px-1.5 py-0.5 text-[11px] text-slate-700">
-          Arrow keys pan, + and − zoom, 0 resets. Click an area to compare it.
+          Drag to pan, scroll or pinch to zoom, or use the buttons. Arrow keys pan, + and &minus; zoom, 0
+          resets. Click an area to compare it.
         </p>
       </div>
 

@@ -46,7 +46,7 @@ export interface SweepManifest {
  * verbatim, because a cache hit skips parsing entirely. The stamp is the invalidation
  * mechanism, so a parsing change must invalidate too.
  */
-export const SWEEP_VERSION = 'acs5:2023:screen:v3-sanitised'
+export const SWEEP_VERSION = 'acs5:2023:screen:v4-sanitised'
 
 export interface SweepScope {
   /** Empty means the whole country. Otherwise a list of two-digit ZIP prefixes. */
@@ -119,6 +119,18 @@ export async function runSweep(options: {
 
   // 3. Fetch, merging as we go. One failed chunk costs that chunk, not the sweep.
   const merged = new Map<string, AreaRow>()
+
+  // Every ZIP the Census publishes is in the table, including those ACS returns
+  // no row for at all. Roughly nineteen ZCTAs have no ACS coverage, and they
+  // used to be absent from the screen entirely, which reads as "this place does
+  // not exist" rather than "no estimate is published for it". They are added
+  // here as absent rows so the national screen covers the full 33,791, and they
+  // render as "not yet imported" everywhere.
+  for (const zcta of scopedZctas) {
+    if (!merged.has(zcta)) {
+      merged.set(zcta, { zcta, name: `ZCTA5 ${zcta}`, metrics: {}, moes: {} })
+    }
+  }
   let anyFetched = false
 
   const report = () => {

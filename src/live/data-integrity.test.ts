@@ -146,10 +146,22 @@ describe('data integrity: the sweep is planned within the measured ceiling', () 
   })
 
   it('does not request more variables than the screen needs', () => {
-    // Variable count drives Census latency as strongly as row count.
-    expect(SCREEN_VARS.length).toBeLessThanOrEqual(6)
-    // Every screen variable must be a real, defined ACS variable.
-    for (const v of SCREEN_VARS) expect(v).toMatch(/^B\d{5}_\d{3}E$/)
+    // The cap is on request size, not latency. The old justification was a
+    // measurement taken against the ZIP wildcard query; this app issues chunked
+    // queries, where adding five margin-of-error columns moved a real 800-ZCTA
+    // chunk from 0.45s to 0.47s. Twelve keeps a screening request inside the
+    // URL length the Census API accepts.
+    expect(SCREEN_VARS.length).toBeLessThanOrEqual(12)
+    // Every screen variable must be a real, defined ACS variable, either an
+    // estimate (E) or a margin of error (M).
+    for (const v of SCREEN_VARS) expect(v).toMatch(/^B\d{5}_\d{3}[EM]$/)
+    // Each margin must have its estimate present, so a figure is never shown
+    // with a precision attached to nothing.
+    for (const margin of SCREEN_VARS.filter((x) => x.endsWith('_001M'))) {
+      expect(SCREEN_VARS, `margin ${margin} has no matching estimate`).toContain(
+        margin.replace('_001M', '_001E'),
+      )
+    }
     expect(SCREEN_VARS).toContain(VARS.households)
   })
 })

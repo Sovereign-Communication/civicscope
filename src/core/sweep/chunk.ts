@@ -23,6 +23,7 @@
  */
 
 import { fetchResilient } from '../http'
+import { isFresh, readCache, writeCache } from '../cache'
 import { paced } from '../ratelimit'
 
 const ZCTA_LAYER =
@@ -70,8 +71,34 @@ const ZCTA_WINDOWS: [string, string][] = [
   ['75000', '99999'],
 ]
 
-/** Enumerates every ZCTA in the country, keyless, in a handful of requests. */
+/**
+ * Cache key and lifetime for the enumeration.
+ *
+ * The key carries a version so that a change to how the list is fetched, or to
+ * what counts as a valid code, discards the stored copy. The lifetime is long
+ * because the list only changes when Census publishes a new ZCTA layer, which
+ * is at most annually.
+ */
+const ENUM_CACHE_KEY = 'civicscope://zcta-enumeration/v1'
+const ENUM_TTL_MS = 90 * 24 * 60 * 60 * 1000
+
+/**
+ * Enumerates every ZCTA in the country, keyless, in a handful of requests.
+ *
+ * Cached, because this used to run on every single page load. It bypasses the
+ * request cache by design — it is the partition the sweep is built from, so it
+ * cannot depend on a cache that the sweep is about to populate — and that meant
+ * every visit re-enumerated all 33,791 codes from TIGERweb in eight requests
+ * taking minutes, for a list that changes annually. Storing the finished list
+ * means a returning visitor spends nothing and touches no API at all, which is
+ * the whole point of the rest of the caching layer.
+ */
 export async function listAllZctas(signal: AbortSignal): Promise<string[]> {
+  const cached = await readCache<string[]>(ENUM_CACHE_KEY)
+  if (cached && isFresh(cached, ENUM_TTL_MS) && cached.body.length > 30000) {
+    return cached.body
+  }
+
   const all: string[] = []
   for (const [lo, hi] of ZCTA_WINDOWS) {
     const where = encodeURIComponent(`ZCTA5 >= '${lo}' AND ZCTA5 <= '${hi}'`)
@@ -88,7 +115,13 @@ export async function listAllZctas(signal: AbortSignal): Promise<string[]> {
       if (features.length < ENUM_PAGE) break
     }
   }
-  return [...new Set(all)].sort()
+  const unique = [...new Set(all)].sort()
+  // Only a complete enumeration is worth storing. A short one would be cached
+  // as authoritative and quietly shrink the country for ninety days.
+  if (unique.length > 30000) {
+    await writeCache(ENUM_CACHE_KEY, unique).catch(() => undefined)
+  }
+  return unique
 }
 
 export interface ZctasByPrefix {

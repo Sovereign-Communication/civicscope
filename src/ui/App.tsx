@@ -261,6 +261,7 @@ export default function App() {
               <>
                 <MapView
                   rows={q.sweep}
+                  selectedZctas={q.selectedZctas}
                   onSelect={(zctas) => {
                     for (const zcta of zctas.slice(0, 6)) {
                       const row = q.sweep.find((r) => r.zcta === zcta)
