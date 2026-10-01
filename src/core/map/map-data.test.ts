@@ -239,14 +239,15 @@ describe('the colour scale', () => {
   })
 })
 
-describe('the projection', () => {
-  const points = [
+const points = [
     { zcta: '78701', lon: -97.7431, lat: 30.2672 },
     { zcta: '10001', lon: -74.006, lat: 40.7128 },
     { zcta: '99501', lon: -149.9003, lat: 61.2181 },
     { zcta: '96813', lon: -157.8583, lat: 21.3069 },
     { zcta: '00601', lon: -66.1063, lat: 18.4661 },
-  ]
+]
+
+describe('the projection', () => {
 
   it('places every point on the canvas, whatever the canvas size', () => {
     // A fresh d3 projection clips to 960x500. Anything wider silently dropped
@@ -382,6 +383,40 @@ describe('the projection', () => {
   })
 })
 
+describe('the map can show real per-ZIP values, not only summaries', () => {
+  /*
+   * The objection Jev raised after the accuracy review: a hexagon's median is a
+   * derived figure that exists nowhere in the data, so however carefully it is
+   * labelled, a map of real data should be able to reach a depth where what it
+   * draws is a real ZIP code's published value and nothing else. These tests
+   * assert that depth is actually reachable, because it is easy to clamp the
+   * zoom back to a comfortable looking limit and never notice.
+   */
+  const binsAt = (scale: number) => {
+    const dims = { width: 1200, height: 700 }
+    const view = createView(fitBase(points), { ...dims, scale, offsetX: 0, offsetY: 0 }, null)
+    return hexbin(
+      points.map((p) => ({ x: view.project(p.lon, p.lat)![0], y: view.project(p.lon, p.lat)![1], value: 10, zctas: [p.zcta] })),
+      hexRadius(scale),
+    )
+  }
+
+  it('resolves every ZIP to its own hexagon when zoomed far enough', () => {
+    const deepest = binsAt(clampScale(1000))
+    const total = deepest.reduce((n, b) => n + b.count, 0)
+    expect(total, 'some ZIP codes vanished at the deepest zoom').toBe(points.length)
+    // Every cell a given point falls in must be that point alone.
+    expect(
+      deepest.filter((b) => b.count > 1).length,
+      'hexagons still merge ZIP codes at the deepest zoom, so no value shown is a real single ZIP figure',
+    ).toBe(0)
+  })
+
+  it('keeps hexagons large enough to letter at that depth', () => {
+    expect(hexRadius(clampScale(1000))).toBeGreaterThanOrEqual(11)
+  })
+})
+
 describe('hexagon sizing', () => {
   it('grows with zoom, so zooming in resolves finer detail', () => {
     // A constant radius is what made the first version feel unfinished:
@@ -391,11 +426,14 @@ describe('hexagon sizing', () => {
     expect(hexRadius(16)).toBeGreaterThan(hexRadius(4))
   })
 
-  it('stays within bounds at both ends', () => {
-    // Too small and the fill vanishes between neighbours and a tooltip cannot
-    // be hit; too large and one hexagon covers a region, not a neighbourhood.
+  it('never shrinks below the size a label and a hit target need', () => {
+    // Too small and the fill vanishes between neighbours, a tooltip cannot be
+    // hit and a label cannot be read. There is deliberately no upper bound:
+    // capping it was what stopped the map reaching a depth where a hexagon held
+    // a single ZIP code, which is the depth at which the value on screen is a
+    // real published figure rather than a median across several.
     expect(hexRadius(1)).toBeGreaterThanOrEqual(5)
-    expect(hexRadius(60)).toBeLessThanOrEqual(26)
+    expect(hexRadius(0.001)).toBeGreaterThanOrEqual(5)
   })
 })
 
@@ -465,6 +503,9 @@ describe('zoom bounds', () => {
     expect(clampScale(0.01)).toBe(1)
     expect(clampScale(1)).toBe(1)
     expect(clampScale(4)).toBe(4)
-    expect(clampScale(10000)).toBeLessThanOrEqual(60)
+    // Deep enough for the hexagons to separate into individual ZIP codes, and
+    // no deeper, because past that a country-wide dataset is being used to look
+    // at a few city blocks.
+    expect(clampScale(100000)).toBe(90)
   })
 })

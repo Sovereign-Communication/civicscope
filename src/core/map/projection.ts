@@ -55,13 +55,20 @@ export interface MapView {
 }
 
 /**
- * Beyond this the ZIP dots merge into an unreadable solid block.
+ * Deep enough that a hexagon resolves to a single ZIP code.
  *
- * A country-wide dataset magnified much past this is looking at a few hundred
- * square miles, which is not what a map of "every ZIP code" is for. Sixty was
- * needlessly deep and only ever produced empty ocean.
+ * This is what makes the map faithful rather than merely plausible. At shallow
+ * zoom a hexagon covers many ZIP codes and its median is a derived figure that
+ * exists nowhere in the data, which is a real thing to object to about a map of
+ * real data. Deep enough, each hexagon holds exactly one ZIP code and the value
+ * on screen is that ZIP code's published figure, unaltered. Anything shallower
+ * than this could only ever be showing a summary.
+ *
+ * It is reachable now because the zoom buttons target the centroid of what is
+ * drawn; the earlier ceiling of 24 was a workaround for buttons that
+ * magnified about empty ocean, not a real limit.
  */
-const MAX_SCALE = 24
+const MAX_SCALE = 90
 
 /** The fixed box the country is fitted into, kept inside d3's 960x500 clip. */
 const INTERNAL_W = 960

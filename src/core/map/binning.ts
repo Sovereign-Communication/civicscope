@@ -51,12 +51,13 @@ export interface HexBin {
  * reader is looking at neighbourhoods rather than the country.
  */
 export function hexRadius(viewportScale: number): number {
-  // Clamped at both ends. Below about 5px the hexagons cannot hold a legible
-  // tooltip and the fill starts to disappear between neighbours; above about
-  // 26px each hexagon covers a large area, so the median it reports stops
-  // meaning "this neighbourhood".
+  // Clamped at the small end only. Below about 5px the hexagons cannot hold a
+  // legible tooltip and the fill starts to disappear between neighbours. The
+  // upper bound was 26px, which capped the detail the map could ever resolve;
+  // at deep zoom the hexagons have to keep growing so they can shrink their
+  // membership down to a single ZIP code.
   const r = 9 * Math.pow(Math.max(1, viewportScale), 0.55)
-  return Math.max(5, Math.min(26, r))
+  return Math.max(5, r)
 }
 
 /**

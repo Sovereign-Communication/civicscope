@@ -1,6 +1,11 @@
 /** The state the map opens in, and the target every reset returns to. */
 const INITIAL_VIEWPORT: Viewport = { width: 900, height: 560, scale: 1, offsetX: 0, offsetY: 0 }
 
+/** Below this zoom, hexagons are too small and too many to letter. */
+const LABEL_MIN_SCALE = 2.6
+/** Labels are pointless in a hexagon smaller than this. */
+const LABEL_MIN_RADIUS = 11
+
 /**
  * The map view.
  *
@@ -140,10 +145,13 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
   const summary = useMemo(() => {
     const shown = geoms.length
     const withValue = geoms.filter((g) => g.value !== null).length
+    const single = geoms.filter((g) => g.count === 1).length
     if (shown === 0) return 'The map has not drawn any areas yet.'
     return (
       `The map shows ${shown.toLocaleString('en-US')} areas. ` +
       `${withValue.toLocaleString('en-US')} have a ${MAP_METRICS.find((m) => m.key === metric)?.label} figure. ` +
+      `${single.toLocaleString('en-US')} of them cover exactly one ZIP code, where the figure shown is that ZIP ` +
+      `code's own published value rather than a median across several. ` +
       `Every figure is also listed in the screening table.`
     )
   }, [geoms, metric])
@@ -220,6 +228,35 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
       ctx.strokeStyle = isSelected ? '#0f172a' : '#ffffff'
       ctx.lineWidth = isSelected ? 2.5 : 0.75
       ctx.stroke()
+    }
+
+    /*
+     * Labels, once there is room for them.
+     *
+     * An unlabelled hexbin map tells you where a figure is high and where it is
+     * low but never where you are, which is the objection Jev raised after the
+     * accuracy and completeness review: the colours were right and the places
+     * were anonymous. Below the threshold nothing is drawn, because a hexagon
+     * too small to hold its own name is better left blank than lettered with
+     * overlapping text.
+     */
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    for (const bin of geoms) {
+      if (bin.count !== 1 && viewport.scale < LABEL_MIN_SCALE) continue
+      if (radius < LABEL_MIN_RADIUS) continue
+      const text = bin.count === 1 ? bin.zctas[0]! : String(bin.count)
+      ctx.font = `${Math.max(9, Math.min(13, radius * 0.62))}px ui-monospace, monospace`
+      const w = ctx.measureText(text).width
+      // Skip anything that would not fit its own hexagon, which is what stops a
+      // dense area turning into an unreadable grey smear of letters.
+      if (w > radius * 1.75) continue
+      // A dark halo keeps the label legible over both ends of the colour ramp.
+      ctx.lineWidth = 2.5
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'
+      ctx.strokeText(text, bin.cx, bin.cy)
+      ctx.fillStyle = '#0f172a'
+      ctx.fillText(text, bin.cx, bin.cy)
     }
   }, [assets, fit, viewport, geoms, bins, selectedZctas])
 
@@ -307,9 +344,11 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
       </h2>
       <p className="mt-1 max-w-3xl text-sm text-slate-700">
         One hexagon per area, coloured by the selected figure. Each hexagon covers one or more ZIP codes and
-        shows the median of those that have a figure, and only where at least half of them do. Point at one to
-        see how many ZIP codes it covers and how many carried a figure. Every figure is also in the screening
-        table, which is the accessible way to read this data.
+        shows the median of those that have a figure, and only where at least half of them do. Zoom in and the
+        hexagons separate: at the deepest zoom each one holds a single ZIP code and shows that ZIP code's published
+        figure unaltered, because a median across many ZIP codes is a figure that exists nowhere in the data. Where
+        a hexagon is labelled with a number, that is how many ZIP codes it covers. Point at one to see the detail.
+        Every figure is also in the screening table, which is the accessible way to read this data.
       </p>
 
       <fieldset className="mt-3">
