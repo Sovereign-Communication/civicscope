@@ -225,16 +225,70 @@ describe('the colour scale', () => {
   })
 
   it('shows every figure the sweep can actually supply', () => {
-    // A metric that the sweep never fetches would render an empty map while
-    // looking broken, so the two lists are pinned together.
-    expect(MAP_METRICS.map((m) => m.key).sort()).toEqual(
-      [
-        'households',
-        'median_gross_rent',
-        'median_home_value',
-        'median_household_income',
-        'median_rent_burden_pct',
-      ].sort(),
+    // A metric the sweep never fetches would render an empty map while looking
+    // broken, so every plain key must be a real cached column, and every derived
+    // key must declare how it is formed.
+    const cached = [
+      'median_gross_rent',
+      'median_rent_burden_pct',
+      'median_home_value',
+      'median_household_income',
+      'households',
+    ]
+    for (const m of MAP_METRICS) {
+      if (m.derive) {
+        expect(m.blurb.length, `${m.key} needs a blurb`).toBeGreaterThan(20)
+        continue
+      }
+      expect(cached, `${m.key} is not a figure the sweep fetches`).toContain(m.key)
+    }
+    // Every cached figure the map offers should be on it, or the map is
+    // withholding something the data already holds.
+    for (const key of cached) {
+      expect(MAP_METRICS.map((m) => m.key), `${key} is cached but not mappable`).toContain(key)
+    }
+  })
+
+  it('forms every derived figure only from figures it actually holds', () => {
+    const base = {
+      median_home_value: 300000,
+      median_household_income: 60000,
+      median_gross_rent: 1400,
+      median_rent_burden_pct: 28,
+      households: 900,
+    }
+    const priceToIncome = MAP_METRICS.find((m) => m.key === 'price_to_income')!
+    // 300,000 on 60,000 is five times, and the label says five times.
+    expect(priceToIncome.derive!(base)).toBeCloseTo(5, 6)
+    const rentToIncome = MAP_METRICS.find((m) => m.key === 'rent_to_income')!
+    expect(rentToIncome.derive!(base)).toBeCloseTo((1400 * 12) / 60000, 6)
+    // A ratio that cannot be formed is null, never a guess and never a zero,
+    // so it renders as not yet imported exactly like a missing estimate.
+    expect(priceToIncome.derive!({ ...base, median_home_value: null })).toBeNull()
+    expect(priceToIncome.derive!({ ...base, median_household_income: 0 })).toBeNull()
+    expect(rentToIncome.derive!({ ...base, median_gross_rent: undefined as never })).toBeNull()
+  })
+
+  it('answers the questions people ask when they are moving', () => {
+    // The descriptive layer is the point of the feature, so each chip has to
+    // name a question and point at a figure that exists. Household count is
+    // deliberately absent from the chips: it is a measure of size, not something
+    // anyone is choosing a place over, and offering it as a question would be
+    // padding the list out.
+    const questions = readFileSync(join(__dirname, '..', '..', 'ui', 'MapView.tsx'), 'utf8')
+    const keys = MAP_METRICS.map((m) => m.key)
+    const chipKeys = [...questions.matchAll(/\{ key: '([a-z_]+)', question:/g)].map((m) => m[1]!)
+    expect(chipKeys.length, 'no questions are offered').toBeGreaterThanOrEqual(5)
+    for (const key of chipKeys) {
+      expect(keys, `the question for ${key} points at no figure`).toContain(key)
+    }
+    // Both derived figures must be reachable, since they cost nothing to offer
+    // and they are the ones phrased in the words people actually use.
+    for (const derived of MAP_METRICS.filter((m) => m.derive)) {
+      expect(chipKeys, `${derived.key} is not reachable from a question`).toContain(derived.key)
+    }
+    expect(chipKeys, 'household count is a measure of size, not a moving question').not.toContain(
+      'households',
     )
   })
 })

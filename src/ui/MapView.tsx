@@ -20,6 +20,22 @@ function isLight(hex: string): boolean {
   return l > 0.32
 }
 
+/**
+ * Plain-language questions, each bound to the figure that answers it.
+ *
+ * Kept beside `MAP_METRICS` rather than in a component so a question can never
+ * be left pointing at a figure that has been renamed or removed: the key is a
+ * compile error if it does not exist.
+ */
+const QUESTIONS: { key: MapMetricKey; question: string }[] = [
+  { key: 'median_rent_burden_pct', question: 'Where does rent take the smallest share of income?' },
+  { key: 'price_to_income', question: 'Where could I buy a home on what people earn?' },
+  { key: 'median_gross_rent', question: 'Where is rent cheapest?' },
+  { key: 'rent_to_income', question: 'Where does a year of rent cost least against income?' },
+  { key: 'median_household_income', question: 'Where do households earn the most?' },
+  { key: 'median_home_value', question: 'Where are homes worth the least?' },
+]
+
 /** Below this zoom, hexagons are too small and too many to letter. */
 const LABEL_MIN_SCALE = 2.6
 /** Labels are pointless in a hexagon smaller than this. */
@@ -99,17 +115,25 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
   const [hover, setHover] = useState<Hover | null>(null)
   const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEWPORT)
 
-  const unit = useMemo(
-    () => MAP_METRICS.find((m) => m.key === metric)?.unit ?? 'usd',
-    [metric],
-  )
+  const active = MAP_METRICS.find((m) => m.key === metric) ?? MAP_METRICS[0]!
+  const unit = active.unit
 
-  // Values by ZIP, so a point and its figure are looked up the same way.
+  /*
+   * Values by ZIP, so a point and its figure are looked up the same way.
+   *
+   * A derived figure is computed here rather than upstream, which is why it
+   * costs nothing: the components are already cached, and a ratio that cannot
+   * be formed is null rather than a guess, so it renders as not yet imported
+   * exactly like a genuinely missing estimate does.
+   */
   const valueByZcta = useMemo(() => {
     const m = new Map<string, number | null>()
-    for (const row of rows) m.set(row.zcta, row.metrics[metric] ?? null)
+    const derive = active.derive
+    for (const row of rows) {
+      m.set(row.zcta, derive ? derive(row.metrics) : (row.metrics[metric] ?? null))
+    }
     return m
-  }, [rows, metric])
+  }, [rows, metric, active])
 
   const bins = useMemo(
     () => buildBins([...valueByZcta.values()].filter((v): v is number => v !== null)),
@@ -399,7 +423,6 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
     [zoomBy],
   )
 
-  const active = MAP_METRICS.find((m) => m.key === metric)
   const covered = useMemo(() => geoms.filter((g) => g.value !== null).length, [geoms])
 
   return (
@@ -418,6 +441,7 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
 
       <fieldset className="mt-3">
         <legend className="text-sm font-semibold text-slate-900">Figure to map</legend>
+        <p className="mt-1 max-w-3xl text-[0.8125rem] leading-snug text-slate-600">{active.blurb}</p>
         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
           {MAP_METRICS.map((m) => (
             <label key={m.key} className="flex items-center gap-1.5 text-sm text-slate-700">
@@ -574,6 +598,41 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
         </p>
       </div>
 
+      {/*
+        The questions people actually ask.
+
+        Nobody opens a housing map looking for B19013_001E. They ask whether they
+        can afford to live somewhere, and whether the place they are looking at
+        is one they could afford. Each chip below is a question in plain words
+        that resolves to a specific published figure or a stated ratio of two of
+        them, so the descriptive framing and the number underneath can never
+        disagree.
+      */}
+      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+        <p className="text-sm font-semibold text-slate-900">What people usually want to know</p>
+        <p className="mt-0.5 text-[0.8125rem] text-slate-600">
+          Pick a question and the map switches to the figure that answers it.
+        </p>
+        <ul className="mt-2 flex flex-wrap gap-1.5">
+          {QUESTIONS.map((q) => (
+            <li key={q.key}>
+              <button
+                type="button"
+                onClick={() => setMetric(q.key)}
+                aria-pressed={metric === q.key}
+                className={`rounded-full border px-3 py-1.5 text-left text-[0.8125rem] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
+                  metric === q.key
+                    ? 'border-slate-900 bg-slate-900 text-white'
+                    : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50'
+                }`}
+              >
+                {q.question}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       {/* The legend is real text, not swatches alone, so the scale is readable
           without colour perception. */}
       <div id={legendId} className="mt-2 text-sm">
@@ -613,6 +672,57 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
       <p className="sr-only" role="status" aria-live="polite">
         {summary}
       </p>
+
+      {/*
+        Schools, and why this map does not rank them.
+        
+        This is the most-asked question the tool cannot answer directly, so it is
+        answered here rather than left as a silence. School figures exist for
+        every selected area in the drilldown: expenditure per pupil, students per
+        teacher and enrolment, from NCES EDGE, plus named individual schools with
+        graduation and attendance for New York. They are not on this map because
+        NCES publishes school *districts*, not schools, and mapping a district
+        layer is not something this tool can do without boundary geometry for
+        13,000 entities.
+        
+        A "best schools" ranking is deliberately absent. Two of the reasons are
+        practical and one is not. There is no free, licensed, national source of
+        school-level results, and the commercial ratings that do exist are not
+        licensed for this use. But the deeper reason is that ranking areas by
+        their schools, next to their cost, is a statement about which places are
+        worth moving to, which is the thing the Fair Housing notice exists to
+        warn about. Two published numbers can be compared by anyone; ranking them
+        for you is a recommendation this tool does not make.
+      */}
+      <details className="mt-3 rounded-lg border border-slate-200 bg-white">
+        <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-semibold text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900">
+          Schools: what is available, and why there is no ranking
+        </summary>
+        <div className="border-t border-slate-200 px-3 py-2.5 text-[0.8125rem] leading-relaxed text-slate-700">
+          <p>
+            <strong className="text-slate-900">Every area, all 50 states:</strong> the school district covering
+            it, with expenditure per pupil, students per teacher, enrolment, school count and grade span.
+            Open any area from the map or the table and these appear.
+          </p>
+          <p className="mt-2">
+            <strong className="text-slate-900">New York only:</strong> named individual schools near the
+            area, with enrolment, graduation rate and attendance rate.
+          </p>
+          <p className="mt-2">
+            <strong className="text-slate-900">Why there is no &ldquo;best schools for the price&rdquo;
+            ranking.</strong> Two reasons are practical: there is no free, licensed national source of
+            school-level results, and the commercial ratings that do exist are not licensed for this use. The
+            third is not. Ranking areas by school results alongside cost is a statement about which places
+            are worth moving to, which is exactly what the Fair Housing notice below warns about. The figures
+            are here so you can compare them yourself; the ranking is not here because this tool does not
+            make recommendations about places.
+          </p>
+          <p className="mt-2">
+            Spending per pupil is a cost of provision, not a measure of quality. It varies with local budgets
+            and cost of living, and two districts spending the same per student can teach very differently.
+          </p>
+        </div>
+      </details>
 
       <div className="mt-4">
         <FairHousingNotice />

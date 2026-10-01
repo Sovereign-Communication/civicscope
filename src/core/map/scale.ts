@@ -15,15 +15,103 @@
  * legend prints the real boundaries so nothing is hidden by the binning.
  */
 
-export const MAP_METRICS = [
-  { key: 'median_gross_rent', label: 'Median gross rent', unit: 'usd_monthly', betterWhen: 'lower' },
-  { key: 'median_rent_burden_pct', label: 'Median rent burden', unit: 'percent', betterWhen: 'lower' },
-  { key: 'median_home_value', label: 'Median home value', unit: 'usd', betterWhen: 'higher' },
-  { key: 'median_household_income', label: 'Median household income', unit: 'usd', betterWhen: 'higher' },
-  { key: 'households', label: 'Households', unit: 'count', betterWhen: 'lower' },
-] as const
+/**
+ * A map figure.
+ *
+ * Most are a single cached ACS column. The rest are *derived*: arithmetic on
+ * figures already held, so they cost no extra request and cannot introduce a
+ * value the publishers did not supply. They exist because the questions people
+ * actually ask when they are moving are not phrased in terms of a single ACS
+ * variable. Nobody asks "what is B19013_001E here"; they ask "what can I afford
+ * on what I earn", which is a ratio.
+ */
+export interface MapMetric {
+  key: string
+  label: string
+  unit: string
+  /** Which direction reads as the answer to the question. Never a judgement. */
+  betterWhen: 'lower' | 'higher'
+  /** Present only for derived figures; returns null when it cannot be formed. */
+  derive?: (m: Record<string, number | null>) => number | null
+  /** One line shown under the selector, saying what the figure is and is not. */
+  blurb: string
+}
 
-export type MapMetricKey = (typeof MAP_METRICS)[number]['key']
+/**
+ * The figures offered on the map.
+ *
+ * Order matters: the ones people look for when moving come first.
+ */
+export const MAP_METRICS: MapMetric[] = [
+  {
+    key: 'median_rent_burden_pct',
+    label: 'Rent burden',
+    unit: 'percent',
+    betterWhen: 'lower',
+    blurb:
+      'The published median of rent as a share of household income. Lower means rent takes a smaller share of what a household earns.',
+  },
+  {
+    key: 'price_to_income',
+    label: 'Home price vs income',
+    unit: 'ratio',
+    betterWhen: 'lower',
+    blurb:
+      'Median home value divided by median household income, as a plain multiple. 3 means a typical home costs three times the typical income; 6 means six times. This is arithmetic on two published figures, not a lending or valuation judgement.',
+    derive: (m) => {
+      const price = m.median_home_value
+      const income = m.median_household_income
+      if (price === null || price === undefined || income === null || income === undefined) return null
+      if (income <= 0) return null
+      return price / income
+    },
+  },
+  {
+    key: 'median_gross_rent',
+    label: 'Median gross rent',
+    unit: 'usd_monthly',
+    betterWhen: 'lower',
+    blurb: 'Median monthly gross rent for a unit, straight from the published estimate.',
+  },
+  {
+    key: 'median_home_value',
+    label: 'Median home value',
+    unit: 'usd',
+    betterWhen: 'lower',
+    blurb: 'Median home value as published. A dollar figure, not an assessment or an offer.',
+  },
+  {
+    key: 'median_household_income',
+    label: 'Median household income',
+    unit: 'usd',
+    betterWhen: 'higher',
+    blurb: 'Median household income as published, in the survey year.',
+  },
+  {
+    key: 'rent_to_income',
+    label: 'Annual rent vs income',
+    unit: 'ratio',
+    betterWhen: 'lower',
+    blurb:
+      'Twelve months of median gross rent divided by median household income. It is a gross ratio and sits beside the published rent burden rather than replacing it, because the published figure accounts for which households actually rent.',
+    derive: (m) => {
+      const rent = m.median_gross_rent
+      const income = m.median_household_income
+      if (rent === null || rent === undefined || income === null || income === undefined) return null
+      if (income <= 0) return null
+      return (rent * 12) / income
+    },
+  },
+  {
+    key: 'households',
+    label: 'Households',
+    unit: 'count',
+    betterWhen: 'lower',
+    blurb: 'Number of households, which is a measure of size rather than of quality.',
+  },
+]
+
+export type MapMetricKey = string
 
 /**
  * Sequential ramp, light to dark, in a single hue: higher values are darker.
@@ -43,7 +131,18 @@ export type MapMetricKey = (typeof MAP_METRICS)[number]['key']
  * of flipping the ramp and it is why the pale end is a tinted blue rather than
  * the near-white it would otherwise be.
  */
-export const RAMP = ['#dbeafe', '#93c5fd', '#60a5fa', '#3b82f6', '#1d4ed8', '#172554']
+export const RAMP = [
+  '#eff6ff',
+  '#dbeafe',
+  '#bfdbfe',
+  '#93c5fd',
+  '#60a5fa',
+  '#3b82f6',
+  '#2563eb',
+  '#1d4ed8',
+  '#1e3a8a',
+  '#172554',
+]
 
 /**
  * Absent data.
@@ -110,5 +209,9 @@ export function formatValue(value: number, unit: string): string {
   if (unit === 'percent') return `${value.toFixed(1)}%`
   if (unit === 'usd_monthly') return `$${Math.round(value).toLocaleString('en-US')}/mo`
   if (unit === 'usd') return `$${Math.round(value).toLocaleString('en-US')}`
+  // A multiple, not a percentage. "3.1x" reads correctly as a ratio and cannot
+  // be mistaken for three per cent, which matters because the derived figures
+  // sit beside percentages on the same screen.
+  if (unit === 'ratio') return `${value.toFixed(1)}x`
   return Math.round(value).toLocaleString('en-US')
 }
