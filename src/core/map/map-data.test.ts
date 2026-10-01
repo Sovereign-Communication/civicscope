@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
 import { decodeCentroids, encodeCentroids, type ZctaPoint } from './centroids'
 import { buildBins, binFor, MAP_METRICS, RAMP } from './scale'
 import { hexbin, hexRadius } from './binning'
-import { clampScale, createView, fitBase, zoomAround, type Basemap, type Viewport } from './projection'
+import { clampScale, createView, fitBase, projectAll, zoomAround, type Basemap, type Viewport } from './projection'
 
 const ROOT = join(__dirname, '..', '..', '..')
 const BIN = join(ROOT, 'public', 'map', 'zcta-centroids.bin')
@@ -414,6 +414,59 @@ describe('the map can show real per-ZIP values, not only summaries', () => {
 
   it('keeps hexagons large enough to letter at that depth', () => {
     expect(hexRadius(clampScale(1000))).toBeGreaterThanOrEqual(11)
+  })
+})
+
+describe('the map must sit still and move cheaply', () => {
+  const viewSrc = () => readFileSync(join(__dirname, '..', '..', 'ui', 'MapView.tsx'), 'utf8')
+  const projSrc = () => readFileSync(join(__dirname, 'projection.ts'), 'utf8')
+
+  it('does not write the canvas displayed size from state', () => {
+    // Regression: the map grew about fourteen pixels on every frame, forever.
+    // The wrapper's height is whatever the canvas makes it, so writing the
+    // canvas height from the viewport and then measuring the wrapper height is
+    // a feedback loop. It pushed everything below the map down the page and
+    // repainted about twenty-two thousand times a second while idle. Nothing
+    // caught it: the map rendered correctly, it simply would not sit still,
+    // and every test that looked at output rather than at motion passed.
+    // The displayed size now belongs to CSS alone.
+    expect(viewSrc(), 'the canvas displayed size is being written from state').not.toMatch(
+      /canvas\.style\.(width|height)/,
+    )
+    // The backing store is only assigned when it differs, because assigning it
+    // clears the canvas and would force a full repaint on every pass.
+    expect(viewSrc(), 'the backing store must only be resized when it changes').toMatch(
+      /if \(canvas\.width !== backingW\)/,
+    )
+  })
+
+  it('projects the country once rather than on every frame', () => {
+    // Regression: 33,791 projections were redone on every pan and zoom frame,
+    // which cost about a second per zoom click. The projection is deliberately
+    // held at its fitted scale with zoom applied afterwards, so its output
+    // never changes with the viewport and is computed once into flat arrays.
+    expect(projSrc(), 'projectAll must exist to project once').toMatch(/export function projectAll/)
+    expect(viewSrc(), 'the frame path must use the cached projection').toMatch(/projectAll/)
+    expect(viewSrc(), 'the frame path must apply the screen transform itself').toMatch(/screenTransform/)
+    // And the basemap is traced once into a Path2D rather than re-walked
+    // through the path builder on every repaint.
+    expect(projSrc(), 'the basemap must be traced once into a Path2D').toMatch(/new Path2D\(\)/)
+  })
+it('routes Puerto Rico through its own projection when projecting once', () => {
+    // Regression: the batch projection used only the mainland projection, and
+    // albersUsa returns null for Puerto Rico, so all of its ZIP codes silently
+    // stopped rendering. A missing map area reads as missing data rather than
+    // as a routing mistake, which is exactly why it needs a test.
+    const fit = fitBase(points)
+    const projected = projectAll(fit, points)
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i]!
+      expect(projected.ok[i], `${p.zcta} was not projected`).toBe(1)
+    }
+    // And Puerto Rico must land in its inset, away from the mainland.
+    const pr = projected.xs[points.findIndex((p) => p.zcta === '00601')]!
+    const mainland = projected.xs[points.findIndex((p) => p.zcta === '78701')]!
+    expect(Math.abs(pr - mainland), 'Puerto Rico was placed on the mainland').toBeGreaterThan(50)
   })
 })
 

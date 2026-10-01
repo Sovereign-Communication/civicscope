@@ -25,7 +25,16 @@ const LABEL_MIN_RADIUS = 11
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import { hexbin, hexRadius, HEX_CORNERS, type BinInput } from '../core/map/binning'
-import { loadMapAssets, createView, fitBase, zoomAround, type Basemap, type Viewport } from '../core/map/projection'
+import {
+  loadMapAssets,
+  fitBase,
+  projectAll,
+  screenTransform,
+  buildOutlinePath,
+  zoomAround,
+  type Basemap,
+  type Viewport,
+} from '../core/map/projection'
 import type { ZctaPoint } from '../core/map/centroids'
 import {
   buildBins,
@@ -99,15 +108,24 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
     return () => controller.abort()
   }, [])
 
-  // Keep the backing store matched to the CSS box, so the map is not blurry on
-  // a high-DPI screen.
+  /*
+   * Match the backing store to the CSS box, so the map is not blurry on a
+   * high-DPI screen.
+   *
+   * Only the width is observed. The wrapper's height is whatever the canvas
+   * makes it, so writing the canvas height from state and then measuring the
+   * wrapper height is a feedback loop: the map grew fourteen pixels on every
+   * pass, forever, dragging everything below it down the page and repainting
+   * about twenty-two thousand times a second. The height is fixed by CSS and
+   * never written back.
+   */
   useEffect(() => {
     const wrap = wrapRef.current
     if (!wrap) return
     const observer = new ResizeObserver(() => {
-      const rect = wrap.getBoundingClientRect()
-      if (rect.width < 1 || rect.height < 1) return
-      setViewport((v) => ({ ...v, width: Math.round(rect.width), height: Math.round(rect.height) }))
+      const width = Math.round(wrap.getBoundingClientRect().width)
+      if (width < 1) return
+      setViewport((v) => (v.width === width ? v : { ...v, width }))
     })
     observer.observe(wrap)
     return () => observer.disconnect()
@@ -118,27 +136,52 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
   // would make dragging the map janky for no benefit.
   const fit = useMemo(() => (assets ? fitBase(assets.centroids) : null), [assets])
 
+  /*
+   * Projected positions, computed once.
+   *
+   * The projection is held at its fitted scale and zoom is applied afterwards,
+   * so these numbers do not change when the reader zooms or pans. Recomputing
+   * 33,791 projections on every frame was the cost that made a zoom click take
+   * about a second; here it is paid once, on load.
+   */
+  const projected = useMemo(() => {
+    if (!assets || !fit) return null
+    return projectAll(fit, assets.centroids)
+  }, [assets, fit])
+
+  // Traced once per projection, then re-stroked under the viewport transform,
+  // so the outlines cost one stroke() per repaint rather than re-walking every
+  // state boundary through the path builder.
+  const outlinePath = useMemo(
+    () => (fit ? buildOutlinePath(assets?.basemap ?? null, fit) : null),
+    [assets, fit],
+  )
+
   const geoms = useMemo(() => {
-    if (!assets || !fit) return []
-    const view = createView(fit, viewport, assets.basemap)
+    if (!assets || !fit || !projected) return []
     const radius = hexRadius(viewport.scale)
+    const { s, ox, oy } = screenTransform(viewport)
     const inputs: BinInput[] = []
-    for (const point of assets.centroids) {
-      const p = view.project(point.lon, point.lat)
-      if (!p) continue
-      if (p[0] < -40 || p[0] > viewport.width + 40 || p[1] < -40 || p[1] > viewport.height + 40) continue
-      const value = valueByZcta.get(point.zcta)
+    const pad = radius * 2
+    for (let i = 0; i < projected.ok.length; i++) {
+      if (!projected.ok[i]) continue
+      const x = projected.xs[i]! * s + ox
+      const y = projected.ys[i]! * s + oy
+      // Cull off-screen work before it reaches the binner.
+      if (x < -pad || x > viewport.width + pad || y < -pad || y > viewport.height + pad) continue
+      const zcta = assets.centroids[i]!.zcta
+      const value = valueByZcta.get(zcta)
       // A point with no usable figure is kept, so it renders as explicitly
       // absent rather than quietly vanishing from the map.
       inputs.push({
-        x: p[0],
-        y: p[1],
+        x,
+        y,
         value: value === null || value === undefined ? Number.NaN : value,
-        zctas: [point.zcta],
+        zctas: [zcta],
       })
     }
     return hexbin(inputs, radius)
-  }, [assets, fit, viewport, valueByZcta])
+  }, [assets, fit, projected, viewport, valueByZcta])
 
   // Canvas has no accessibility tree, so an equivalent is published as live
   // text. A screen-reader user gets the bins, not silence.
@@ -188,25 +231,28 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
     const canvas = canvasRef.current
     if (!canvas || !assets || !fit) return
     const dpr = Math.min(2, window.devicePixelRatio || 1)
-    canvas.width = Math.round(viewport.width * dpr)
-    canvas.height = Math.round(viewport.height * dpr)
-    canvas.style.width = `${viewport.width}px`
-    canvas.style.height = `${viewport.height}px`
+    const backingW = Math.round(viewport.width * dpr)
+    const backingH = Math.round(viewport.height * dpr)
+    // The backing store is resized only when it actually differs. Assigning it
+    // clears the canvas, so doing it unconditionally meant every repaint wiped
+    // the map and drew it again, and the assignment itself was what drove the
+    // layout churn.
+    if (canvas.width !== backingW) canvas.width = backingW
+    if (canvas.height !== backingH) canvas.height = backingH
+    // The displayed size is left entirely to CSS. Writing it here is what fed
+    // the ResizeObserver loop.
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, viewport.width, viewport.height)
 
-    const view = createView(fit, viewport, assets.basemap)
     const radius = hexRadius(viewport.scale)
 
     // Basemap first, so data sits on top of it.
-    if (assets.basemap) {
-      ctx.save()
+    if (outlinePath) {
       ctx.strokeStyle = '#cbd5e1'
       ctx.lineWidth = 1
-      view.outlines()(ctx)
-      ctx.restore()
+      outlinePath(viewport)(ctx)
     }
 
     for (const bin of geoms) {
@@ -258,7 +304,7 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
       ctx.fillStyle = '#0f172a'
       ctx.fillText(text, bin.cx, bin.cy)
     }
-  }, [assets, fit, viewport, geoms, bins, selectedZctas])
+  }, [assets, fit, viewport, geoms, bins, selectedZctas, outlinePath])
 
   useEffect(() => {
     draw()

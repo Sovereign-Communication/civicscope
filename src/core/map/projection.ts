@@ -321,3 +321,116 @@ export async function loadMapAssets(
   }
   return { centroids, basemap }
 }
+
+/**
+ * Projects every point once, into flat arrays, for a fixed canvas size.
+ *
+ * The d3 projection is deliberately held at its fitted scale, with zoom and pan
+ * applied afterwards in the screen transform. That makes its output for a given
+ * lon/lat identical at every zoom level, so the 33,791 projections only ever
+ * need doing once. They were being redone on every pan and zoom frame, which is
+ * why a single zoom click took about a second.
+ *
+ * Returns null for points d3 cannot place, so those are skipped rather than
+ * being drawn at the origin.
+ */
+export function projectAll(
+  fit: BaseFit,
+  points: readonly ZctaPoint[],
+): { xs: Float32Array; ys: Float32Array; ok: Uint8Array } {
+  const n = points.length
+  const xs = new Float32Array(n)
+  const ys = new Float32Array(n)
+  const ok = new Uint8Array(n)
+  const projection = geoAlbersUsa()
+  projection.scale(fit.k)
+  projection.translate([fit.tx, fit.ty])
+  const pr = geoConicEqualArea().parallels([18, 18])
+  pr.scale(fit.prK)
+  pr.translate([fit.prTx, fit.prTy])
+
+  for (let i = 0; i < n; i++) {
+    const p = points[i]!
+    // Puerto Rico goes through its own inset projection, exactly as the
+    // per-frame path used to. Using only the mainland projection here silently
+    // dropped all of Puerto Rico's ZIP codes, because albersUsa returns null
+    // for them — and a missing map area looks like missing data rather than a
+    // routing mistake.
+    const at = isPuertoRico(p.lon, p.lat) ? pr([p.lon, p.lat]) : projection([p.lon, p.lat])
+    if (!at || Number.isNaN(at[0]) || Number.isNaN(at[1])) continue
+    xs[i] = at[0]
+    ys[i] = at[1]
+    ok[i] = 1
+  }
+  return { xs, ys, ok }
+}
+
+/**
+ * The scale and offset that turn projected internal coordinates into canvas
+ * pixels for a viewport. Separate from `createView` so the per-frame path is
+ * two multiplies and two adds rather than a projection call.
+ */
+export function screenTransform(viewport: Viewport): { s: number; ox: number; oy: number } {
+  const zoom = clampScale(viewport.scale)
+  const fitScale = Math.min(viewport.width / INTERNAL_W, viewport.height / INTERNAL_H)
+  const s = fitScale * zoom
+  return {
+    s,
+    ox: (viewport.width - INTERNAL_W * s) / 2 + viewport.offsetX,
+    oy: (viewport.height - INTERNAL_H * s) / 2 + viewport.offsetY,
+  }
+}
+
+/**
+ * The basemap outlines, traced once into a Path2D.
+ *
+ * `outlines()` re-walked all 56 state outlines through d3's path builder on
+ * every repaint, which is a few thousand line segments of work for geometry that
+ * does not change between frames. Traced once and re-stroked under the
+ * viewport transform, the same basemap costs one `stroke()` call.
+ *
+ * The returned function closes over the cached path and applies the transform,
+ * so the outlines and the data can never drift apart.
+ */
+export function buildOutlinePath(
+  basemap: Basemap | null,
+  fit: BaseFit,
+): (viewport: Viewport) => (ctx: CanvasRenderingContext2D) => void {
+  if (!basemap) return () => () => undefined
+
+  // Two paths, because Puerto Rico is drawn through its own projection and so
+  // cannot share the mainland transform. Both are traced once.
+  const main = geoAlbersUsa()
+  main.scale(fit.k)
+  main.translate([fit.tx, fit.ty])
+  const pr = geoConicEqualArea().parallels([18, 18])
+  pr.scale(fit.prK)
+  pr.translate([fit.prTx, fit.prTy])
+
+  const mainPath = new Path2D()
+  const prPath = new Path2D()
+  for (const feature of basemap.features) {
+    const isPuertoRico = feature.properties?.STUSAB === 'PR'
+    const projection = isPuertoRico ? pr : main
+    const geo = geoPath(projection)(feature as never) as unknown as string
+    if (!geo) continue
+    if (isPuertoRico) prPath.addPath(new Path2D(geo))
+    else mainPath.addPath(new Path2D(geo))
+  }
+
+  return (viewport: Viewport) => {
+    const { s, ox, oy } = screenTransform(viewport)
+    return (ctx: CanvasRenderingContext2D) => {
+      ctx.save()
+      ctx.transform(s, 0, 0, s, ox, oy)
+      ctx.stroke(mainPath)
+      ctx.restore()
+      ctx.save()
+      // Puerto Rico's inset lives inside the same internal box, so the same
+      // screen transform applies; only its projection differed.
+      ctx.transform(s, 0, 0, s, ox, oy)
+      ctx.stroke(prPath)
+      ctx.restore()
+    }
+  }
+}
