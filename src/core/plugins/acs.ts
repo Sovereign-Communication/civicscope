@@ -95,7 +95,24 @@ function source(tableId: string, url: string): SourceRef {
  * as "$-666,666,666/mo" and "-666666666%", which is not a placeholder but a
  * confidently wrong figure — the exact failure this project exists to prevent.
  */
-const ACS_SENTINELS = new Set([-666666666, -999999999, -888888888])
+/*
+ * -333333333 and -222222222 were found by auditing 4,000 real ZIP codes rather
+ * than by reading a specification: they appear only on margin-of-error columns
+ * (198 and 61 occurrences respectively across those columns), which is why a
+ * check that only looked at the estimate columns never saw them. Both mean the
+ * margin cannot be computed, so both are absent values rather than figures.
+ * Without them they survived into the cache, and the margin formatter hid them
+ * by rejecting any negative — which meant the app was relying on a display rule
+ * to paper over a parsing gap. A round trip through the map's derived figures
+ * would have surfaced one as a value.
+ */
+const ACS_SENTINELS = new Set([
+  -666666666,
+  -999999999,
+  -888888888,
+  -333333333,
+  -222222222,
+])
 
 /**
  * True when a raw ACS value is one of the missing-value sentinels.

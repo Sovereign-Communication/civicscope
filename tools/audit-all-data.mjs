@@ -48,7 +48,27 @@ const COLUMNS = {
 
 /** Checked separately, because the app must not claim them and must not have them. */
 const NOT_CLAIMED = ['renter_occupied', 'owner_occupied']
-const SENTINELS = new Set([666666666, -666666666, 999999999, -999999999, 888888888, -888888888])
+/**
+ * Must match ACS_SENTINELS in src/core/plugins/acs.ts.
+ *
+ * -333333333 and -222222222 appear only on margin columns and were found by
+ * auditing real data. When the app was fixed to treat them as absent, this
+ * audit reported 20,000-odd "dropped-margin" defects for the fix being correct,
+ * because it still believed those were figures. An audit that has not been
+ * taught what a missing value looks like will condemn the code for handling one.
+ */
+const SENTINELS = new Set([
+  666666666,
+  -666666666,
+  999999999,
+  -999999999,
+  888888888,
+  -888888888,
+  333333333,
+  -333333333,
+  222222222,
+  -222222222,
+])
 
 if (!KEY) {
   console.error('CENSUS_KEY is required')
@@ -118,6 +138,19 @@ if (!appRows.length) {
 }
 
 // ---------------------------------------------------------- the publisher
+// One worked example, so a reader can see what the comparison is actually
+// comparing rather than trusting a count. Without it a check that compares
+// nothing reports zero defects and looks identical to one that passed.
+const example = appRows.find((r) => r.zcta === '78701') ?? appRows[0]
+if (example) {
+  console.log('    example row')
+  console.log(`      zcta:   ${example.zcta}`)
+  console.log(`      metrics ${JSON.stringify(example.metrics)}`)
+  console.log(`      moes:   ${JSON.stringify(example.moes)}`)
+  console.log(`      metric keys ${Object.keys(example.metrics ?? {}).join(', ')}`)
+  console.log(`      moe keys    ${Object.keys(example.moes ?? {}).join(', ')}`)
+}
+
 const byZcta = new Map(appRows.map((r) => [r.zcta, r]))
 const zctas = [...byZcta.keys()].sort()
 const CHUNK = 800
@@ -129,6 +162,13 @@ const defects = []
 let cellsCompared = 0
 let nulls = 0
 let sentinels = 0
+/**
+ * Counted rather than assumed. A margin check that silently did nothing would
+ * report zero defects and look identical to one that genuinely passed, which is
+ * the failure mode this whole audit exists to prevent.
+ */
+let marginsCompared = 0
+let marginsVerified = 0
 
 for (let i = 0; i < zctas.length; i += CHUNK) {
   const part = zctas.slice(i, i + CHUNK)
@@ -194,6 +234,58 @@ for (let i = 0; i < zctas.length; i += CHUNK) {
 
       cellsCompared++
       const shown = app.metrics?.[metric]
+
+      /*
+       * The margin, which until now nothing checked.
+       *
+       * Every figure the reader sees is printed with "+/- something" beside it,
+       * and the previous version of this audit compared only the estimates. A
+       * margin could have been read from the wrong column, dropped, or invented
+       * and this would have reported the run clean. It is a number a person
+       * uses to decide whether to trust the figure next to it, so it has to be
+       * held to the same standard as the figure.
+       */
+      if (col.moe) {
+        const rawMoe = o[col.moe]
+        let truthMoe = null
+        if (rawMoe !== undefined && rawMoe !== null && rawMoe !== '') {
+          const mn = Number(rawMoe)
+          if (SENTINELS.has(mn)) truthMoe = null
+          else if (Number.isFinite(mn)) truthMoe = mn
+        }
+        const shownMoe = app.moes?.[metric] ?? null
+        marginsCompared++
+        if (truthMoe === null) {
+          if (shownMoe !== null && shownMoe !== undefined) {
+            defects.push({
+              kind: 'phantom-margin',
+              zcta,
+              metric,
+              detail: `app shows +/-${shownMoe}, the API has none`,
+            })
+          }
+        } else if (shownMoe === null || shownMoe === undefined) {
+          defects.push({
+            kind: 'dropped-margin',
+            zcta,
+            metric,
+            detail: `the API supplies +/-${truthMoe} from ${col.moe}, the app shows none`,
+          })
+        } else if (Math.abs(shownMoe - truthMoe) > Math.max(0.01, Math.abs(truthMoe) * 1e-9)) {
+          defects.push({
+            kind: 'wrong-margin',
+            zcta,
+            metric,
+            detail: `app +/-${shownMoe} vs API +/-${truthMoe} (from ${col.moe})`,
+          })
+        } else {
+          // Counted on the path that means "it matched", which is where it has to
+          // be counted. It was previously counted only inside the failure branch,
+          // so a perfect run reported zero verified and looked like a check that
+          // had compared nothing.
+          marginsVerified++
+        }
+      }
       if (truth === null) {
         if (shown !== null && shown !== undefined) {
           nulls++
@@ -232,6 +324,9 @@ for (let i = 0; i < zctas.length; i += CHUNK) {
 process.stdout.write('\n\n')
 
 // ------------------------------------------------------------------ report
+console.log(`  margins compared:    ${marginsCompared.toLocaleString('en-US')}`)
+console.log(`  margins verified:    ${marginsVerified.toLocaleString('en-US')} matched the publisher exactly`)
+console.log('')
 console.log('=== result ===\n')
 console.log(`  rows audited:        ${appRows.length}`)
 console.log(`  cells compared:      ${cellsCompared}`)

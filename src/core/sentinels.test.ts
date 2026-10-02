@@ -129,4 +129,23 @@ describe('NCES missing-value sentinel', () => {
     // A negative expenditure must never reach the screen.
     expect(real(-666666666)).toBeNull()
   })
+
+
+  it('treats every margin-of-error encoding as absent', () => {
+    // Found by auditing 4,000 real ZIP codes rather than by reading a
+    // specification. Both appear only on margin columns, which is why nothing
+    // caught them: a check on the estimate columns alone never sees them, and
+    // the margin formatter hid them by rejecting any negative, which made a
+    // parsing gap look like a working display rule.
+    for (const raw of ['-333333333', '-222222222.0', '-333333333.0']) {
+      expect(isAcsSentinel(raw), `${raw} is not recognised as absent`).toBe(true)
+      expect(toNum(raw), `${raw} became a figure`).toBeNull()
+    }
+    // And the ones already known still are.
+    for (const raw of ['-666666666', '-999999999', '-888888888']) {
+      expect(toNum(raw)).toBeNull()
+    }
+    // A real margin is untouched.
+    expect(toNum('862')).toBe(862)
+  })
 })
