@@ -248,7 +248,7 @@ add(
   // catches it is comparing the figure against the publisher, cell by cell,
   // which is what the live suite does on every CI run.
   add(
-    exists('src/live/app-data-integrity.test.ts'),
+    read('src/live/app-data-integrity.test.ts').length > 0,
     'every figure the app shows is compared against the Census Bureau in CI, cell by cell, not merely reviewed',
   )
   add(
@@ -258,7 +258,7 @@ add(
     'that comparison reads the real app cache out of a real browser rather than trusting a fixture',
   )
   add(
-    exists('tools/audit-all-data.mjs'),
+    read('tools/audit-all-data.mjs').length > 0,
     'a full country-wide audit covering all 33,791 areas is available as a release check',
   )
 

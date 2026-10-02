@@ -54,11 +54,20 @@ jobs:
       - name: Install
         run: npm ci
 
+      # One test in this suite drives the real application in a real browser so
+      # that every figure it shows can be compared against the Census Bureau
+      # cell by cell. A semantic review cannot catch a wrong number; this can.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
       # Asserts the *shape* of every upstream response. These run without a
       # Census key, so they verify the keyless sources and the error-handling
       # contract rather than the country-wide data payload.
       - name: Live API contract tests
-        run: npx vitest run --config vitest.live.config.ts
+        env:
+          # The browser-driven comparison needs a served app and a key.
+          E2E_BASE_URL: http://127.0.0.1:4173
+        run: npm run build:app && (npx vite preview --port 4173 --strictPort --host 127.0.0.1 &) && sleep 6 && npx vitest run --config vitest.live.config.ts
 
   completion-gate:
     runs-on: ubuntu-latest
