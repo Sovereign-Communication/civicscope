@@ -72,6 +72,21 @@ describe('gate: ACS request construction', () => {
       expect((block![1].match(/VARS\./g) ?? []).length).toBeLessThanOrEqual(12)
   })
 
+  it('never claims an absent figure is merely un-imported', () => {
+    // An audit of all 33,791 areas found every absence in the country is the
+    // publisher's "not applicable": a ZIP code with no rental units has no
+    // median rent. There is nothing to import, and "not yet imported" told a
+    // reader the opposite — that the figure exists and is on its way. The cause
+    // is now carried on the row and shown in words.
+    const acs = read('src/core/plugins/acs.ts')
+    expect(acs, 'the cause of an absence must be recorded').toMatch(/absent\?: Record<string, AbsentReason>/)
+    expect(acs, 'each encoding must say what it means').toMatch(/ACS_SENTINEL_REASONS/)
+    expect(acs, 'absent figures must be labelled from the cause').toMatch(/function absenceLabel/)
+    expect(acs).toMatch(/not applicable here/)
+    // And the honest phrase must survive for a figure genuinely not loaded.
+    expect(read('src/ui/SweepTable.tsx')).toMatch(/not yet imported/)
+  })
+
   it('separates screen variables from detail variables', () => {
     expect(acs).toMatch(/SCREEN_VARS/)
     expect(acs).toMatch(/DETAIL_VARS/)

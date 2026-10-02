@@ -19,7 +19,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { type AreaRow } from '../core/plugins/acs'
+import { absenceLabel, type AbsentReason, type AreaRow } from '../core/plugins/acs'
 
 const num = new Intl.NumberFormat('en-US')
 
@@ -63,8 +63,14 @@ function fmtMargin(value: number | null): string | null {
   if (value === 0) return '0'
   return num.format(Math.round(value))
 }
-  function fmt(value: number | null, unit: string): string {
-  if (value === null || !Number.isFinite(value) || value < 0) return 'not yet imported'
+  function fmt(value: number | null, unit: string, reason?: AbsentReason): string {
+  if (value === null || !Number.isFinite(value) || value < 0) {
+    // "Not yet imported" implied a queue: that the figure exists and has not
+    // arrived, so waiting would help. An audit of all 33,791 areas found every
+    // absence in the country is "not applicable" — a ZIP code with no rental
+    // units has no median rent — and no amount of importing will change that.
+    return reason ? absenceLabel(reason) : 'not yet imported'
+  }
   if (unit === 'percent') return value > 100 ? 'not yet imported' : `${value}%`
   if (unit === 'usd_monthly') return `${usd.format(value)}/mo`
   if (unit === 'usd') return usd.format(value)
@@ -232,7 +238,7 @@ export function SweepTable({
                     const marginText = fmtMargin(r.moes?.[c.sort!] ?? null)
                     return (
                       <td key={c.key} className="px-3 py-1.5 text-right text-[0.8125rem] tabular-nums text-slate-700">
-                        {fmt(value, UNIT_OF[c.sort!] ?? 'count')}
+                        {fmt(value, UNIT_OF[c.sort!] ?? 'count', r.absent?.[c.sort!])}
                         {/*
                           The margin is rendered beside the figure rather than in
                           a separate column, because a survey estimate without

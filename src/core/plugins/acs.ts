@@ -106,6 +106,19 @@ function source(tableId: string, url: string): SourceRef {
  * to paper over a parsing gap. A round trip through the map's derived figures
  * would have surfaced one as a value.
  */
+/**
+ * Each encoding, and what it means. Aimed at the reader rather than at the
+ * parser: the cause is the useful part, and all three used to be shown as the
+ * same phrase.
+ */
+export const ACS_SENTINEL_REASONS: Record<number, AbsentReason> = {
+  [-666666666]: 'not-applicable',
+  [-333333333]: 'not-applicable',
+  [-999999999]: 'missing',
+  [-888888888]: 'not-comparable',
+  [-222222222]: 'too-few-households',
+}
+
 const ACS_SENTINELS = new Set([
   -666666666,
   -999999999,
@@ -113,6 +126,36 @@ const ACS_SENTINELS = new Set([
   -333333333,
   -222222222,
 ])
+
+/**
+ * Why a figure is absent, in the words a reader needs.
+ *
+ * An audit of all 33,791 areas found every single absence in the country comes
+ * from one encoding, "not applicable", which the ACS uses when a median cannot
+ * be computed because there is nothing to compute it over: a ZIP code with no
+ * rental units has no median rent. There is no source to import that from,
+ * because the publisher does not publish it.
+ *
+ * "Not yet imported" was the wrong label for that. It reads as a queue: the
+ * data exists and has not arrived yet, so waiting would help. It has not
+ * arrived because it does not exist, and it will not. Saying so plainly is both
+ * shorter and the only answer that is true.
+ */
+export type AbsentReason = 'not-applicable' | 'not-comparable' | 'missing' | 'too-few-households'
+
+/** Shown in place of a figure, chosen by cause rather than one phrase for all. */
+export function absenceLabel(reason: AbsentReason): string {
+  switch (reason) {
+    case 'not-applicable':
+      return 'not applicable here'
+    case 'not-comparable':
+      return 'not comparable'
+    case 'missing':
+      return 'not published'
+    case 'too-few-households':
+      return 'too few households to be reliable'
+  }
+}
 
 /**
  * True when a raw ACS value is one of the missing-value sentinels.
@@ -149,6 +192,15 @@ export interface AreaRow {
   name: string
   metrics: Record<string, number | null>
   moes: Record<string, number | null>
+  /**
+   * Why each figure is absent, where the publisher said why.
+   *
+   * Present so the interface can answer honestly instead of showing one phrase
+   * for every kind of absence. An audit of the whole country found all of it
+   * comes from "not applicable", which is a fact about the place rather than a
+   * gap in the data, and "not yet imported" implies the opposite.
+   */
+  absent?: Record<string, AbsentReason>
 }
 
 const METRIC_DEFS: {
@@ -346,6 +398,7 @@ export function areaRowFromRaw(header: readonly string[], rows: readonly (readon
   const nameCol = col('NAME')
 
   const out: AreaRow[] = []
+  const absent: Record<string, AbsentReason> = {}
   for (const row of rows) {
     const label = String(row[nameCol] ?? '')
     const zcta = (label.match(/(\d{5})/) ?? [])[1]
@@ -355,14 +408,23 @@ export function areaRowFromRaw(header: readonly string[], rows: readonly (readon
     const moes: AreaRow['moes'] = {}
     for (const [varName, key] of Object.entries(METRIC_FOR_VAR)) {
       const i = col(varName)
-      if (i >= 0) metrics[key] = toNum(row[i])
+      if (i >= 0) {
+        metrics[key] = toNum(row[i])
+        // Record why, where the publisher said why, so the interface can tell
+        // "nothing to measure here" apart from "we did not load it".
+        if (metrics[key] === null && i < row.length) {
+          const raw = Number(row[i])
+          const reason = ACS_SENTINEL_REASONS[raw]
+          if (reason) absent[key] = reason
+        }
+      }
       const m = col(varName.replace(/_001E$/, '_001M'))
       if (m >= 0) {
         const v = toNum(row[m])
         if (v !== null) moes[key] = v
       }
     }
-    out.push({ zcta, name: label.trim() || `ZCTA5 ${zcta}`, metrics, moes })
+    out.push({ zcta, name: label.trim() || `ZCTA5 ${zcta}`, metrics, moes, absent })
   }
   return out
 }
