@@ -30,7 +30,7 @@ describe('live: geocoding (Photon)', () => {
     expect(first.zip).toBe('78701')
     expect(typeof first.lat).toBe('number')
     expect(typeof first.lon).toBe('number')
-  }, 30000)
+  }, 300000)
 
   it('resolves ZIP codes through the Census ZCTA service, which is the US authority', async () => {
     // Previously 94110 came back from Photon as a point in France. ZIP
@@ -45,7 +45,7 @@ describe('live: geocoding (Photon)', () => {
       expect(typeof match.lat).toBe('number')
       expect(typeof match.lon).toBe('number')
     }
-  }, 60000)
+  }, 300000)
 
   it('returns a distinct location per ZIP code', async () => {
     const a = await geocode('78701', sig())
@@ -61,7 +61,7 @@ describe('live: TIGERweb tract resolution', () => {
     expect(tract.geoid).toMatch(/^\d{11}$/)
     expect(tract.state).toMatch(/^\d{2}$/)
     expect(tract.county).toMatch(/^\d{3}$/)
-  }, 30000)
+  }, 300000)
 })
 
 describe('live: Census ACS key requirement', () => {
@@ -75,7 +75,7 @@ describe('live: Census ACS key requirement', () => {
     expect(res.ok).toBe(true)
     const body = await res.json().catch(() => null)
     expect(Array.isArray(body)).toBe(false)
-  }, 30000)
+  }, 300000)
 })
 
 describe('live: Census key validation', () => {
@@ -199,7 +199,7 @@ describe.skipIf(!process.env.CENSUS_KEY)('live: chunked ACS sweep', () => {
     await expect(
       fetchChunk(tooMany, SCREEN_VARS, process.env.CENSUS_KEY!, sig()),
     ).rejects.toThrow(/safe size|over the .* limit/)
-  }, 60000)
+  }, 300000)
 
   it('returns different figures for different ZIP codes', async () => {
     const { fetchAreas } = await import('../core/plugins/acs')
@@ -230,7 +230,7 @@ describe('live: New York per-school detail', () => {
     for (let i = 1; i < schools.length; i++) {
       expect(schools[i]!.metres).toBeGreaterThanOrEqual(schools[i - 1]!.metres)
     }
-  }, 60000)
+  }, 300000)
 
   it('reports rates as percentages and never as a zero for a non-reporting school', async () => {
     const { nearbySchools } = await import('../core/plugins/ny-schools')
@@ -245,14 +245,14 @@ describe('live: New York per-school detail', () => {
         expect(s.attendanceRate).toBeLessThanOrEqual(100)
       }
     }
-  }, 60000)
+  }, 300000)
 
   it('yields nothing outside New York rather than guessing', async () => {
     const { nySchoolPlugin } = await import('../core/plugins/ny-schools')
     const ctx = { zoom: 4 as const, signal: sig(), geo: { name: '78701', zip: '78701', lat: 30.27, lon: -97.74 } }
     const metrics = await nySchoolPlugin.fetch(ctx)
     expect(metrics).toEqual([])
-  }, 30000)
+  }, 300000)
 })
 
 describe('live: CDC PLACES tract schema', () => {
@@ -265,5 +265,5 @@ describe('live: CDC PLACES tract schema', () => {
     expect(rows.length).toBeGreaterThan(0)
     expect(rows[0]).toHaveProperty('tractfips')
     expect(rows[0]).toHaveProperty('obesity_crude95ci')
-  }, 30000)
+  }, 300000)
 })
