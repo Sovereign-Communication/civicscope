@@ -241,6 +241,27 @@ add(
   SCREEN_MARGIN_PAIRS_OK,
   'every margin of error on the country-wide screen has its matching estimate, so no figure is shown without its precision',
 )
+  // Data correctness, measured rather than reviewed.
+  //
+  // A semantic review cannot catch a wrong number: nothing an LLM reads can tell
+  // whether 271,000 is the right median home value or the wrong column. What
+  // catches it is comparing the figure against the publisher, cell by cell,
+  // which is what the live suite does on every CI run.
+  add(
+    exists('src/live/app-data-integrity.test.ts'),
+    'every figure the app shows is compared against the Census Bureau in CI, cell by cell, not merely reviewed',
+  )
+  add(
+    /compared/.test(read('src/live/app-data-integrity.test.ts')) &&
+      /api\.census\.gov/.test(read('src/live/app-data-integrity.test.ts')) &&
+      /indexedDB/.test(read('src/live/app-data-integrity.test.ts')),
+    'that comparison reads the real app cache out of a real browser rather than trusting a fixture',
+  )
+  add(
+    exists('tools/audit-all-data.mjs'),
+    'a full country-wide audit covering all 33,791 areas is available as a release check',
+  )
+
   // The map and its caching. Each of these was a real defect rather than a
   // speculative check: the enumeration was refetched on every load, the map
   // blanked as soon as it was zoomed, and zooming was reachable only from a
