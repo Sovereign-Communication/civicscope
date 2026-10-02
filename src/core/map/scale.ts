@@ -31,7 +31,10 @@ export interface MapMetric {
   unit: string
   /** Which direction reads as the answer to the question. Never a judgement. */
   betterWhen: 'lower' | 'higher'
-  /** Present only for derived figures; returns null when it cannot be formed. */
+  /**
+   * Present only for derived figures; returns null when it cannot be formed, or
+   * when the inputs are too thin to stand behind.
+   */
   derive?: (m: Record<string, number | null>) => number | null
   /** One line shown under the selector, saying what the figure is and is not. */
   blurb: string
@@ -59,6 +62,7 @@ export const MAP_METRICS: MapMetric[] = [
     blurb:
       'Median home value divided by median household income, as a plain multiple. 3 means a typical home costs three times the typical income; 6 means six times. This is arithmetic on two published figures, not a lending or valuation judgement.',
     derive: (m) => {
+      if (!canDerive(m)) return null
       const price = m.median_home_value
       const income = m.median_household_income
       if (price === null || price === undefined || income === null || income === undefined) return null
@@ -95,6 +99,7 @@ export const MAP_METRICS: MapMetric[] = [
     blurb:
       'Twelve months of median gross rent divided by median household income. It is a gross ratio and sits beside the published rent burden rather than replacing it, because the published figure accounts for which households actually rent.',
     derive: (m) => {
+      if (!canDerive(m)) return null
       const rent = m.median_gross_rent
       const income = m.median_household_income
       if (rent === null || rent === undefined || income === null || income === undefined) return null
@@ -112,6 +117,37 @@ export const MAP_METRICS: MapMetric[] = [
 ]
 
 export type MapMetricKey = string
+
+/**
+ * The smallest household count a derived figure may rest on.
+ *
+ * A national audit of 1,060 sampled areas found that every area below 1.0x
+ * price-to-income was one with between 34 and 351 households, against a national
+ * median of 1,366. Those are not outliers by accident: an ACS median over a few
+ * dozen households is dominated by a single family, so a ratio built on one
+ * swings wildly and then gets coloured onto the map as though it were about a
+ * place.
+ *
+ * The floor is 500 because that is above every one of those measured cases
+ * (maximum 351) and well below the national median (1,366), so it removes the
+ * figures that cannot be supported without touching ordinary areas. A first
+ * attempt used 100, which is below 351 and therefore let the exact rows the
+ * audit had identified straight through.
+ *
+ * The honest response to an unsupported figure is to publish nothing, which
+ * renders as "not yet imported" rather than as a confident wrong number.
+ *
+ * The floor applies to the derived figures only. A published median is reported
+ * with its own margin of error and is the publisher's to stand behind; a ratio
+ * of two of them is ours, and we decline to publish one we cannot support.
+ */
+export const MIN_HOUSEHOLDS_FOR_DERIVED = 500
+
+/** True when a derived figure may be formed from these figures at all. */
+export function canDerive(m: Record<string, number | null | undefined>): boolean {
+  const hh = m.households
+  return typeof hh === 'number' && Number.isFinite(hh) && hh >= MIN_HOUSEHOLDS_FOR_DERIVED
+}
 
 /**
  * Sequential ramp, light to dark, in a single hue: higher values are darker.
@@ -187,9 +223,24 @@ export function buildBins(values: readonly number[], ramp: readonly string[] = R
   const clean = values.filter((v) => Number.isFinite(v)).sort((a, b) => a - b)
   if (clean.length === 0) return []
 
+  /*
+   * Contiguous bands, which is the whole point of the legend.
+   *
+   * This was wrong in a way that was invisible until a real figure made it
+   * legible. The first band took its lower edge from the minimum and its upper
+   * edge from the first quantile, which is *also* the minimum — so the lightest
+   * colour was a zero-width band that no value could ever fall into, and the
+   * second band inherited the real lower bound. On the map that printed a legend
+   * opening "0.2x to 0.2x" followed by "0.2x to 1.7x", which described no real
+   * range and left the palest colour unused on the whole map.
+   *
+   * Every band now runs from one quantile to the next, so the lightest colour is
+   * the one in use, the legend's boundaries are the real ones, and every value
+   * lands in exactly one band.
+   */
   return ramp.map((color, i) => ({
-    from: i === 0 ? clean[0]! : quantile(clean, (i - 1) / ramp.length),
-    to: i === ramp.length - 1 ? null : quantile(clean, i / ramp.length),
+    from: i === 0 ? clean[0]! : quantile(clean, i / ramp.length),
+    to: i === ramp.length - 1 ? null : quantile(clean, (i + 1) / ramp.length),
     color,
     count: 0,
   }))

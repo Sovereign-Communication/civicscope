@@ -224,6 +224,59 @@ describe('the colour scale', () => {
     expect(binFor(bins, Number.POSITIVE_INFINITY)).toBeNull()
   })
 
+  it('builds contiguous bands, so every colour is used and the legend is true', () => {
+    // The first band took its lower edge from the minimum and its upper edge
+    // from the first quantile, which is the same number, so the lightest colour
+    // was a zero-width band no value could ever land in and the second band
+    // inherited the real lower bound. On a real map the legend opened
+    // "0.2x to 0.2x" and then "0.2x to 1.7x", describing a range that does not
+    // exist and leaving the palest colour unused across the whole country.
+    const values = Array.from({ length: 5000 }, (_, i) => (i * 37) % 1200)
+    const bins = buildBins(values)
+
+    for (let i = 1; i < bins.length; i++) {
+      expect(bins[i]!.from, `band ${i} does not start where band ${i - 1} ends`).toBe(bins[i - 1]!.to)
+    }
+    // No band may be empty, which is what killed the lightest colour.
+    for (const [i, b] of bins.entries()) {
+      if (b.to === null) continue
+      expect(b.to, `band ${i} is zero-width`).toBeGreaterThan(b.from)
+    }
+    // And every value must land in exactly one band, so no colour goes unused.
+    const used = new Set(values.map((v) => bins.findIndex((b) => binFor(bins, v) === b)))
+    expect(used.size, `${bins.length - used.size} band(s) are never used`).toBe(bins.length)
+  })
+
+  it('refuses to publish a derived figure resting on too few households', () => {
+    // A national audit of 1,060 sampled areas found that every area below 1.0x
+    // price-to-income had between 34 and 351 households, against a national
+    // median of 1,366. Those figures are not outliers by accident: an ACS
+    // median over a few dozen households is dominated by one family, so the
+    // ratio swings wildly and then gets coloured onto the map as though it were
+    // about a place.
+    const priceToIncome = MAP_METRICS.find((m) => m.key === 'price_to_income')!
+    const thin = { median_home_value: 55900, median_household_income: 112864, households: 351 }
+    const solid = { median_home_value: 653600, median_household_income: 154867, households: 8021 }
+    // Real, measured rows from the live endpoint.
+    expect(priceToIncome.derive!(thin), 'a 351-household ratio was published').toBeNull()
+    expect(priceToIncome.derive!(solid), 'a solid ratio was suppressed').toBeCloseTo(
+      653600 / 154867,
+      6,
+    )
+    // Every thin case the audit found, not just one of them.
+    for (const hh of [34, 102, 113, 159, 348, 351]) {
+      expect(
+        priceToIncome.derive!({ ...thin, households: hh }),
+        `a ${hh}-household ratio was published`,
+      ).toBeNull()
+    }
+    // Just above the floor, and above the national median, both publish.
+    expect(priceToIncome.derive!({ ...thin, households: 500 })).not.toBeNull()
+    expect(priceToIncome.derive!({ ...solid, households: 1366 })).not.toBeNull()
+    // Missing household counts are not a licence to publish.
+    expect(priceToIncome.derive!({ median_home_value: 300000, median_household_income: 60000 })).toBeNull()
+  })
+
   it('shows every figure the sweep can actually supply', () => {
     // A metric the sweep never fetches would render an empty map while looking
     // broken, so every plain key must be a real cached column, and every derived
