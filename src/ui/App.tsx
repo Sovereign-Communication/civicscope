@@ -248,6 +248,7 @@ export default function App() {
               <>
                 <MapView
                   rows={q.sweep}
+                  loading={(q.sweepProgress?.done ?? 0) < (q.sweepProgress?.total ?? 0)}
                   selectedZctas={q.selectedZctas}
                   onSelect={(zctas) => {
                     for (const zcta of zctas.slice(0, 6)) {

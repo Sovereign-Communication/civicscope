@@ -76,6 +76,8 @@ import { FairHousingNotice } from './FairHousingNotice'
 
 interface Props {
   rows: readonly AreaRow[]
+  /** True while the country-wide sweep is still fetching. */
+  loading: boolean
   onSelect: (zctas: string[]) => void
   /** Areas already in the comparison set, outlined on the map. */
   selectedZctas: readonly string[]
@@ -90,7 +92,7 @@ interface Hover {
   zctas: string[]
 }
 
-export function MapView({ rows, onSelect, selectedZctas }: Props) {
+export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
   const headingId = useId()
   const legendId = useId()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -335,7 +337,7 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
        * everything. The data is shown rather than withheld; this says plainly
        * that more is still coming for this particular cell.
        */
-      if (bin.value !== null && bin.withValue < bin.count) {
+      if (loading && bin.value !== null && bin.withValue < bin.count) {
         const mark = r * 0.3
         ctx.beginPath()
         ctx.lineWidth = 1.25
@@ -446,11 +448,7 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
       </h2>
       <p className="section-note mt-1">
         One hexagon per area, coloured by the selected figure. Each hexagon covers one or more ZIP codes and
-        shows the median of those that have a figure, and only where at least half of them do. Zoom in and the
-        hexagons separate: at the deepest zoom each one holds a single ZIP code and shows that ZIP code's published
-        figure unaltered, because a median across many ZIP codes is a figure that exists nowhere in the data. Where
-        a hexagon is labelled with a number, that is how many ZIP codes it covers. Point at one to see the detail.
-        Every figure is also in the screening table, which is the accessible way to read this data.
+        shows the median of the ZIP codes inside it that have a figure. Zoom in and the hexagons separate: at the deepest zoom each one holds a single ZIP code and shows that ZIP code's own published figure unaltered, because a median across many ZIP codes is a figure that exists nowhere in the data. Point at a hexagon to see how many ZIP codes it covers. Every figure is also in the screening table, which is the accessible way to read this data.
       </p>
 
       <fieldset className="mt-3">
@@ -645,11 +643,10 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
           </ul>
         ) : null}
         <p className="mt-1 text-[0.8125rem] leading-snug text-slate-600">
-          Loaded <strong className="tabular-nums text-slate-900">{covered.toLocaleString('en-US')}</strong> of{' '}
-          <strong className="tabular-nums text-slate-900">{geoms.length.toLocaleString('en-US')}</strong> areas
-          with a figure. An asterisk marks a hexagon whose ZIP codes are only partly loaded, so its figure is the
-          median of what has arrived so far. Areas left blank have no figure published at all — that is the Census
-          Bureau&rsquo;s answer, not a loading failure. Alaska, Hawaii and Puerto Rico are drawn as insets.
+          {loading
+            ? 'Still loading. An asterisk marks a hexagon whose ZIP codes are only partly loaded, so its figure is the median of what has arrived so far rather than of everything.'
+            : `Loaded ${covered.toLocaleString('en-US')} of ${geoms.length.toLocaleString('en-US')} areas with a figure. Every figure the Census Bureau publishes has been loaded and is shown; areas left blank have no figure published at all, which is the publisher's answer rather than a loading failure.`}{' '}
+          Alaska, Hawaii and Puerto Rico are drawn as insets.
         </p>
       </div>
 
