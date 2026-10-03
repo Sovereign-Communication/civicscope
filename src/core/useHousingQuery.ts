@@ -78,20 +78,27 @@ const initial: QueryState = {
  */
 const STATE_PLUGIN_IDS = STATE_SCHOOL_PLUGINS.map((p) => p.id)
 
-const DRILL_PLUGINS: Record<ZoomLevel, string[]> = {
-  0: [],
-  1: [],
-  2: [],
-  3: ['cdc-places', ...STATE_PLUGIN_IDS],
-  4: ['cdc-places', 'nces-school-core', ...STATE_PLUGIN_IDS],
-}
+/**
+ * Everything, always.
+ *
+ * This used to be keyed to a "detail level" the reader chose up front, and the
+ * default level ran NO extra plugins at all: opening a ZIP code gave housing
+ * figures and nothing else, with health and school data hidden behind a control
+ * that read like a setting. People read it as broken.
+ *
+ * The budget was never the reason. A national sweep costs 43 requests against a
+ * daily allowance of 450, and a complete drilldown costs about four, so there is
+ * room to answer the question that was asked rather than to ask a narrower one
+ * first.
+ */
+const DRILL_PLUGINS = ['cdc-places', 'nces-school-core', ...STATE_PLUGIN_IDS]
 
 export function useHousingQuery() {
   const [state, setState] = useState<QueryState>(initial)
   const sweepAbort = useRef<AbortController | null>(null)
   const drillAbort = useRef<Record<string, AbortController>>({})
-  const runRef = useRef<((text: string, zoom: ZoomLevel) => Promise<void>) | null>(null)
-  const lastSearch = useRef<{ text: string; zoom: ZoomLevel } | null>(null)
+  const runRef = useRef<((text: string) => Promise<void>) | null>(null)
+  const lastSearch = useRef<{ text: string } | null>(null)
   const [, setQuotaTick] = useState(0)
 
   useEffect(() => onQuotaChange(() => setQuotaTick((t) => t + 1)), [])
@@ -152,7 +159,7 @@ export function useHousingQuery() {
 
   /** Adds a place to the comparison set and fetches its detail. */
   const selectPlace = useCallback(
-    async (place: ResolvedPlace, zoom: ZoomLevel = state.zoom) => {
+    async (place: ResolvedPlace) => {
       const zcta = place.zip
       if (!zcta) return
 
@@ -176,7 +183,7 @@ export function useHousingQuery() {
       // plugins are all keyless, so returning early when the key is absent
       // silently discarded all of them. The key is passed through as optional
       // and only the key-requiring plugins are skipped by the executor.
-      const ctx: QueryContext = { geo: place, zoom, censusKey: key, signal: ctrl.signal }
+      const ctx: QueryContext = { geo: place, zoom: 4, censusKey: key, signal: ctrl.signal }
       const signal = ctrl.signal
 
       // The NCES boundary lookup is a point query, so a selected ZIP needs
@@ -203,7 +210,7 @@ export function useHousingQuery() {
 
         const results = await executePlugins({
           registry,
-          ids: DRILL_PLUGINS[zoom],
+          ids: DRILL_PLUGINS,
           ctx,
         })
         if (signal.aborted) return
@@ -267,9 +274,9 @@ export function useHousingQuery() {
 
   /** Free-text place search, used to add an area to the comparison set. */
   const search = useCallback(
-    async (text: string, zoom: ZoomLevel) => {
-      lastSearch.current = { text, zoom }
-      setState((s) => ({ ...s, status: 'searching', error: undefined, zoom }))
+    async (text: string) => {
+      lastSearch.current = { text }
+      setState((s) => ({ ...s, status: 'searching', error: undefined }))
 
       const ctrl = new AbortController()
       try {
@@ -294,7 +301,7 @@ export function useHousingQuery() {
           return
         }
         setState((s) => ({ ...s, status: 'idle' }))
-        await selectPlace(places[0]!, zoom)
+        await selectPlace(places[0]!)
       } catch (err) {
         setState((s) => ({ ...s, status: 'error', error: err instanceof Error ? err.message : 'Lookup failed' }))
       }

@@ -72,6 +72,26 @@ describe('gate: ACS request construction', () => {
       expect((block![1].match(/VARS\./g) ?? []).length).toBeLessThanOrEqual(12)
   })
 
+  it('fetches every drilldown source without asking, and offers no depth control', () => {
+    // There was a control reading "How much detail to fetch: ZIP code, Census
+    // tract, School district", and the level it defaulted to ran NO extra
+    // plugins at all. Opening a ZIP code therefore gave housing figures and
+    // nothing else, with health and school data behind a setting that read like
+    // a preference. People read it as broken.
+    const q = read('src/core/useHousingQuery.ts')
+    expect(q, 'the drilldown must run every plugin').toMatch(/const DRILL_PLUGINS = \[/)
+    expect(q, 'the drilldown plugin list must include health and schools').toMatch(/cdc-places/)
+    expect(q).toMatch(/nces-school-core/)
+    expect(q, 'the per-level plugin map must be gone').not.toMatch(/DRILL_PLUGINS: Record<ZoomLevel/)
+
+    const app = read('src/ui/App.tsx')
+    expect(app, 'the depth control must be gone').not.toMatch(/How much detail to fetch/)
+    expect(app, 'the reader must not choose a detail level').not.toMatch(/setZoom/)
+
+    // And a deep dive is protected from the sweep, not the other way round.
+    expect(read('src/core/ratelimit.ts')).toMatch(/sweepBudgetExhausted/)
+  })
+
   it('states the cause of absence on the drilldown, not only in the table', () => {
     // The drilldown panel kept its own hardcoded "not yet imported" after the
     // table learned to say why, so the same absence was described two different

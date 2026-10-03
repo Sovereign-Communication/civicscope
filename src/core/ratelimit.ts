@@ -98,6 +98,26 @@ export function recordRequest(): void {
   writeBudget(budget)
 }
 
+/**
+ * Requests held back from the country-wide sweep so a deep dive always works.
+ *
+ * The sweep is 43 requests against an allowance of 450, so it cannot actually
+ * exhaust a day. The risk runs the other way and is less obvious: a reader who
+ * opens a ZIP code, then browses ten more, has spent enough that the *next*
+ * sweep — which is what makes their search meaningful — starts being refused
+ * and the screen sits half-built.
+ *
+ * This is the floor the sweep stops at. A drilldown is not subject to it,
+ * because the thing someone asked for in the last moment should not be the
+ * thing that fails.
+ */
+const DRILLDOWN_RESERVE = 120
+
+/** True when the remaining budget has fallen to the drilldown reserve. */
+export function sweepBudgetExhausted(): boolean {
+  return Math.max(0, getRateLimit().dailyBudget - budget.used) <= DRILLDOWN_RESERVE
+}
+
 export function resetBudget(): void {
   budget = { used: 0, day: today() }
   writeBudget(budget)

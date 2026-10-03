@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useHousingQuery } from '../core/useHousingQuery'
-import { ZOOM_LABELS, type ZoomLevel } from '../core/types'
 import { FairHousingNotice } from './FairHousingNotice'
 import { KeyPrompt } from './KeyPrompt'
 import { Methodology } from './Methodology'
@@ -39,14 +38,13 @@ export default function App() {
   const [term, setTerm] = useState('')
   const [preset, setPreset] = useState<string>('budget')
   const [showKeyPrompt, setShowKeyPrompt] = useState(false)
-  const [zoom, setZoom] = useState<ZoomLevel>(4)
   const statusRef = useRef<HTMLParagraphElement>(null)
 
   const q = useHousingQuery()
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (term.trim()) void q.search(term.trim(), zoom)
+    if (term.trim()) void q.search(term.trim())
   }
 
   // Announce async state to assistive technology. With a sweep of ~41,000 rows
@@ -139,33 +137,7 @@ export default function App() {
           </button>
         </form>
 
-        <fieldset className="mt-4">
-          <legend className="text-sm font-medium text-slate-800">How much detail to fetch</legend>
-          <p className="mt-1 text-xs text-slate-600">
-            Deeper levels fetch more datasets for the areas you select. The country-wide screen is already
-            loaded either way.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {([2, 3, 4] as ZoomLevel[]).map((z) => (
-              <label
-                key={z}
-                className={`cursor-pointer rounded-md border px-3 py-2 text-sm ${
-                  zoom === z ? 'border-slate-700 bg-slate-100 text-slate-900' : 'border-slate-300 text-slate-700'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="zoom"
-                  value={z}
-                  checked={zoom === z}
-                  onChange={() => setZoom(z)}
-                  className="sr-only"
-                />
-                {ZOOM_LABELS[z]}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        
 
         <p ref={statusRef} role="status" aria-live="polite" className="mt-3 min-h-5 text-sm text-slate-700" />
 
@@ -280,7 +252,7 @@ export default function App() {
                   onSelect={(zctas) => {
                     for (const zcta of zctas.slice(0, 6)) {
                       const row = q.sweep.find((r) => r.zcta === zcta)
-                      if (row) void q.selectPlace({ name: row.name, zip: zcta }, zoom)
+                      if (row) void q.selectPlace({ name: row.name, zip: zcta })
                     }
                   }}
                 />
@@ -440,7 +412,7 @@ export default function App() {
                     onAdd={(zcta) => {
                       const row = q.sweep.find((r) => r.zcta === zcta)
                       if (!row) return
-                      void q.selectPlace({ name: row.name, zip: zcta }, zoom)
+                      void q.selectPlace({ name: row.name, zip: zcta })
                     }}
                     selectedZctas={q.selectedZctas}
                   />
