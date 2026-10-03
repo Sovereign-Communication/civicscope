@@ -626,7 +626,7 @@ describe('hexbinning', () => {
     expect(bins[0]!.value).toBeNull()
   })
 
-  it('reports a median once half the group has figures, and not before', () => {
+  it('reports a median from whatever has loaded, and marks what has not', () => {
     // Requiring every ZIP to have a figure greyed roughly six cells in seven,
     // because a hexagon holds about eighteen ZIP codes and one gap was enough.
     // Requiring none would let a single rural ZIP speak for twenty neighbours.
@@ -639,14 +639,17 @@ describe('hexbinning', () => {
       ])[0]!
 
     const half = four([10, 20, Number.NaN, Number.NaN])
-    expect(half.value, 'exactly half should be enough').not.toBeNull()
-    expect(half.value).toBe(15)
+    expect(half.value, 'half loaded should still report').toBe(15)
     expect(half.withValue).toBe(2)
     expect(half.count).toBe(4)
 
+    // A quarter used to be greyed out. It is now reported from what has loaded,
+    // because suppressing it hid data that was genuinely there and a reader
+    // could not tell a sparse area from one still loading.
     const under = four([10, Number.NaN, Number.NaN, Number.NaN])
-    expect(under.value, 'a quarter should not be enough').toBeNull()
+    expect(under.value, 'a partly loaded cell was greyed out').toBe(10)
     expect(under.withValue).toBe(1)
+    expect(under.count).toBe(4)
     // The count of what was missing is still reported, so the cell is auditable.
     expect(under.count).toBe(4)
   })

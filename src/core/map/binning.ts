@@ -72,8 +72,18 @@ export function hexRadius(viewportScale: number): number {
  * point where the cell is genuinely representative, and the coverage is
  * disclosed in the tooltip and the legend so the reader can judge it.
  */
-export const MIN_COVERAGE = 0.5
-
+/**
+ * Shown beside a hexagon whose ZIP codes are only partly loaded.
+ *
+ * A hexagon used to be greyed unless at least half its ZIP codes carried a
+ * figure, on the reasoning that a median over mostly-missing data misleads. The
+ * effect was that a quarter of the country simply had no colour, and a reader
+ * could not tell a sparse rural area from one whose data had not finished
+ * arriving. Greying hid data that was genuinely there.
+ *
+ * The value is now reported from whatever has loaded, and partial coverage is
+ * marked rather than suppressed.
+ */
 function median(sorted: readonly number[]): number {
   const mid = sorted.length >> 1
   return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!
@@ -119,7 +129,8 @@ export function hexbin(inputs: readonly BinInput[], radius = 9): HexBin[] {
     out.push({
       cx: bucket.sx / count,
       cy: bucket.sy / count,
-      value: withValue / count >= MIN_COVERAGE && withValue > 0 ? median(bucket.values) : null,
+      // Reported from whatever has loaded. Null only when nothing has at all.
+      value: withValue > 0 ? median(bucket.values) : null,
       count,
       withValue,
       zctas: bucket.zctas.sort(),

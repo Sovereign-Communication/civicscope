@@ -25,6 +25,13 @@ const LABEL_MIN_SCALE = 2.6
 /** Labels are pointless in a hexagon smaller than this. */
 const LABEL_MIN_RADIUS = 11
 
+/** Three strokes, enough to read as an asterisk at ten pixels. */
+const ASTERISK_STROKES: readonly [number, number][] = [
+  [-1, -1],
+  [0, 1],
+  [1, -1],
+]
+
 /**
  * The map view.
  *
@@ -318,6 +325,25 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
       ctx.lineWidth = isSelected ? 2.5 : 0.75
       ctx.stroke()
 
+      /*
+       * A small asterisk marks a hexagon whose ZIP codes are only partly
+       * loaded, so its figure is the median of what has arrived rather than of
+       * everything. The data is shown rather than withheld; this says plainly
+       * that more is still coming for this particular cell.
+       */
+      if (bin.value !== null && bin.withValue < bin.count) {
+        const mark = r * 0.3
+        ctx.beginPath()
+        ctx.lineWidth = 1.25
+        ctx.strokeStyle = pale ? 'rgba(15,23,42,0.75)' : 'rgba(255,255,255,0.9)'
+        for (const [dx, dy] of ASTERISK_STROKES) {
+          ctx.moveTo(bin.cx + dx * mark - mark * 0.5, bin.cy + dy * mark - mark * 0.5)
+          ctx.lineTo(bin.cx + dx * mark + mark * 0.5, bin.cy + dy * mark + mark * 0.5)
+        }
+        ctx.stroke()
+      }
+      ctx.stroke()
+
       if (!labelling) continue
       if (bin.count !== 1 && viewport.scale < LABEL_MIN_SCALE) continue
       const text = bin.count === 1 ? bin.zctas[0]! : String(bin.count)
@@ -478,7 +504,7 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
           role="img"
           aria-labelledby={`${headingId} ${legendId}`}
           onKeyDown={onKeyDown}
-          style={{ touchAction: 'none' }}
+          style={{ touchAction: 'pan-y' }}
           onMouseMove={(e) => setHover(hit(e.clientX, e.clientY))}
           onMouseLeave={() => setHover(null)}
           onPointerDown={(e) => {
@@ -511,16 +537,6 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
           }}
           onPointerCancel={() => {
             drag.current = null
-          }}
-          onWheel={(e) => {
-            // Zooming about the cursor rather than the origin is what makes the
-            // map feel attached to the pointer; without it every zoom yanks the
-            // point under the cursor off screen.
-            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-            const mx = e.clientX - rect.left - viewport.width / 2
-            const my = e.clientY - rect.top - viewport.height / 2
-            const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18
-            setViewport((v) => zoomAround(v, factor, mx, my))
           }}
           onClick={() => {
             // A drag ends with a click event too, so selecting here would add
@@ -625,9 +641,10 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
           </ul>
         ) : null}
         <p className="mt-1 text-xs text-slate-600">
-          {covered.toLocaleString('en-US')} of {geoms.length.toLocaleString('en-US')} areas have a figure, and
-          a grey hexagon is one where fewer than half of its ZIP codes had one. Alaska, Hawaii and Puerto Rico
-          are drawn as insets.
+          {covered.toLocaleString('en-US')} of {geoms.length.toLocaleString('en-US')} areas have a figure.
+          An asterisk marks a hexagon whose ZIP codes are only partly loaded, so its figure is the median of
+          what has arrived so far. Grey means no figure at all. Alaska, Hawaii and Puerto Rico are drawn as
+          insets.
         </p>
       </div>
 
