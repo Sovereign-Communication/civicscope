@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { decodeCentroids, encodeCentroids, type ZctaPoint } from './centroids'
-import { buildBins, binFor, MAP_METRICS, RAMP } from './scale'
+import { buildBins, binFor, MAP_METRICS, RAMP, THIN_SAMPLE_HOUSEHOLDS } from './scale'
 import { hexbin, hexRadius } from './binning'
 import { clampScale, createView, fitBase, projectAll, zoomAround, type Basemap, type Viewport } from './projection'
 
@@ -247,34 +247,39 @@ describe('the colour scale', () => {
     expect(used.size, `${bins.length - used.size} band(s) are never used`).toBe(bins.length)
   })
 
-  it('refuses to publish a derived figure resting on too few households', () => {
-    // A national audit of 1,060 sampled areas found that every area below 1.0x
-    // price-to-income had between 34 and 351 households, against a national
-    // median of 1,366. Those figures are not outliers by accident: an ACS
-    // median over a few dozen households is dominated by one family, so the
-    // ratio swings wildly and then gets coloured onto the map as though it were
-    // about a place.
+  it('publishes a derived figure everywhere it can be computed', () => {
+    // A floor of 500 households used to apply here. The reasoning was sound and
+    // the outcome was not: it greyed out 438 of 1,412 areas on the
+    // price-to-income map, and a reader cannot tell "we are withholding this"
+    // from "there is nothing here". It was the app's own decision presented as a
+    // fact about the place. The figure is shown, and a thin sample is marked
+    // rather than hidden.
+    //
+    // The underlying caution still holds and is why THIN_SAMPLE_HOUSEHOLDS
+    // exists: an ACS median over a few dozen households is dominated by one
+    // family, so the ratio swings. That is a reason to mark it, not to hide it.
     const priceToIncome = MAP_METRICS.find((m) => m.key === 'price_to_income')!
     const thin = { median_home_value: 55900, median_household_income: 112864, households: 351 }
     const solid = { median_home_value: 653600, median_household_income: 154867, households: 8021 }
-    // Real, measured rows from the live endpoint.
-    expect(priceToIncome.derive!(thin), 'a 351-household ratio was published').toBeNull()
-    expect(priceToIncome.derive!(solid), 'a solid ratio was suppressed').toBeCloseTo(
-      653600 / 154867,
+    // Real, measured rows from the live endpoint: both are now published.
+    expect(priceToIncome.derive!(thin), 'a real 351-household figure was withheld').toBeCloseTo(
+      55900 / 112864,
       6,
     )
-    // Every thin case the audit found, not just one of them.
+    expect(priceToIncome.derive!(solid)).toBeCloseTo(653600 / 154867, 6)
+    // Every thin case the audit found is published rather than withheld.
     for (const hh of [34, 102, 113, 159, 348, 351]) {
       expect(
         priceToIncome.derive!({ ...thin, households: hh }),
-        `a ${hh}-household ratio was published`,
-      ).toBeNull()
+        `a real ${hh}-household figure was withheld`,
+      ).toBeCloseTo(55900 / 112864, 6)
     }
-    // Just above the floor, and above the national median, both publish.
-    expect(priceToIncome.derive!({ ...thin, households: 500 })).not.toBeNull()
-    expect(priceToIncome.derive!({ ...solid, households: 1366 })).not.toBeNull()
-    // Missing household counts are not a licence to publish.
+    // And the thin-sample threshold is a mark, not a cut.
+    expect(THIN_SAMPLE_HOUSEHOLDS).toBeGreaterThan(0)
+    expect(priceToIncome.derive!({ ...thin, households: 1366 })).toBeCloseTo(55900 / 112864, 6)
+    // A genuinely missing input is still not published.
     expect(priceToIncome.derive!({ median_home_value: 300000, median_household_income: 60000 })).toBeNull()
+    expect(priceToIncome.derive!({ median_home_value: null, median_household_income: 60000 })).toBeNull()
   })
 
   it('shows every figure the sweep can actually supply', () => {
@@ -322,27 +327,28 @@ describe('the colour scale', () => {
     expect(rentToIncome.derive!({ ...base, median_gross_rent: undefined as never })).toBeNull()
   })
 
-  it('answers the questions people ask when they are moving', () => {
-    // The descriptive layer is the point of the feature, so each chip has to
-    // name a question and point at a figure that exists. Household count is
-    // deliberately absent from the chips: it is a measure of size, not something
-    // anyone is choosing a place over, and offering it as a question would be
-    // padding the list out.
-    const questions = readFileSync(join(__dirname, '..', '..', 'ui', 'MapView.tsx'), 'utf8')
-    const keys = MAP_METRICS.map((m) => m.key)
-    const chipKeys = [...questions.matchAll(/\{ key: '([a-z_]+)', question:/g)].map((m) => m[1]!)
-    expect(chipKeys.length, 'no questions are offered').toBeGreaterThanOrEqual(5)
-    for (const key of chipKeys) {
-      expect(keys, `the question for ${key} points at no figure`).toContain(key)
-    }
-    // Both derived figures must be reachable, since they cost nothing to offer
-    // and they are the ones phrased in the words people actually use.
-    for (const derived of MAP_METRICS.filter((m) => m.derive)) {
-      expect(chipKeys, `${derived.key} is not reachable from a question`).toContain(derived.key)
-    }
-    expect(chipKeys, 'household count is a measure of size, not a moving question').not.toContain(
-      'households',
+  it('never offers a question the colour scale would answer backwards', () => {
+    // The map used to carry a row of plain questions, including "where is rent
+    // cheapest?", and paint the darkest areas where rent is HIGHEST, because the
+    // ramp darkens toward higher values for every figure. A reader who took the
+    // chip at face value got the exact opposite of the answer.
+    //
+    // There is now one control rather than two, and it says which way darker
+    // reads before the reader has to work it out.
+    const view = readFileSync(join(__dirname, '..', '..', 'ui', 'MapView.tsx'), 'utf8')
+    expect(view, 'the duplicate question control must be gone').not.toMatch(
+      /What people usually want to know/,
     )
+    expect(view, 'the control must state the direction').toMatch(/darker = higher/)
+    expect(view, 'the control must say what the colours mean').toMatch(/What the colour shows/)
+
+    // Every figure must declare a direction the ramp can honour, and explain
+    // itself for hover rather than only in a list.
+    for (const m of MAP_METRICS) {
+      expect(['lower', 'higher'], `${m.key} has no direction`).toContain(m.betterWhen)
+      expect(m.blurb.length, `${m.key} needs an explanation`).toBeGreaterThan(40)
+      expect(m.blurb.toLowerCase(), `${m.key} must say which way darker reads`).toMatch(/darker/)
+    }
   })
 })
 

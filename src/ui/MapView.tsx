@@ -20,22 +20,6 @@ function isLight(hex: string): boolean {
   return l > 0.32
 }
 
-/**
- * Plain-language questions, each bound to the figure that answers it.
- *
- * Kept beside `MAP_METRICS` rather than in a component so a question can never
- * be left pointing at a figure that has been renamed or removed: the key is a
- * compile error if it does not exist.
- */
-const QUESTIONS: { key: MapMetricKey; question: string }[] = [
-  { key: 'median_rent_burden_pct', question: 'Where does rent take the smallest share of income?' },
-  { key: 'price_to_income', question: 'Where could I buy a home on what people earn?' },
-  { key: 'median_gross_rent', question: 'Where is rent cheapest?' },
-  { key: 'rent_to_income', question: 'Where does a year of rent cost least against income?' },
-  { key: 'median_household_income', question: 'Where do households earn the most?' },
-  { key: 'median_home_value', question: 'Where are homes worth the least?' },
-]
-
 /** Below this zoom, hexagons are too small and too many to letter. */
 const LABEL_MIN_SCALE = 2.6
 /** Labels are pointless in a hexagon smaller than this. */
@@ -440,30 +424,43 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
       </p>
 
       <fieldset className="mt-3">
-        <legend className="text-sm font-semibold text-slate-900">Figure to map</legend>
-        <p className="mt-1 max-w-3xl text-[0.8125rem] leading-snug text-slate-600">{active.blurb}</p>
-        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+        <legend className="text-sm font-semibold text-slate-900">What the colour shows</legend>
+        <p className="mt-1 max-w-3xl text-[0.8125rem] leading-snug text-slate-600">
+          One list, one meaning. <strong className="text-slate-900">Darker always means a higher number</strong>,
+          for every figure on this map. The full explanation for each one appears on hover.
+        </p>
+        <ul className="mt-2 space-y-1">
           {MAP_METRICS.map((m) => (
-            <label key={m.key} className="flex items-center gap-1.5 text-sm text-slate-700">
-              <input
-                type="radio"
-                name={`map-metric-${headingId}`}
-                value={m.key}
-                checked={metric === m.key}
-                onChange={() => setMetric(m.key)}
-                className="sr-only"
-              />
-              <span
-                aria-hidden="true"
-                className={`inline-block h-3 w-3 rounded-full border ${
-                  metric === m.key ? 'border-slate-900 bg-slate-900' : 'border-slate-300 bg-white'
+            <li key={m.key}>
+              <label
+                className={`flex cursor-pointer items-baseline gap-2 rounded-md px-2 py-1.5 text-[0.8125rem] transition-colors hover:bg-slate-100 ${
+                  metric === m.key ? 'bg-slate-100 ring-1 ring-slate-300' : ''
                 }`}
-              />
-              {m.label}
-            </label>
+                title={m.blurb}
+              >
+                <input
+                  type="radio"
+                  name={`map-metric-${headingId}`}
+                  value={m.key}
+                  checked={metric === m.key}
+                  onChange={() => setMetric(m.key)}
+                  className="sr-only"
+                />
+                <span
+                  aria-hidden="true"
+                  className={`mt-0.5 inline-block h-3 w-3 shrink-0 rounded-full border ${
+                    metric === m.key ? 'border-slate-900 bg-slate-900' : 'border-slate-400 bg-white'
+                  }`}
+                />
+                <span className="font-medium text-slate-900">{m.label}</span>
+                <span className="text-slate-600">
+                  darker = higher
+                  {m.unit === 'ratio' ? ' (a multiple, e.g. 4.5x)' : ''}
+                </span>
+              </label>
+            </li>
           ))}
-        </div>
-      </fieldset>
+        </ul></fieldset>
 
       {loadError ? (
         <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
@@ -596,41 +593,6 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
           Drag to pan, scroll or pinch to zoom, or use the buttons. Arrow keys pan, + and &minus; zoom, 0
           resets. Click an area to compare it.
         </p>
-      </div>
-
-      {/*
-        The questions people actually ask.
-
-        Nobody opens a housing map looking for B19013_001E. They ask whether they
-        can afford to live somewhere, and whether the place they are looking at
-        is one they could afford. Each chip below is a question in plain words
-        that resolves to a specific published figure or a stated ratio of two of
-        them, so the descriptive framing and the number underneath can never
-        disagree.
-      */}
-      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-        <p className="text-sm font-semibold text-slate-900">What people usually want to know</p>
-        <p className="mt-0.5 text-[0.8125rem] text-slate-600">
-          Pick a question and the map switches to the figure that answers it.
-        </p>
-        <ul className="mt-2 flex flex-wrap gap-1.5">
-          {QUESTIONS.map((q) => (
-            <li key={q.key}>
-              <button
-                type="button"
-                onClick={() => setMetric(q.key)}
-                aria-pressed={metric === q.key}
-                className={`rounded-full border px-3 py-1.5 text-left text-[0.8125rem] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
-                  metric === q.key
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50'
-                }`}
-              >
-                {q.question}
-              </button>
-            </li>
-          ))}
-        </ul>
       </div>
 
       {/* The legend is real text, not swatches alone, so the scale is readable

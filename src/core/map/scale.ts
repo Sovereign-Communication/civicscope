@@ -41,9 +41,27 @@ export interface MapMetric {
 }
 
 /**
- * The figures offered on the map.
+ * The floor for publishing a derived figure at all.
  *
- * Order matters: the ones people look for when moving come first.
+ * It used to be 500 households, on sound reasoning — an ACS median over a few
+ * dozen households is dominated by a single family — and it still produced the
+ * wrong outcome: it greyed out 438 of 1,412 areas on the price-to-income map, and
+ * a reader cannot distinguish "we are withholding this" from "there is nothing
+ * here". It was the app's own decision presented as a fact about the place.
+ *
+ * So the figure is shown wherever it can be computed, and a thin sample is
+ * marked rather than hidden. The uncertainty is visible and the data is loaded;
+ * neither pretends to be the other.
+ */
+/**
+ * The figures offered on the map, and how each one is derived.
+ *
+ * Plain labels, because the audience is not reading variable names. Each entry
+ * also carries the direction it reads and a longer explanation used on hover,
+ * so the map says what a colour means rather than leaving the reader to infer
+ * it. "Darker = higher" holds for every entry, without exception: an earlier
+ * version asked "where is rent cheapest?" and painted the most expensive areas
+ * darkest, which is the opposite of what the question implies.
  */
 export const MAP_METRICS: MapMetric[] = [
   {
@@ -52,7 +70,15 @@ export const MAP_METRICS: MapMetric[] = [
     unit: 'percent',
     betterWhen: 'lower',
     blurb:
-      'The published median of rent as a share of household income. Lower means rent takes a smaller share of what a household earns.',
+      'Rent as a share of household income, as published. Darker means households spend a larger share of what they earn on rent.',
+  },
+  {
+    key: 'median_gross_rent',
+    label: 'Median gross rent',
+    unit: 'usd_monthly',
+    betterWhen: 'lower',
+    blurb:
+      'Median monthly gross rent. Darker means higher rent. "Gross" includes taxes, insurance and fees.',
   },
   {
     key: 'price_to_income',
@@ -60,7 +86,7 @@ export const MAP_METRICS: MapMetric[] = [
     unit: 'ratio',
     betterWhen: 'lower',
     blurb:
-      'Median home value divided by median household income, as a plain multiple. 3 means a typical home costs three times the typical income; 6 means six times. This is arithmetic on two published figures, not a lending or valuation judgement.',
+      'Median home value divided by median household income. Darker means a home costs more relative to what people earn. 4x means a typical home costs four times the typical income.',
     derive: (m) => {
       if (!canDerive(m)) return null
       const price = m.median_home_value
@@ -71,33 +97,26 @@ export const MAP_METRICS: MapMetric[] = [
     },
   },
   {
-    key: 'median_gross_rent',
-    label: 'Median gross rent',
-    unit: 'usd_monthly',
-    betterWhen: 'lower',
-    blurb: 'Median monthly gross rent for a unit, straight from the published estimate.',
-  },
-  {
     key: 'median_home_value',
     label: 'Median home value',
     unit: 'usd',
     betterWhen: 'lower',
-    blurb: 'Median home value as published. A dollar figure, not an assessment or an offer.',
+    blurb: 'Median home value as published. Darker means a more valuable home.',
   },
   {
     key: 'median_household_income',
     label: 'Median household income',
     unit: 'usd',
     betterWhen: 'higher',
-    blurb: 'Median household income as published, in the survey year.',
+    blurb: 'Median household income as published. Darker means higher income.',
   },
   {
     key: 'rent_to_income',
-    label: 'Annual rent vs income',
+    label: 'Year of rent vs income',
     unit: 'ratio',
     betterWhen: 'lower',
     blurb:
-      'Twelve months of median gross rent divided by median household income. It is a gross ratio and sits beside the published rent burden rather than replacing it, because the published figure accounts for which households actually rent.',
+      'Twelve months of median rent divided by median income. Darker means rent takes more of a year of income. It is a rough comparison, not the published rent burden figure.',
     derive: (m) => {
       if (!canDerive(m)) return null
       const rent = m.median_gross_rent
@@ -112,42 +131,39 @@ export const MAP_METRICS: MapMetric[] = [
     label: 'Households',
     unit: 'count',
     betterWhen: 'lower',
-    blurb: 'Number of households, which is a measure of size rather than of quality.',
+    blurb: 'How many households live in the area. Darker means more households. This measures size, not quality.',
   },
 ]
 
 export type MapMetricKey = string
 
-/**
- * The smallest household count a derived figure may rest on.
- *
- * A national audit of 1,060 sampled areas found that every area below 1.0x
- * price-to-income was one with between 34 and 351 households, against a national
- * median of 1,366. Those are not outliers by accident: an ACS median over a few
- * dozen households is dominated by a single family, so a ratio built on one
- * swings wildly and then gets coloured onto the map as though it were about a
- * place.
- *
- * The floor is 500 because that is above every one of those measured cases
- * (maximum 351) and well below the national median (1,366), so it removes the
- * figures that cannot be supported without touching ordinary areas. A first
- * attempt used 100, which is below 351 and therefore let the exact rows the
- * audit had identified straight through.
- *
- * The honest response to an unsupported figure is to publish nothing, which
- * renders as "not yet imported" rather than as a confident wrong number.
- *
- * The floor applies to the derived figures only. A published median is reported
- * with its own margin of error and is the publisher's to stand behind; a ratio
- * of two of them is ours, and we decline to publish one we cannot support.
- */
-export const MIN_HOUSEHOLDS_FOR_DERIVED = 500
+export const MIN_HOUSEHOLDS_FOR_DERIVED = 1
 
-/** True when a derived figure may be formed from these figures at all. */
+/**
+ * True when a derived figure may be formed at all.
+ *
+ * There used to be a floor of 500 households here, on the reasoning that an ACS
+ * median over a few dozen households is dominated by a single family. The
+ * reasoning was sound and the outcome was not: it greyed out 438 of 1,412 areas
+ * on the price-to-income map, and a reader cannot tell "we are withholding this
+ * because we do not trust it" from "there is nothing here". Worse, it was the
+ * app's own decision presented as a fact about the place.
+ *
+ * So the figure is now shown wherever it can be computed, and the areas built on
+ * a thin sample are marked as such. The uncertainty is visible, the data is
+ * loaded, and neither pretends to be the other.
+ */
 export function canDerive(m: Record<string, number | null | undefined>): boolean {
   const hh = m.households
   return typeof hh === 'number' && Number.isFinite(hh) && hh >= MIN_HOUSEHOLDS_FOR_DERIVED
 }
+
+/**
+ * Below this many households a derived figure is marked as a small sample.
+ *
+ * Shown rather than withheld, so the reader can weigh it themselves.
+ */
+export const THIN_SAMPLE_HOUSEHOLDS = 500
 
 /**
  * Sequential ramp, light to dark, in a single hue: higher values are darker.
