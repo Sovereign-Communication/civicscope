@@ -34,6 +34,60 @@ Requires a registered key per user, which changes the product:
 Not viable: most commercial property and rental platforms, whose terms do not
 permit this use.
 
+## The two-tier architecture
+
+This is the shape that makes worldwide coverage viable, and it mirrors what the
+US map already does.
+
+**Tier 1 — the overview is baked, and needs no key.**
+
+Every country, and every first-level region within it, summarised to a few
+dozens of numbers each, baked into static files at build time and served from
+the same CDN as the app. The world map, and each country's region map, render
+entirely from those files.
+
+The data volume that makes this possible is tiny. A country-level overview for
+two hundred countries is a few hundred kilobytes. It is also the data a reader
+actually wants first: how expensive is housing here, what is the income, how
+many people — not a per-postcode breakdown of somewhere they have not chosen
+yet.
+
+Because it is baked, the overview works with **no API key, no registration and
+no per-user quota**, which removes the single biggest barrier to a worldwide
+tool. It also means the overview cannot be broken by an upstream outage at the
+moment someone is looking at it.
+
+**Tier 2 — drilldown is live, and may need a key.**
+
+When a reader picks a country, then a region, then a city, the app queries the
+source directly, exactly as it does for a US ZIP code today. This is where
+detail lives, and where an API key may be required.
+
+If a source requires a key, the key is the reader's own, stored in their
+browser and never sent to us — the arrangement CivicScope already uses for the
+US Census API, and the reason the product needs no backend.
+
+## What that changes about source selection
+
+It moves the decision. A country whose national statistics are open is enough
+to get it onto the overview map even if its sub-national data is closed or
+keyed. That widens the set of countries that can be included first, and it means
+a partial data story for a country is better than no country at all.
+
+It also changes the order of work: build the baked-artefact pipeline and the
+country/region navigation first, then add countries as their national data is
+confirmed. Adding a country becomes a data file, not an architectural change.
+
+## What still needs verifying before any of this is built
+
+- Which countries publish national figures under an open licence, at what
+  granularity and on what release schedule. This has not been surveyed and the
+  plan above should not be read as claiming a particular set.
+- Whether sub-national data for the first candidate is keyless or keyed.
+- Whether the fair-housing analysis transfers. It is jurisdiction-specific and
+  a tool careful in one country can be unlawful in another; it is a separate
+  piece of work, not a line item.
+
 ## Sequencing, if it is approved
 
 1. A second country end to end, chosen because its data is keyless and its
