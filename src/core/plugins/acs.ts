@@ -148,7 +148,12 @@ const ACS_SENTINELS = new Set([
  * arrived because it does not exist, and it will not. Saying so plainly is both
  * shorter and the only answer that is true.
  */
-export type AbsentReason = 'not-applicable' | 'not-comparable' | 'missing' | 'too-few-households'
+export type AbsentReason =
+  | 'not-applicable'
+  | 'not-comparable'
+  | 'missing'
+  | 'too-few-households'
+  | 'out-of-range'
 
 /** Shown in place of a figure, chosen by cause rather than one phrase for all. */
 export function absenceLabel(reason: AbsentReason): string {
@@ -161,6 +166,11 @@ export function absenceLabel(reason: AbsentReason): string {
       return 'not published'
     case 'too-few-households':
       return 'too few households to be reliable'
+    case 'out-of-range':
+      // The publisher returned a number, and it is not a possible value for
+      // this measure. Saying "not yet imported" would be wrong in a new way:
+      // the data has arrived, and what arrived cannot be shown.
+      return 'outside the published range'
   }
 }
 

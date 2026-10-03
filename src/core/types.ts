@@ -77,7 +77,12 @@ export interface MetricValue {
      * with no civilian households: the Census Bureau returns not-applicable for
      * every median and a real 0 for the counts, and both are true.
      */
-    absentReason?: 'not-applicable' | 'not-comparable' | 'missing' | 'too-few-households'
+    absentReason?:
+      | 'not-applicable'
+      | 'not-comparable'
+      | 'missing'
+      | 'too-few-households'
+      | 'out-of-range'
   unit: MetricUnit
   category: MetricCategory
   source: SourceRef

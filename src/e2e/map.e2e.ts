@@ -79,7 +79,7 @@ describe.skipIf(!KEY)('the map view', () => {
     const body = legend || (await page.locator('body').innerText())
     expect(body, 'the legend does not state real values').toMatch(/to the highest|to \$/)
     // The absent category must be named, so "no data" is never just a colour.
-    expect(body).toMatch(/not yet imported/)
+    expect(body).toMatch(/no valid data available here/)
   }, 120000)
 
   it('carries the Fair Housing notice on the map surface', async () => {

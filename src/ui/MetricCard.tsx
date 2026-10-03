@@ -49,7 +49,20 @@ function format(m: MetricValue, reason?: AbsentReason): string {
    * for households, population and renter units. Both are facts about the area;
    * only one of them was being described correctly.
    */
-  if (!isDisplayable(m.value, m.unit)) return reason ? absenceLabel(reason) : 'not yet imported'
+  // "Not yet imported" is now only ever true when the figure genuinely has
+  // not been loaded. A figure that arrived but cannot be shown, because the
+  // publisher returned something outside the possible range, is labelled as
+  // that instead.
+  if (!isDisplayable(m.value, m.unit)) {
+    // A value that arrived but cannot be shown is out of range, not unloaded.
+    if (m.value !== null) return absenceLabel(reason ?? 'out-of-range')
+    // Every drilldown source now runs automatically, so a null reaching here is
+    // a value the publisher does not hold, not a request that has not been made.
+    // The phrase was surviving on exactly this path: the school and health
+    // plugins never set a reason, so their nulls fell back to it and read as a
+    // queue for data that was never going to arrive.
+    return absenceLabel(reason ?? 'missing')
+  }
   const v = m.value as number
   switch (m.unit) {
     case 'usd':

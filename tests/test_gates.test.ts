@@ -118,6 +118,53 @@ describe('gate: ACS request construction', () => {
     )
   })
 
+  it('says "not yet imported" only for a figure that has not been loaded', () => {
+    // The phrase survived four rounds of fixing because one path never asked the
+    // row why a figure was missing: a percentage over 100 fell straight through
+    // to the string. The data had arrived in that case, so the claim was false.
+    // Every branch that hides a figure must now distinguish a figure that is
+    // absent from the publisher, a figure that is out of range, and a figure
+    // that genuinely has not been fetched.
+    const table = read('src/ui/SweepTable.tsx')
+    const card = read('src/ui/MetricCard.tsx')
+    const acs = read('src/core/plugins/acs.ts')
+
+    expect(acs, 'an out-of-range value needs its own wording').toMatch(/out-of-range/)
+    expect(acs).toMatch(/outside the published range/)
+
+    for (const [name, src] of [['SweepTable', table], ['MetricCard', card]] as const) {
+      // Wherever the phrase remains, it must be behind a null check on a value
+      // that never arrived, never behind an out-of-range branch.
+      // Comments are stripped first. The explanatory note beside this branch
+      // names both the phrase and the condition it replaced, and a test that
+      // cannot tell prose from code flags its own documentation.
+      const lines = src
+        .split('\n')
+        .map((l) => l.replace(/\/\/.*$/, '').replace(/\/\*[\s\S]*?\*\//g, ''))
+      lines.forEach((line, i) => {
+        if (!line.includes("'not yet imported'")) return
+        // The fallback must be the last resort, on a value that is null.
+        const window = lines.slice(Math.max(0, i - 8), i + 1).join(' ')
+        if (/value > 100/.test(window) && !/out-of-range/.test(window)) {
+          throw new Error(
+            `${name}:${i + 1} returns "not yet imported" for an out-of-range value, which has loaded`,
+          )
+        }
+      })
+    }
+    // The drilldown runs every source automatically, so a null there can only
+    // mean the publisher holds no value. It must not reach the phrase.
+    expect(card, 'the drilldown must never claim a loaded figure is unloaded').not.toMatch(
+      /return reason \? absenceLabel\(reason\) : 'not yet imported'/,
+    )
+    expect(card, 'a null in the drilldown means the publisher has no value').toMatch(
+      /absenceLabel\(reason \?\? 'missing'\)/,
+    )
+
+    // And the honest phrase is what the table actually shows.
+    expect(table, 'an out-of-range percentage must say so').toMatch(/absenceLabel\(reason \?\? 'out-of-range'\)/)
+  })
+
   it('never claims an absent figure is merely un-imported', () => {
     // An audit of all 33,791 areas found every absence in the country is the
     // publisher's "not applicable": a ZIP code with no rental units has no

@@ -71,7 +71,11 @@ function fmtMargin(value: number | null): string | null {
     // units has no median rent — and no amount of importing will change that.
     return reason ? absenceLabel(reason) : 'not yet imported'
   }
-  if (unit === 'percent') return value > 100 ? 'not yet imported' : `${value}%`
+  // A percentage cannot exceed 100. When the publisher nevertheless returns
+  // one, the data has arrived and cannot be shown, so it is labelled as
+  // out of range rather than as still loading. Falling through to "not yet
+  // imported" here is how the phrase kept surviving on a fully loaded map.
+if (unit === 'percent' && value > 100) return absenceLabel(reason ?? 'out-of-range')
   if (unit === 'usd_monthly') return `${usd.format(value)}/mo`
   if (unit === 'usd') return usd.format(value)
   return num.format(value)
@@ -238,7 +242,11 @@ export function SweepTable({
                     const marginText = fmtMargin(r.moes?.[c.sort!] ?? null)
                     return (
                       <td key={c.key} className="px-3 py-1.5 text-right text-[0.8125rem] tabular-nums text-slate-700">
-                        {fmt(value, UNIT_OF[c.sort!] ?? 'count', r.absent?.[c.sort!])}
+                        {fmt(
+                          value,
+                          UNIT_OF[c.sort!] ?? 'count',
+                          r.absent?.[c.sort!] ?? (value !== null && value > 100 ? 'out-of-range' : undefined),
+                        )}
                         {/*
                           The margin is rendered beside the figure rather than in
                           a separate column, because a survey estimate without
