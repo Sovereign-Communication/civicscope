@@ -583,6 +583,29 @@ it('routes Puerto Rico through its own projection when projecting once', () => {
   })
 })
 
+describe('every step of the ramp must be visible', () => {
+  it('never puts a step so close to white that a hexagon disappears', () => {
+    // Widening the ramp to ten steps pushed the palest one to #eff6ff, which is
+    // indistinguishable from the page. ZIP 84513 sat in the cache the whole time
+    // with every figure present, drawn in a colour nobody could see, and read as
+    // a hole in the map. Every step has to be visibly a colour.
+    const luminance = (hex: string) => {
+      const n = parseInt(hex.slice(1), 16)
+      const ch = (c: number) => {
+        const s = c / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * ch((n >> 16) & 255) + 0.7152 * ch((n >> 8) & 255) + 0.0722 * ch(n & 255)
+    }
+    const lightest = Math.max(...RAMP.map(luminance))
+    expect(lightest, 'the palest step is indistinguishable from the background').toBeLessThan(0.82)
+    for (let i = 1; i < RAMP.length; i++) {
+      const gap = Math.abs(luminance(RAMP[i - 1]!) - luminance(RAMP[i]!))
+      expect(gap, `steps ${i - 1} and ${i} are indistinguishable`).toBeGreaterThan(0.012)
+    }
+  })
+})
+
 describe('hexagon sizing', () => {
   it('grows with zoom, so zooming in resolves finer detail', () => {
     // A constant radius is what made the first version feel unfinished:

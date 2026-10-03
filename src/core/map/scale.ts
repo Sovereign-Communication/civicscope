@@ -184,7 +184,11 @@ export const THIN_SAMPLE_HOUSEHOLDS = 500
  * the near-white it would otherwise be.
  */
 export const RAMP = [
-  '#eff6ff',
+  // The palest step is deliberately not near-white. Widening the ramp to ten
+  // pushed it to #eff6ff, which is indistinguishable from the page it sits on:
+  // a hexagon holding a real figure for a real ZIP code simply did not appear,
+  // and read as missing data. The lightest step must be clearly a colour.
+  '#cfe3fb',
   '#dbeafe',
   '#bfdbfe',
   '#93c5fd',
