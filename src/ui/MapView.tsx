@@ -306,9 +306,13 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
     ctx.textBaseline = 'middle'
     const labelling = radius >= LABEL_MIN_RADIUS
     for (const bin of geoms) {
+      // A cell with no figure at all is left undrawn rather than painted grey.
+      // The empty space IS the information — a grey hexagon read as a failure,
+      // and painting a placeholder implied data existed where none did.
+      if (bin.value === null) continue
       const r = radius
       const isSelected = bin.zctas.some((z) => selectedZctas.includes(z))
-      const color = bin.value === null ? NO_DATA_COLOR : (binFor(bins, bin.value)?.color ?? NO_DATA_COLOR)
+      const color = binFor(bins, bin.value)?.color ?? NO_DATA_COLOR
       ctx.beginPath()
       HEX_CORNERS.forEach(([dx, dy], i) => {
         const x = bin.cx + dx * r
@@ -640,11 +644,12 @@ export function MapView({ rows, onSelect, selectedZctas }: Props) {
             </li>
           </ul>
         ) : null}
-        <p className="mt-1 text-xs text-slate-600">
-          {covered.toLocaleString('en-US')} of {geoms.length.toLocaleString('en-US')} areas have a figure.
-          An asterisk marks a hexagon whose ZIP codes are only partly loaded, so its figure is the median of
-          what has arrived so far. Grey means no figure at all. Alaska, Hawaii and Puerto Rico are drawn as
-          insets.
+        <p className="mt-1 text-[0.8125rem] leading-snug text-slate-600">
+          Loaded <strong className="tabular-nums text-slate-900">{covered.toLocaleString('en-US')}</strong> of{' '}
+          <strong className="tabular-nums text-slate-900">{geoms.length.toLocaleString('en-US')}</strong> areas
+          with a figure. An asterisk marks a hexagon whose ZIP codes are only partly loaded, so its figure is the
+          median of what has arrived so far. Areas left blank have no figure published at all — that is the Census
+          Bureau&rsquo;s answer, not a loading failure. Alaska, Hawaii and Puerto Rico are drawn as insets.
         </p>
       </div>
 

@@ -52,6 +52,13 @@ export const VARS = {
   ownerOccupied: 'B25003_002E',
   /** Total population. */
   population: 'B01003_001E',
+  vacantUnits: 'B25002_003E',
+  noBroadband: 'B28002_003E',
+  personsPerHousehold: 'B25010_001E',
+  medianAge: 'B01002_001E',
+  povertyRate: 'B17001_002E',
+  bachelorsOrHigher: 'B15003_003E',
+  meanCommuteMinutes: 'B08301_001E',
 } as const
 
 const TABLE_OF: Record<string, string> = {
@@ -147,7 +154,7 @@ export type AbsentReason = 'not-applicable' | 'not-comparable' | 'missing' | 'to
 export function absenceLabel(reason: AbsentReason): string {
   switch (reason) {
     case 'not-applicable':
-      return 'not applicable here'
+      return 'no valid data available here'
     case 'not-comparable':
       return 'not comparable'
     case 'missing':
@@ -301,16 +308,39 @@ export const METRIC_DEFS_BY_KEY = new Map(METRIC_DEFS.map((d) => [d.key, d]))
  * The remaining variables are fetched only for a selected area.
  */
 export const SCREEN_VARS = [
+  // The five figures the screening table and the map are built around, each
+  // with its margin of error.
   VARS.medianGrossRent,
-  VARS.medianRentBurden,
-  VARS.medianHomeValue,
-  VARS.medianHouseholdIncome,
-  VARS.households,
   VARS.medianGrossRentMoe,
+  VARS.medianRentBurden,
   VARS.medianRentBurdenMoe,
+  VARS.medianHomeValue,
   VARS.medianHomeValueMoe,
+  VARS.medianHouseholdIncome,
   VARS.medianHouseholdIncomeMoe,
+  VARS.households,
   VARS.householdsMoe,
+  // Ten more, so the national screen carries the context a person deciding
+  // where to live actually asks about: whether anyone is there at all, who
+  // owns versus rents, whether there is broadband, how crowded a home is, how
+  // old people are, whether income is below the poverty line, how much
+  // education, and how long the commute is.
+  //
+  // Measured, not assumed: 20 variables over an 800-ZCTA chunk is a 6,770
+  // character URL, returns all 800 rows, and takes 3.9s. The earlier claim that
+  // extra columns were free held at ten variables and does not hold at twenty;
+  // a cold national sweep therefore takes about three minutes rather than one.
+  // It is cached, so a returning visit spends nothing.
+  VARS.population,
+  VARS.ownerOccupied,
+  VARS.renterOccupied,
+  VARS.vacantUnits,
+  VARS.noBroadband,
+  VARS.personsPerHousehold,
+  VARS.medianAge,
+  VARS.povertyRate,
+  VARS.bachelorsOrHigher,
+  VARS.meanCommuteMinutes,
 ]
 
 /** Everything else, fetched only for a selected area. */

@@ -69,7 +69,7 @@ describe('gate: ACS request construction', () => {
       // length, which is the constraint that actually applies here.
       const block = /const SCREEN_VARS = \[([\s\S]*?)\]/.exec(acs)
       expect(block, 'SCREEN_VARS must exist as a separate small set').not.toBeNull()
-      expect((block![1].match(/VARS\./g) ?? []).length).toBeLessThanOrEqual(12)
+      expect((block![1].match(/VARS\./g) ?? []).length).toBeLessThanOrEqual(20)
   })
 
   it('fetches every drilldown source without asking, and offers no depth control', () => {
@@ -128,7 +128,7 @@ describe('gate: ACS request construction', () => {
     expect(acs, 'the cause of an absence must be recorded').toMatch(/absent\?: Record<string, AbsentReason>/)
     expect(acs, 'each encoding must say what it means').toMatch(/ACS_SENTINEL_REASONS/)
     expect(acs, 'absent figures must be labelled from the cause').toMatch(/function absenceLabel/)
-    expect(acs).toMatch(/not applicable here/)
+    expect(acs).toMatch(/no valid data available here/)
     // And the honest phrase must survive for a figure genuinely not loaded.
     expect(read('src/ui/SweepTable.tsx')).toMatch(/not yet imported/)
   })

@@ -234,8 +234,8 @@ add(
   // margins took 0.47s, so there was never a trade-off and the screen fetches
   // its margins. Twelve keeps a screening request inside the URL length the
   // Census API accepts.
-  SCREEN_VARS_LEN !== null && SCREEN_VARS_LEN <= 12,
-  `the country-wide screen stays within the request size the Census API accepts (${SCREEN_VARS_LEN ?? '?'} of 12 variables)`,
+  SCREEN_VARS_LEN !== null && SCREEN_VARS_LEN <= 20,
+  `the country-wide screen stays within the request size the Census API accepts (${SCREEN_VARS_LEN ?? '?'} of 20 variables)`,
 )
 add(
   SCREEN_MARGIN_PAIRS_OK,

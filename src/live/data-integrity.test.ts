@@ -162,7 +162,7 @@ describe('data integrity: the sweep is planned within the measured ceiling', () 
     // queries, where adding five margin-of-error columns moved a real 800-ZCTA
     // chunk from 0.45s to 0.47s. Twelve keeps a screening request inside the
     // URL length the Census API accepts.
-    expect(SCREEN_VARS.length).toBeLessThanOrEqual(12)
+    expect(SCREEN_VARS.length).toBeLessThanOrEqual(20)
     // Every screen variable must be a real, defined ACS variable, either an
     // estimate (E) or a margin of error (M).
     for (const v of SCREEN_VARS) expect(v).toMatch(/^B\d{5}_\d{3}[EM]$/)
