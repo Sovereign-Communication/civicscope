@@ -72,6 +72,32 @@ describe('gate: ACS request construction', () => {
       expect((block![1].match(/VARS\./g) ?? []).length).toBeLessThanOrEqual(12)
   })
 
+  it('states the cause of absence on the drilldown, not only in the table', () => {
+    // The drilldown panel kept its own hardcoded "not yet imported" after the
+    // table learned to say why, so the same absence was described two different
+    // ways on two screens of the same visit. Checked against a real ZIP code:
+    // ZCTA 20771 is a military ZIP with no civilian households, and the Census
+    // Bureau returns not-applicable for every median and a real 0 for the counts.
+    const card = read('src/ui/MetricCard.tsx')
+    expect(card, 'the drilldown must show the cause').toMatch(/absenceLabel/)
+    expect(card, 'the cause must reach the formatter').toMatch(/metric\.absentReason/)
+    expect(card, 'the old hardcoded phrase must be gone as a constant').not.toMatch(
+      /const ABSENT_LABEL/,
+    )
+    expect(read('src/core/types.ts')).toMatch(/absentReason/)
+    expect(read('src/core/plugins/acs.ts')).toMatch(/absentReason: value === null/)
+  })
+
+  it('never puts a currency sign on a count', () => {
+    // A count of renter-occupied units was rendered with its margin as "0 plus
+    // or minus $0". A dollar sign on a headcount is simply wrong.
+    const card = read('src/ui/MetricCard.tsx')
+    expect(card).toMatch(/function formatMargin/)
+    expect(card, 'only monetary units may be formatted as currency').toMatch(
+      /unit === 'usd' \|\| unit === 'usd_monthly'/,
+    )
+  })
+
   it('never claims an absent figure is merely un-imported', () => {
     // An audit of all 33,791 areas found every absence in the country is the
     // publisher's "not applicable": a ZIP code with no rental units has no

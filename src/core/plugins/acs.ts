@@ -474,6 +474,7 @@ export function rowToMetrics(row: AreaRow): MetricValue[] {
       key: def.key,
       label: def.label,
       value,
+      absentReason: value === null ? (row.absent?.[def.key] ?? 'missing') : undefined,
       unit: def.unit,
       category: def.category,
       source: source(TABLE_OF[def.key] ?? 'ACS', `https://api.census.gov/data/${VINTAGE}/${DATASET}`),

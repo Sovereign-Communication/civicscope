@@ -1,5 +1,8 @@
+import { absenceLabel, type AbsentReason } from '../core/plugins/acs'
 import { useId, useState } from 'react'
 import type { MetricValue } from '../core/types'
+
+const num = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 })
 
 const usd = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -15,7 +18,7 @@ const usd = new Intl.NumberFormat('en-US', {
  * an absent estimate as a large negative number, and showing that as a figure
  * would be a confident lie rather than a placeholder.
  */
-const ABSENT_LABEL = 'not yet imported'
+
 
 function isDisplayable(value: number | null, unit: MetricValue['unit']): boolean {
   if (value === null || !Number.isFinite(value) || value < 0) return false
@@ -23,8 +26,30 @@ function isDisplayable(value: number | null, unit: MetricValue['unit']): boolean
   return true
 }
 
-function format(m: MetricValue): string {
-  if (!isDisplayable(m.value, m.unit)) return ABSENT_LABEL
+/**
+ * Formats a margin of error in the unit of the figure it belongs to.
+ *
+ * It used to be rendered as currency for anything that was not a percentage or
+ * a ratio, so a count of renter-occupied units came out as "0 plus or minus $0"
+ * — a dollar sign on a headcount. Percent and ratio carry no currency either,
+ * and a plain count does not, so only the two monetary units get one.
+ */
+function formatMargin(moe: number, unit: MetricValue['unit']): string {
+  if (unit === 'usd' || unit === 'usd_monthly') return usd.format(moe)
+  return num.format(moe)
+}
+
+function format(m: MetricValue, reason?: AbsentReason): string {
+  /*
+   * The cause is shown when we have one. The panel this came from displayed
+   * "not yet imported" beside four medians the Census Bureau had explicitly
+   * marked not applicable, which told the reader the data was still on its way
+   * when the publisher had said there is nothing to have. Verified against the
+   * live endpoint: ZCTA 20771 returns -666666666 for every median and a real 0
+   * for households, population and renter units. Both are facts about the area;
+   * only one of them was being described correctly.
+   */
+  if (!isDisplayable(m.value, m.unit)) return reason ? absenceLabel(reason) : 'not yet imported'
   const v = m.value as number
   switch (m.unit) {
     case 'usd':
@@ -63,10 +88,10 @@ export function MetricCard({ metric, notice }: { metric: MetricValue; notice?: s
         <div className="min-w-0">
           <h3 className="text-sm font-medium text-slate-700">{metric.label}</h3>
           <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
-            {format(metric)}
+            {format(metric, metric.absentReason)}
             {moe !== undefined && isDisplayable(metric.value, metric.unit) && (
               <span className="ml-1 text-sm font-normal text-slate-500">
-                ±{metric.unit === 'percent' || metric.unit === 'ratio' ? moe : usd.format(moe)}
+                ±{formatMargin(moe, metric.unit)}
               </span>
             )}
           </p>
@@ -103,7 +128,7 @@ export function MetricCard({ metric, notice }: { metric: MetricValue; notice?: s
           {moe !== undefined && (
             <p>
               <span className="font-medium">Margin of error: </span>±
-              {metric.unit === 'percent' || metric.unit === 'ratio' ? moe : usd.format(moe)} at the 90% confidence
+              {formatMargin(moe, metric.unit)} at the 90% confidence
               level, as published by {metric.source.publisher}.
             </p>
           )}

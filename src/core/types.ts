@@ -66,8 +66,18 @@ export interface SourceRef {
 export interface MetricValue {
   key: string
   label: string
-  /** null means the source had no value (not zero). Never coerce null to 0. */
-  value: number | null
+/** null means the source had no value (not zero). Never coerce null to 0. */
+    value: number | null
+    /**
+     * Why the value is absent, when the publisher said why.
+     *
+     * "Not applicable" and "we have not loaded it yet" are different answers,
+     * and a reader can act on neither without knowing which they are looking at.
+     * Verified against the live endpoint for ZCTA 20771, a military ZIP code
+     * with no civilian households: the Census Bureau returns not-applicable for
+     * every median and a real 0 for the counts, and both are true.
+     */
+    absentReason?: 'not-applicable' | 'not-comparable' | 'missing' | 'too-few-households'
   unit: MetricUnit
   category: MetricCategory
   source: SourceRef
