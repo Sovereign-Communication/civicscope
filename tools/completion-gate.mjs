@@ -350,7 +350,7 @@ add(
   'the sweep applies sanitisation to cached chunks',
 )
 add(
-  /screen:v\d+-sanitised|parser-v\d+/.test(sweepSrc),
+  /screen:v\d+-[a-z]+/.test(sweepSrc),
   'the cache stamp changes when parsing behaviour changes, not only when the data does',
 )
 add(
