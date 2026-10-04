@@ -140,7 +140,10 @@ describe('a warm cache costs nothing', () => {
       // ceiling is only here so a failure reports "no data" rather than a
       // timeout: if anything is going to be fetched, it will not be subtle.
       let loaded = ''
-      for (let i = 0; i < 40; i++) {
+      // Generous on time, because the sweep resolves from cache in seconds but
+      // a sibling suite may be running a full cold sweep on the same machine.
+      // The assertion that matters is the request count below, not the clock.
+      for (let i = 0; i < 90; i++) {
         await page.waitForTimeout(1000)
         loaded = await page.locator('body').innerText()
         if (/Loaded [\d,]+ ZIP codes/.test(loaded)) break
@@ -162,5 +165,5 @@ describe('a warm cache costs nothing', () => {
     } finally {
       await browser.close()
     }
-  }, 300000)
+  }, 600000)
 })
