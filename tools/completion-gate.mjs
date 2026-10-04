@@ -35,7 +35,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-
+import { scanForEmoji } from './emoji-scan.mjs'
 const ROOT = process.cwd()
 // Every child-process argument in this file is a literal, never user input, so
 // the shell concatenation DEP0190 warns about cannot be exploited here.
@@ -203,6 +203,29 @@ for (const [label, cmd, args, env] of gates) {
 }
 
 // --- structural invariants that unit tests cannot see as a whole
+
+// No emoji in shipped source, and the check is not allowed to be vacuous.
+//
+// Accessibility is a legal requirement here (ADA Title III) and the audit is
+// already run with axe-core, but axe cannot see this: a checkmark in a status
+// line is not a WCAG violation, it is a glyph a screen reader announces as
+// "white heavy check mark" before the sentence anyone needed. The typographic
+// and geometric characters the app genuinely uses are not emoji and are not
+// flagged — the sort indicators in SweepTable.tsx are aria-hidden and backed by
+// aria-sort, so a scanner broad enough to flag them would have demanded the
+// removal of an accessibility affordance.
+//
+// docs/ is exempt by decision: planning documents are agent-facing notes, not
+// product surface.
+//
+// The file count is asserted alongside the findings because a scanner pointed at
+// the wrong directory reports zero findings and looks identical to a clean tree.
+const emojiScan = scanForEmoji(ROOT)
+add(
+  emojiScan.files > 50 && emojiScan.findings.length === 0,
+  `no emoji in shipped source; a screen reader would announce a glyph name instead of the sentence (${emojiScan.files} files scanned, docs/ exempt)`,
+  emojiScan.findings.slice(0, 10).join(' | '),
+)
 
 // Legal spine must exist in the shipped UI.
 const app = read('src/ui/App.tsx')
@@ -438,11 +461,45 @@ add(!/educationdata\.education\.gov/.test(codeOnly(schools)), 'no runtime depend
 // so at all, which the gate flagged. The section must exist wherever a visitor
 // can reach it, including the keyless first-run state.
 add(/FundingSection/.test(app), 'a funding section is reachable from the main view')
-add(/opencollective/i.test(read('src/ui/Funding.tsx')), 'donations route through a public collective rather than a personal account')
 add(
   /q\.selected\.length > 0 && \(<FundingSection|What you can do without a key[\s\S]{0,400}FundingSection/.test(app.replace(/\s+/g, ' ')),
   'the funding section is reachable without adding a key first',
 )
+
+// The donation route itself. This used to assert that donations went through a
+// public collective rather than a personal account, which was the correct thing
+// to assert while that was the design. It no longer is: the route is three direct
+// personal accounts, matching the author's other free tools, because that needs
+// no account setup or incorporation before a link works.
+//
+// What was given up is real — the funds are personal property and the balance is
+// not public — so it is asserted rather than dropped. A check that only asserted
+// "a link exists" would have been satisfied by a dead link, and this gate has been
+// burned before by exactly that shape of claim.
+{
+  const funding = read('src/ui/Funding.tsx')
+  const fundingCode = codeOnly(funding)
+  const routes = [...fundingCode.matchAll(/https:\/\/[^\s'"`)]+/g)].map((m) => m[0])
+  add(
+    routes.length >= 3 && routes.every((u) => /^https:\/\/(www\.)?(paypal\.me|venmo\.com|cash\.app)\//.test(u)),
+    `the donation route is live rather than a placeholder (${routes.length} routes)`,
+    routes.join(' '),
+  )
+  // The Fair Housing posture depends on there being no transaction attached to a
+  // result. A disclaimer saying a gift buys nothing is the user-facing half of
+  // that; this asserts it is actually present rather than assumed.
+  add(
+    /voluntary gifts to an individual/.test(funding) && /buy nothing|buys nothing/i.test(funding),
+    'the donation route states that a contribution buys nothing and cannot change a result',
+  )
+  // The weaker guarantee must stay disclosed. This is the check that keeps the
+  // page honest about the trade it made, rather than quietly implying a
+  // collective exists.
+  add(
+    /personal accounts/.test(funding) && /not published/.test(funding),
+    'the page discloses that donations go to a person rather than a collective, so the balance is not public',
+  )
+}
 
 // Every data source the app calls must be on the CSP allowlist. Cross-checked
 // here as well as in a unit test, because the test only proves the two agree.
@@ -656,10 +713,12 @@ if (TYPESAFE_KEY) {
         'Accessibility: WCAG 2.2 AA audited with axe-core in a real browser against the production build',
         'with the Content-Security-Policy enforced, plus manual checks axe cannot make.',
         'Free and unmonetised: no advertising, no referral fees, no paid placement, no affiliate links, and no',
-        'code path that could accept payment for a ranking. DONATIONS ARE NOT WIRED UP: the funding section is',
-        'present and reachable without a Census key, but VITE_COLLECTIVE_SLUG is unset because no Open',
-        'Collective has been created, so the section states that plainly instead of showing a dead link. The',
-        'project is nobody-owned in the sense that no entity controls it, but it is not yet fiscally stewarded.',
+        'code path that could accept payment for a ranking. Donations are wired: the funding section is reachable',
+        'without a Census key and offers three live routes (PayPal, Venmo, Cash App), matching the author\'s',
+        'other free tools. They go to personal accounts rather than to a public collective, so the balance is not',
+        'published and the funds are the maintainer\'s — a weaker guarantee than a collective, and disclosed on',
+        'the page rather than implied away. No contribution can change any figure, ranking or result, which is',
+        'asserted by the checks above rather than promised in prose.',
         'Map: every ZIP code in the country is drawn on a hexbin map from the same cached figures, coloured',
         'by a quantile scale and showing the MEDIAN of the ZIP codes in each hexagon rather than a mean, so',
         'one extreme value cannot dominate its neighbours. A filled-polygon choropleth was measured and',
@@ -703,7 +762,7 @@ if (TYPESAFE_KEY) {
     },
     known_limitations: [
       'Per-school detail is covered for NEW YORK ONLY. This is a structural limit, re-searched rather than assumed: tools/probe-school-sources.mjs queries the Socrata catalog API for school performance, achievement and graduation datasets across US open-data portals, fetches each candidate dataset metadata, and requires a school name column, a latitude column and an achievement measure. Of 55 candidate datasets examined, 0 were usable. The rejections are specific and consistent: state portals publish DISTRICT accountability rows with no per-school name and no coordinates (Connecticut CMT/CAPT, Texas ratings, Pennsylvania, Delaware, Maryland), and the per-school datasets that do exist either lack coordinates or are lead-testing records rather than achievement. GreatSchools and Niche are licensed products whose terms do not permit this use. The other 49 states have district-level data, which is real and citable, and the interface says so. StateSchoolPlugin plus the STATE_SCHOOL_PLUGINS list is the extension point, and a new state joins the drilldown automatically.',
-      'Stewardship is not yet wired up. There is no Open Collective, because creating one is an account and a fundraising decision that belongs to the maintainer, not something that can be asserted. The app has no donation path at all today and the funding section says so. The project is unowned in the sense that no company controls it, but it is not yet fiscally stewarded, and the original request asks for a stewardship path that is genuinely nobody-owned.',
+      'Stewardship: the code is nobody-owned in the sense that no entity controls it and no company can buy a better result. The donation route IS wired: three live links (PayPal, Venmo, Cash App) in a section reachable without a Census key, matching the author\'s other free tools. They resolve to personal accounts rather than to a public collective, which was deliberately traded away because the direct routes need no account setup or incorporation to work; the consequence — the balance is not published and the funds are the maintainer\'s — is disclosed on the page itself rather than glossed. This is the weaker of the two possible designs and it is the one shipped.',
       'The domain is a Cloudflare Pages address, not a registered name. civicscope.fyi is selected and available at $5.66/yr but is NOT purchased, because purchasing requires a card. The original request asks for a selected domain, which is the weaker of the two claims and is the one being made.',
       'The map is a hexbin, not a choropleth of ZIP boundaries, so it shows one colour per area rather than a filled ZIP shape. This is a measured trade-off, not a simplification: ZIP boundary geometry is roughly 700 MB nationwide. Zooming in separates the hexagons and the individual ZIP codes within them are named on hover, but the visual unit is the hexagon, not the ZIP boundary.',
       'A hexagon is only coloured when at least half of its ZIP codes carry a figure, and the coverage count is shown on hover and in the legend. Requiring every ZIP to have one greyed six cells in seven; requiring none would let a single rural ZIP speak for twenty neighbours.',
@@ -762,7 +821,7 @@ if (TYPESAFE_KEY) {
         school_depth: 'School data depth — per-school or per-state detail on drilldown',
         ownership: 'Stewardship — whether the project is genuinely nobody-owned, or only documented as such',
         domain: 'The domain name has not been chosen or does not yet carry a strong message',
-        donations: 'Donations are not actually wired up end to end',
+        donations: 'Donations route to personal accounts rather than a public collective, so the balance is not public',
         verification: 'Not all elements are independently verified against real data',
         breadth: 'Some data sources or metrics the request implies are missing',
       },

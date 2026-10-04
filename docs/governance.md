@@ -22,12 +22,22 @@ a composite score, and there is no payment integration anywhere in `src/`.
    the strict sense, unowned. Anyone can fork it, but "anyone can fork" is not
    "nobody can take it away". The exit path is described below.
 
-2. **There is no donation route.** The funding section is present and reachable
-   without a Census key, but it has no Open Collective behind it, because
-   creating one is an account and a fundraising decision that belongs to the
-   maintainer rather than to the code. The interface says so rather than showing
-   a dead link. The project has therefore never received money and has never
-   spent any.
+2. **The donation route reaches an individual, not a collective.**
+   It is live, and it was live before this document was corrected — three direct
+   routes (PayPal, Venmo, Cash App) in the funding section, reachable without a
+   Census key. What changed here is the description, not the wiring. An earlier
+   version of this file said there was no donation route and that one could not
+   be created in code; both halves of that were wrong. The route can be three
+   links, and the reason a collective was skipped is not that it is impossible
+   but that it needs account setup and a fundraising decision first.
+
+   The trade is real and is disclosed on the page rather than glossed: funds
+   arriving at a person's accounts are personal property, the balance is not
+   public, and if the project is abandoned the money stays with that person. A
+   collective would have given the opposite three properties. The direct routes
+   were chosen because they work immediately and need no incorporation.
+
+   **The project has never received money and has never spent any.**
 
 3. **No money means no continuity.** Nothing here is funded, so nothing is
    guaranteed. A source can vanish, a publisher can change an endpoint, and the
@@ -87,12 +97,15 @@ In rough order of how much it would matter:
 
 1. Move the repository to somewhere no single account can delete, or accept that
    an organisation is the owner and say so.
-2. Create the Open Collective, so money can arrive and be accounted for.
+2. Move donations to a public collective, so the balance is visible and the money
+   outlives the maintainer. This is the single change that would most improve the
+   stewardship position, and it is now the only gap on this list that concerns
+   money rather than ownership.
 3. Record who holds the Cloudflare Pages account, and what happens to the
    deployment if they stop paying.
 4. Publish a change-log or incident record, so that "verified" has a history
    rather than being a claim about the current state only.
 
-None of these can be done by writing code. Items 1 to 3 are decisions and
-accounts, not implementations, and pretending otherwise would be the exact
-overclaiming this document exists to prevent.
+Items 1 to 3 are decisions and accounts, not implementations, and pretending
+otherwise would be the exact overclaiming this document exists to prevent. Item 4
+is the one thing on this list that is genuinely just work.

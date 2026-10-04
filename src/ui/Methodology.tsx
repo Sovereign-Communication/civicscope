@@ -71,9 +71,9 @@ export function Methodology() {
         <p className="section-note mt-2">
           Three things are true and worth stating plainly rather than glossing. The repository sits in a GitHub
           organisation, which is an organisation that can delete it, so it is not unowned in the strict sense.
-          There is no donation route yet, because creating a funding collective is an account and a decision
-          rather than something code can do. And nothing here is funded, so nothing here is guaranteed &mdash; a
-          source can change and the maintainer can stop.
+          Donations are possible, but they go to a person&rsquo;s accounts rather than to a collective, so the
+          money is personal property and the balance is not public. And nothing here is funded, so nothing here
+          is guaranteed &mdash; a source can change and the maintainer can stop.
         </p>
         <p className="section-note mt-2">
           What survives all of that is the part that matters for your trust in a number: every figure here is

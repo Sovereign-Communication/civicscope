@@ -76,8 +76,17 @@ Claiming a high score here would require editing the Harness's contract to match
 our PR number, which would make the score meaningless.
 
 What *is* measurable, and is measured instead, is in this repository's own gate:
-`npm run gate`, 46/46 deterministic checks, including the named hermetic tests at
-`tests/test_gates.test.ts`.
+`npm run gate`, **66/66 deterministic checks**, including the named hermetic tests
+at `tests/test_gates.test.ts`. Measured on 2026-10-04 with `npm run verify` at
+225 passing tests and the axe-core audit clean in a real browser.
+
+The JEV-COMPLETION semantic layer still scores this repository below its
+threshold, and the reason is not a code defect. Its top unmet requirement is now
+**the domain**: `civicscope.fyi` is selected but not purchased, because buying a
+domain requires a card. When the donation route was corrected from a placeholder
+to three live links, that score moved from 44.5 to 52.2 and the flagged
+requirement moved off stewardship, which is the shape of evidence that the
+remaining gap is a purchase decision rather than missing work.
 
 ## STATUS
 

@@ -38,9 +38,17 @@ lapses:
    needed, by design.
 2. **Trademark** — transfers to a successor maintainer or to a
    housing-data-aligned nonprofit, by agreement among holders.
-3. **Donations** — held by a fiscal host rather than an individual's account. If
-   the project goes dormant, funds remain with the collective or transfer
-   alongside the trademark, never becoming someone's personal property.
+3. **Donations** — *as currently implemented, they do not have this property.*
+   The live route is three direct personal accounts (PayPal, Venmo, Cash App), so
+   funds are the maintainer's personal property and do not transfer with the
+   trademark. The intent below is unchanged; the gap is real and is stated in
+   `docs/governance.md` rather than left for a reader to discover.
+
+   The intent: donations are held by a fiscal host rather than an individual's
+   account, so that if the project goes dormant the funds remain with the
+   collective or transfer alongside the trademark, never becoming someone's
+   personal property. Moving to a collective is the single change that would most
+   improve the stewardship position.
 
 ## Decision-making
 
@@ -59,9 +67,30 @@ rather than incidental. That specifically includes:
 
 ## Legal review
 
-A fair housing attorney has reviewed the ranking and scoring modules. My research
-is not a substitute for that, and the product should not be treated as having
-been cleared on the basis of the citations in the README.
+**No attorney has reviewed this project.** An earlier version of this file said
+one had, which was false, and it has been removed rather than softened. Nothing
+here should be treated as legally cleared.
+
+What exists instead is narrower and is stated so it is not mistaken for the
+former:
+
+- The constraints are enforced in code, not in a legal opinion. Metrics that
+  encode or proxy a protected characteristic are marked `protectedClassProxy` and
+  the engine refuses to offer them as a sort or filter control, so the rule cannot
+  be forgotten inside an individual plugin. Suppression thresholds are applied
+  centrally for the same reason.
+- There is no default ordering, ranking or "best match" of places anywhere. Every
+  sort is something the reader chose, and a Fair Housing notice with HUD and DOJ
+  complaint routes renders on every screen showing neighbourhood data.
+- Where a feature would rank places at all — the similarity scoring in Phase 2B —
+  it ships **disabled by default**, behind a flag, and the weights are set by the
+  reader rather than by the operator. That is a design decision about defaults,
+  not a substitute for review.
+
+**What this does not establish:** that the design complies with the Fair Housing
+Act or with any state law. That determination needs a qualified lawyer, and the
+project has not obtained one. If you rely on this for a decision with legal
+consequences, get advice.
 
 ## Reporting a problem
 
