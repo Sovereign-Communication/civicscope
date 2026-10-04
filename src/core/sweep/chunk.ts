@@ -79,7 +79,7 @@ const ZCTA_WINDOWS: [string, string][] = [
  * because the list only changes when Census publishes a new ZCTA layer, which
  * is at most annually.
  */
-const ENUM_CACHE_KEY = 'civicscope://zcta-enumeration/v1'
+export const ENUM_CACHE_KEY = 'civicscope://zcta-enumeration/v1'
 const ENUM_TTL_MS = 90 * 24 * 60 * 60 * 1000
 
 /**
