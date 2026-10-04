@@ -86,17 +86,56 @@ export interface CachedChunk<T> {
   isStale: boolean
 }
 
+/**
+ * The stored key for a chunk at a version.
+ *
+ * The store's keyPath has always been `key` and the chunk key carries no
+ * version, so writing a new version replaced the old record: one chunk could
+ * hold exactly one version, every stamp bump discarded every visitor's cache,
+ * and "use every version we hold" could not be expressed at all. The version now
+ * lives in the key, which needs no schema change.
+ */
+function composite(chunkKey: string, version: string): string {
+  return `${chunkKey}@${version}`
+}
+
+function hit<T>(rec: ChunkRecord<T>): CachedChunk<T> {
+  return { body: rec.body, fetchedAt: rec.fetchedAt, isStale: Date.now() - rec.fetchedAt > STALE_AFTER_MS }
+}
+
 export const sweepCache = {
   async read<T>(key: string, version: string): Promise<CachedChunk<T> | null> {
-    const rec = await store<ChunkRecord<T>>(CHUNKS, 'readonly', (s) => s.get(key))
-    // A version mismatch is a miss, never a partial hit. This is the mechanism
-    // that prevents a stale figure being labelled with a current vintage.
-    if (!rec || rec.version !== version) return null
-    return { body: rec.body, fetchedAt: rec.fetchedAt, isStale: Date.now() - rec.fetchedAt > STALE_AFTER_MS }
+    // The stored key carries the version, so one chunk can hold several
+    // versions instead of the newest replacing the older ones.
+    const direct = await store<ChunkRecord<T>>(CHUNKS, 'readonly', (st) => st.get(composite(key, version)))
+    if (direct) return hit(direct)
+
+    // A record written before the key carried a version is still valid data, so
+    // it is adopted rather than discarded, and re-keyed in place as it is read.
+    //
+    // This is deliberately a lazy migration rather than a bulk one in
+    // `onupgradeneeded`. A bulk rewrite runs inside a versionchange transaction,
+    // which has awkward lifetime rules and which three attempts here failed to
+    // drive to completion. Reading is ordinary application code, so the same
+    // logic cannot break for reasons unrelated to storage. It also cannot lose
+    // data: until a record is actually read it keeps its original key, and a
+    // failure anywhere leaves the old record exactly where it was.
+    const legacy = await store<ChunkRecord<T>>(CHUNKS, 'readonly', (st) => st.get(key))
+    if (!legacy || legacy.version !== version) return null
+    // A put is returned rather than a bare block because the helper hands the
+    // request back, and returning it keeps the transaction alive until the write
+    // has actually landed.
+    await store(CHUNKS, 'readwrite', (st) =>
+      st.put({ ...legacy, key: composite(key, version) } as ChunkRecord<T>),
+    )
+    await store(CHUNKS, 'readwrite', (st) => st.delete(key))
+    return hit(legacy)
   },
 
   async write<T>(key: string, body: T, version: string): Promise<void> {
-    await store(CHUNKS, 'readwrite', (s) => s.put({ key, version, body, fetchedAt: Date.now() } as ChunkRecord<T>))
+    await store(CHUNKS, 'readwrite', (st) =>
+      st.put({ key: composite(key, version), version, body, fetchedAt: Date.now() } as ChunkRecord<T>),
+    )
   },
 
   async count(): Promise<number> {
