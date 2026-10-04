@@ -312,7 +312,7 @@ Move from WCAG 2.2 AA (current) to AAA (best-in-class)
 | City auto-suggest adds API calls | Low | Cache results; document quota |
 | Mobile table perf on 33k rows | Medium | Windowed rendering (existing pattern) |
 | Saved searches complexity | High | DECISION 3 resolves scope |
-| Clustering bias (Fair Housing) | High | DECISION 4 + legal review |
+| Clustering bias (Fair Housing) | High | DECISION 4 resolved: reader-set weights, shipped off by default. Residual risk recorded in GOVERNANCE.md |
 | Help discoverability | Medium | DECISION 2 + user testing |
 
 ---

@@ -1,5 +1,18 @@
 # CivicScope 72→95 UX Implementation Guide
 
+> **PARTIALLY SUPERSEDED.**
+>
+> - **Phase 0 is wrong.** This document says to modify `src/ui/SearchInput.tsx`
+>   (no such file), add a `ResolvedPlace` shape of `{zcta, city, state}` (neither
+>   `zcta` nor `city` exists), write unit tests in `src/ui/*.test.tsx`
+>   (`vite.config.ts` collects `*.test.ts` only, so they would never run), place
+>   browser tests in a top-level `e2e/` (only `src/e2e/**/*.e2e.ts` is collected),
+>   and run `npm run test:a11y` (no such script). It also budgets +8KB against a
+>   bundle that measures 95 kB gzipped, not the ~500 kB claimed.
+>   **`PHASE_0_RECONCILIATION.md` replaces the Phase 0 section entirely.**
+> - **Phase 2B is answered.** See its DECIDED section below.
+> - Phases 1 and 2A were not re-checked against the tree.
+
 **Total Implementation:** 5,450 LoC (P0: 1,200 + P1: 3,350 + P2A: 1,550)  
 **Phases:** 4 sequential PRs  
 **Execution Order:** P0 → P1 → P2A assessment → P2B (if needed)  
@@ -14,7 +27,7 @@
 | **P0** | 1,200 | ✅ READY | Start immediately; after merge, start P1 |
 | **P1** | 3,350 | ✅ READY | After P0 merge; after merge, assess Phase 1 UX |
 | **P2A** | 1,550 | ⏳ CONDITIONAL | After P0+P1, assess if 95/100 reached; if not, start P2A |
-| **P2B** | 250 | 🚫 BLOCKED | Legal review + metrics audit required |
+| **P2B** | 1700 | APPROVED, flag off by default | No legal gate; reader sets weights |
 
 ---
 
@@ -520,17 +533,25 @@
 
 ---
 
-## PHASE 2B: DEFERRED (BLOCKED)
+## PHASE 2B: APPROVED (ships disabled by default)
 
-**Status:** Cannot start until blockers resolved.
+**Status:** can start. Both former blockers are closed.
 
-**Blockers:**
-1. Legal review (Fair Housing compliance): NOT STARTED
-2. ZIP-level metrics audit (schools/health data availability): NOT STARTED
+**What changed, 2026-10-04:**
+1. **Legal review: dropped, not satisfied.** No attorney review is planned. The
+   mitigation is that similarity ships off by default behind a feature flag, with
+   the reader choosing the weights and no operator-chosen defaults.
+2. **ZIP-level metrics audit: answered.** CDC PLACES publishes a ZCTA-level
+   release (`qnzd-25i4`, verified live, keyless, with confidence limits). NCES is
+   genuinely district-level and is deferred rather than approximated.
 
-**Timeline (if pursued):** 2-4 weeks per blocker + 1 week implementation
+**Build-time conditions:** the flag defaults off; weights are reader-set;
+protected-class metrics are refused as ranking inputs; no outcome-named templates.
+`GOVERNANCE.md` records that no attorney has reviewed the design and that this is
+a mitigation rather than a compliance finding.
 
-**See `PR_PHASE_2B_SCOPE.md` for full details.**
+**See `PR_PHASE_2B_SCOPE.md` for full details — it is authoritative over this
+document.**
 
 ---
 
@@ -565,7 +586,7 @@
 | **P0** | 1,200 | 25+ | P0 Scope | None | Opus review |
 | **P1** | 3,350 | 30+ | P0 Scope | Decision 1 & 2 ✅ | Opus review |
 | **P2A** | 1,550 | 25+ | P0+P1 Scope + UX < 95 | None | Opus review |
-| **P2B** | 250 | 8+ | P2A Scope (if approved) | Legal + Metrics | Future |
+| **P2B** | 1700 | 8+ | P2A Scope | Phase 0 + 1 merged | Flag off by default |
 
 ---
 

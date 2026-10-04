@@ -1,8 +1,22 @@
 # PR PHASE 0: City/State Search Foundation
 
-**Total LoC:** 1,200  
+> **SUPERSEDED — do not implement from this document.**
+> **`PHASE_0_RECONCILIATION.md` is authoritative for Phase 0.**
+>
+> Several assumptions below were checked against the working tree on 2026-10-04
+> and found false. The most consequential: this document makes
+> `src/ui/SearchInput.tsx` an existing file (it does not exist — the search form
+> is inline in `src/ui/App.tsx`), specifies 16 unit tests in `.test.tsx` files
+> (which `vite.config.ts` never collects, so they would have reported green while
+> asserting nothing), adds a `zcta`/`city` shape to `ResolvedPlace` (neither field
+> exists), and points at a `npm run test:a11y` script that does not exist.
+> `IMPLEMENTATION_GUIDE.md` has the same defects.
+>
+> This document is retained for its scope narrative, not as a build target.
+
+**Total LoC:** 1,200 (superseded — reconciliation says ~650 code + 300 tests)  
 **Confidence:** 95%  
-**Status:** UNBLOCKED - Ready to implement immediately  
+**Status:** SUPERSEDED by `PHASE_0_RECONCILIATION.md`  
 **Depends on:** Nothing  
 **Blocks:** Phase 1 (logical dependency, not technical blocker)
 

@@ -16,15 +16,34 @@ Three-phase UX improvement plan (4,200 LoC total) to boost CivicScope from 72→
 ✅ **Phase 0:** City/State Search Foundation (950 LoC)  
 ✅ **Phase 1:** Onboarding & Core Tools (1,650 LoC)  
 ✅ **Phase 2A:** Profiles, Export, Methodology (1,600 LoC)  
-✅ **Phase 2B:** Similarity Scoring (BLOCKED pending legal review + metrics audit)
+✅ **Phase 2B:** Similarity Scoring — **approved, ships disabled by default** (1,700 LoC MVP)
+
+> **Status note (2026-10-04).** Phase 2B was previously listed as BLOCKED on
+> legal review plus a metrics audit. Both are resolved, and not in the way this
+> document originally assumed:
+>
+> - **No attorney review is planned.** The legal gate is dropped rather than
+>   satisfied. The mitigation is that the feature ships **off by default** behind a
+>   feature flag, with the reader choosing the weights and no operator-chosen
+>   defaults. `GOVERNANCE.md` states plainly that no attorney has reviewed this
+>   code and that nothing here is legally cleared.
+> - **The metrics question is answered with evidence.** CDC PLACES does publish a
+>   ZCTA-level release (`qnzd-25i4`, 1,171,563 rows, keyless, with confidence
+>   limits). The old "CDC is tract-level only" note described this repository's
+>   plugin, not CDC's offerings. NCES stays district-level and is deferred rather
+>   than approximated.
+>
+> Phase 0 also gained `docs/PHASE_0_RECONCILIATION.md`, which records that several
+> assumptions in the Phase 0 documents below were false against this repository.
 
 ### Documents in Repo
 
 All planning documents committed to `/docs/`:
 - `PR_PHASE_0_SCOPE.md` — Complete Phase 0 spec (650 LoC code, 300 tests)
+- `PHASE_0_RECONCILIATION.md` — **Authoritative for Phase 0.** Corrects the other Phase 0 docs against the working tree
 - `PR_PHASE_1_SCOPE.md` — Complete Phase 1 spec (1,150 LoC code, 500 tests)
 - `PR_PHASE_2A_SCOPE.md` — Complete Phase 2A spec (1,150 LoC code, 450 tests)
-- `PR_PHASE_2B_SCOPE.md` — Blocked spec with blocker details
+- `PR_PHASE_2B_SCOPE.md` — Approved spec: user-driven weights, disabled by default
 - `IMPLEMENTATION_GUIDE.md` — Execution sequence for agents
 - `OPUS_REMEDIATION_APPLIED.md` — All Opus corrections & LoC recount
 
@@ -65,11 +84,10 @@ All planning documents committed to `/docs/`:
 
 ### Phase 2B: Similarity Scoring
 
-**Status:** BLOCKED (no changes to implementation)  
-**Blocker 1:** Legal review must include disparate-impact testing (not just weights)  
-**Blocker 2:** ZIP-level metrics audit for schools/health data availability  
-**Timeline:** 2-4 weeks per blocker (owners: TBD)  
-**Fallback:** Phase 2A profiles sufficient if similarity never ships
+**Status:** APPROVED — ships **disabled by default**, weights set by the reader  
+**Legal review:** none, and none planned. The gate is dropped, not satisfied  
+**Data:** CDC PLACES ZCTA release verified live; NCES deferred as district-level  
+**Fallback:** Phase 2A profiles are sufficient if similarity is never enabled
 
 ---
 
@@ -122,11 +140,13 @@ All planning documents committed to `/docs/`:
 
 **Approval gate:** UX score >= 95/100, all features work, AAA audit passes
 
-### PHASE 2B: BLOCKED
+### PHASE 2B: APPROVED (ships disabled)
 
-Cannot ship until:
-1. Legal review of similarity weights (includes disparate-impact testing)
-2. ZIP-level metrics audit (schools/health data availability)
+No external preconditions. The conditions it *does* carry are build-time:
+1. The feature flag defaults to off
+2. Weights are reader-set; no operator-chosen defaults
+3. Protected-class metrics refused as ranking inputs
+4. No outcome-named templates
 
 ---
 
@@ -142,8 +162,8 @@ Cannot ship until:
 | 6A | P2A | 1,600 | IF UX < 95: Implement + test | Assessment < 95 |
 | 6B | Complete | — | IF UX >= 95: Done (declare launch) | Assessment >= 95 |
 | 7 | P2A | — | Merge to ccr-a1306203-osmm3o | P2A approval (if 6A) |
-| 8 | Blockers | — | Legal review + metrics audit (owners: TBD) | Any time |
-| 9 | P2B | 250 | Implement + test (if blockers pass) | Legal + metrics approved |
+| 8 | ~~Blockers~~ | — | Closed 2026-10-04: legal gate dropped, metrics audit answered | Done |
+| 9 | P2B | 1700 | Implement + test, flag defaulted off | Phase 0 + 1 merged |
 
 ---
 
@@ -160,10 +180,12 @@ Cannot ship until:
 - **Income filter:** Kept with existing `FairHousingNotice` disclosure
 - **Logic:** Reuses existing `protectedClassProxy` enforcement from `scoring.ts`
 
-### Phase 2B (Blocked)
-- **Legal blocker:** Must demonstrate results don't steer by protected class
-- **Similarity weights:** Require disparate-impact testing, not just opinion
-- **Proxy data:** Same legal review required if using district/tract averages
+### Phase 2B (approved, ships disabled)
+- **No legal review.** The mitigation is defaults: the feature is off until a
+  reader turns it on, and the reader chooses the weights
+- **Similarity weights:** reader-set via GUI, persisted locally, no operator default
+- **Proxy data:** not used — NCES district data is deferred rather than approximated
+- **Residual risk:** accepted and documented, not discharged. See `GOVERNANCE.md`
 
 ---
 
@@ -240,26 +262,34 @@ All within acceptable limits (target: <= 10% increase).
 
 ---
 
-## BLOCKING ITEMS (Phase 2B only)
+## BLOCKING ITEMS (Phase 2B)
 
-### Legal Review (Fair Housing)
-- **Status:** Not started
-- **Owner:** TBD (compliance/legal team)
-- **Timeline:** 2-4 weeks
-- **Requirement:** Disparate-impact testing of similarity results
-- **Approval:** Written opinion (weights don't steer by protected class)
+**None. There are no remaining external blockers, by decision rather than by
+progress.** Both original blockers are closed below, and one of them is closed by
+declining to do the work at all.
 
-### ZIP-Level Metrics Audit
-- **Status:** Not started
-- **Owner:** TBD (data engineering)
-- **Timeline:** 2-4 weeks
-- **Requirement:** Verify NCES/CDC can provide per-ZIP school/health data
-- **Options:**
-  - (a) New data source with ZIP-level granularity
-  - (b) District/tract averages as proxy (requires legal sign-off)
-  - (c) Drop metrics from similarity (reduce value)
+### Legal Review (Fair Housing) — DROPPED
+- **Status:** will not be obtained. No attorney review is planned for this project
+- **Why that is not a dodge:** a gate that waits on a lawyer would either wait
+  forever or be quietly dropped later, and the second outcome is worse than
+  shipping a documented, constrained, disabled-by-default feature
+- **What replaces it:** the feature is off by default behind a flag, the reader
+  sets the weights, protected-class metrics are refused as ranking inputs, and
+  `GOVERNANCE.md` states that no attorney has reviewed the code
+- **What it does not give:** a determination that the design complies with the
+  Fair Housing Act. That is stated in `GOVERNANCE.md`, not glossed here
 
-**Both blockers must resolve before Phase 2B implementation begins.**
+### ZIP-Level Metrics Audit — ANSWERED
+- **Status:** resolved by measurement on 2026-10-04
+- **Census ACS:** already per-ZIP. No work
+- **CDC PLACES:** publishes a ZCTA-level release. Verified live: `qnzd-25i4`,
+  *PLACES: Local Data for Better Health, ZCTA Data, 2025 release*, 1,171,563 rows,
+  keyless, with `low_confidence_limit` / `high_confidence_limit`
+- **NCES:** genuinely district-level. Deferred to future scope rather than
+  approximated, so no proxy join enters the MVP
+
+**Phase 2B may begin.** The gate conditions above are build-time and are asserted
+by the completion gate, not reviewed by a third party.
 
 ---
 

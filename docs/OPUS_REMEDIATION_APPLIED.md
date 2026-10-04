@@ -200,16 +200,35 @@ All four PR scopes have been corrected based on Opus 5.5 detailed review. Major 
 
 ---
 
-## Phase 2B: Similarity Scoring (Blocked - No Changes)
+## Phase 2B: Similarity Scoring (SUPERSEDED — see below)
 
-**Status:** DEFERRED pending blockers
+**Status at time of writing:** DEFERRED pending blockers. **Later resolved.**
 
-Opus feedback on blockers:
-- **Legal review:** Must include disparate-impact testing of results, not just weights opinion
-- **Proxy option (b):** District/tract averages have same steering risk; requires sign-off too
-- **Sorting doesn't eliminate ranking:** Showing "top 5-8 closest" is inherent ranking
+Both blockers are now closed, and the second one is closed by declining it:
 
-No changes to Phase 2B scope needed; blockers remain blocking.
+- **Legal review: dropped, not satisfied.** This project will not obtain an
+  attorney review. The mitigation is that similarity ships **off by default**
+  behind a feature flag with reader-chosen weights and no operator defaults.
+- **Metrics audit: answered with evidence.** CDC PLACES does publish a ZCTA-level
+  release (`qnzd-25i4`, verified live, 1,171,563 rows, keyless). The earlier
+  "CDC is tract-level only" belief described this repository's plugin, not CDC's
+  catalogue. NCES remains district-level and is deferred rather than approximated.
+- **Sorting doesn't eliminate ranking: still true, and still the reason the
+  feature is off by default.** Showing the "closest N" is inherently a ranking.
+  Alphabetical display does not change that; making the reader opt in does.
+
+`PR_PHASE_2B_SCOPE.md` is authoritative. Nothing in this section should be read as
+a current status.
+
+Opus feedback on blockers, retained because the substance still stands even though
+the gating decision has changed:
+- **Legal review:** disparate-impact testing of results, not just a weights opinion. Still the right test; it is now recorded as residual risk in `GOVERNANCE.md` instead of a release gate, because no attorney will perform it
+- **Proxy option (b):** District/tract averages carry the same steering risk, so they are dropped rather than signed off. NCES is deferred
+- **Sorting doesn't eliminate ranking:** "top 5-8 closest" is inherent ranking. This is why the feature is off by default
+
+The earlier conclusion — "no changes to Phase 2B scope needed; blockers remain
+blocking" — was overtaken by a decision on 2026-10-04 to drop the legal gate and
+ship disabled by default.
 
 ---
 

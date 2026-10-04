@@ -1,7 +1,7 @@
 # CivicScope UX Plan: Decision Packets for Opus Review
 
 **Reference:** See `UX_IMPROVEMENT_PLAN.md` for full context  
-**Status:** 4 decisions needed before Wave 2 (Week 3)
+**Status:** 4 decisions needed before Wave 2 (Week 3) — **DECISION 4 was made on 2026-10-04**; 1 to 3 remain open.
 
 ---
 
@@ -325,7 +325,10 @@ Trade-off reasoning:
 **Impact:** Fair Housing compliance, discovery feature quality  
 **Blocking:** P2.2 (Insights & patterns)  
 **Timeline:** Only needed if Phase 2 ships (Week 8+)  
-**Legal review:** Required before implementation
+**Legal review:** was required before implementation. **DECIDED 2026-10-04: no
+attorney review will be obtained.** The mitigation is that similarity ships off by
+default behind a feature flag with reader-chosen weights — see the DECIDED section
+below and `PR_PHASE_2B_SCOPE.md`.
 
 ### Problem
 User selects "Austin, TX (6 areas)". It's valuable to show "Other neighborhoods like your selection: Albuquerque, Durham, Tucson". But clustering can:
@@ -399,7 +402,37 @@ Cons:
 - Removes discovery feature
 - Researchers lose exploratory tool
 
-### Recommendation
+### DECIDED 2026-10-04 — reader-set weights, no legal gate
+
+The recommendation below is **superseded**. It proposed fixed weights
+(40/30/20/10 including school funding and health) gated on a legal review. Both
+halves were changed:
+
+1. **No legal review will be obtained.** The gate is dropped rather than
+   satisfied. `GOVERNANCE.md` now states plainly that no attorney has reviewed
+   this project and that nothing here is legally cleared.
+2. **No operator-chosen weights at all.** The fixed 40/30/20/10 above is exactly
+   the steering risk the blocker existed to catch. Weights are now set by the
+   reader through the UI, persisted locally, with no default standing in for a
+   preference.
+3. **Off by default.** Similarity ships behind a feature flag that is disabled.
+   No ranking is presented to anyone who has not turned it on.
+4. **School funding and health are excluded as ranking inputs.** They are marked
+   `protectedClassProxy`, which by `src/core/types.ts` means never offered as a
+   sort or filter control. Using them as weights would have violated a rule the
+   engine already enforces.
+5. **Outcome-named templates are dropped**, not deferred. "Schools Priority" is
+   the highest-steering feature in the plan and there is no basis on which to ship
+   it later either.
+
+Note that the "always sort alphabetically (never rank)" mitigation in the
+recommendation does not do what it appears to do: showing the closest N is itself a
+ranking. Making the reader opt in is the part that actually changes the default
+position.
+
+Authoritative scope: `PR_PHASE_2B_SCOPE.md`.
+
+### Original recommendation (superseded)
 
 **TWO-PHASE WITH LEGAL REVIEW:**
 1. **Phase 2 (Week 8):** Implement Option A (similarity scoring)
@@ -438,7 +471,7 @@ Plus: **Legal review**: Do you need Fair Housing review of similarity weights be
 | **1** | 87% | P1.1-P1.2 | Pre-bake 50 ZIPs (+10KB) | Approve or alt? |
 | **2** | 85% | P1.4 | Hybrid (section + icons) | Approve or alt? |
 | **3** | 75% | P2.1 | localStorage Phase 1, cloud Phase 2 if data | Approve or alt? |
-| **4** | 70% | P2.2 | Similarity Phase 2, profiles Phase 3 + legal review | Approve or alt? |
+| **4** | 70% | P2.2 | DECIDED: reader-set weights, off by default, no legal gate | answered 2026-10-04 |
 
 ---
 
@@ -461,5 +494,9 @@ DECISION 2: [Approve hybrid / Recommend Option A-E / Need more analysis]
 DECISION 3: [Approve two-phase / Recommend Option B-D / Need more analysis]
 DECISION 4: [Approve two-phase + legal review / Recommend Option B-D / Need more analysis]
 ```
+
+**DECISION 4 — answered 2026-10-04:** reader-set weights, no legal gate, shipped
+off by default. School and health excluded as ranking inputs. See the DECIDED
+section above and `PR_PHASE_2B_SCOPE.md`.
 
 That's all we need to unblock Wave 2 development.
