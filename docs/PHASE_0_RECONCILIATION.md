@@ -316,6 +316,41 @@ That number drives three decisions:
    is a trade the maintainer should accept explicitly, not one that should slip
    through as "+8KB, within target".
 
+#### What it actually shipped as
+
+The estimate above was wrong in a useful way, and the committed artefact is what
+matters. Measured after the build:
+
+| | Estimated here | Shipped |
+|---|---|---|
+| Raw | 451,735 | 713,412 |
+| gzip -9 | 137,286 | **186,888** |
+| brotli q5 | 137,489 | 179,932 |
+
+Two differences, both deliberate:
+
+- **Names are stored verbatim** (`NAMELSAD_PLACE_20`), giving 19,770 distinct
+  names rather than 14,789 shortened ones. Pre-shortening would have saved about
+  50 kB gzipped by writing the generator's opinion into the data. A mapping that
+  is subtly wrong is worse than one that is merely large, and the verbatim string
+  is auditable against the Census source file by comparison. The display
+  shortening is a tested function in `src/core/zcta-place-index.ts` instead.
+- **The ZIP list is delta-encoded**, which was the one large win available: 78 kB
+  gzipped down to 11 kB. The maximum observed gap is 1,096, comfortably inside
+  four digits, and the generator asserts that bound rather than assuming it.
+
+Run-length encoding the records was measured and **rejected**: only 4,503 runs
+exist across 33,791 records, because ZIP sequences interleave across county
+boundaries, so RLE came out no smaller than the raw records.
+
+**The load is eager, not on-first-keystroke.** Point 1 above said a visitor who
+only ever enters ZIP codes would never download the file. That is no longer true,
+because the screening table shows the city beside every row and there is no way
+to render 33,791 city labels without the index. It is fetched once on mount and
+cached for a year, and 187 kB is comparable to the 420 KB of geometry the map
+already loads on demand. Recording the change rather than quietly shipping
+something smaller than claimed.
+
 ### 3.3 Serving the mapping: resolved
 
 **Decision: plain `zcta-places.json` under `/map/`, dictionary-packed, compressed
@@ -468,11 +503,11 @@ Not yet applied. Listed so that the next agent does not have to rediscover them.
 
 ## Part 5 — Status
 
-Phase 0 implementation is **blocked on sign-off of this document**, by decision.
-Not blocked on data: both source files are verified, public domain, keyless, and
-cover all 33,791 ZIP codes.
+**Signed off and implemented.** See Part 6 for the outcome and for what the build
+disproved. Not blocked on data: both source files were verified, public domain,
+keyless, and cover all 33,791 ZIP codes.
 
-Recorded decisions, awaiting confirmation:
+Recorded decisions:
 
 | # | Decision | State |
 |---|---|---|
@@ -537,6 +572,52 @@ is built rather than after:
    measured and rejected in section 3.2. Phase 2B's data should follow the same
    rule: lazy, on demand, served from `/map/` under the existing immutable header.
 
+
+## Part 6 - Outcome
+
+**Phase 0 is implemented.** PR #11 carries the code. This document was written
+before it and amended afterwards rather than replaced, so the estimates it made
+can be compared against what was built.
+
+| | Before | After |
+|---|---|---|
+| Unit tests | 211 passed / 14 skipped | **259 passed / 14 skipped** |
+| Browser tests | 24 passed | **32 passed** (8 new for city search) |
+| Completion gate | 66/66 deterministic | **70/70** |
+| Search index | 137 kB estimated | **186.9 kB gzip** |
+| Photon in the search path | proposed as fallback | **none** |
+
+### Defects found by checking the data instead of the code
+
+Three, and each would have shipped a wrong answer while looking correct:
+
+1. **`AREALAND_PART` is column 16, not 17.** Column 17 is `AREAWATER_PART`.
+   Reading the wrong one reported 26,428 rows with zero land overlap and implied
+   4,084 ZIP codes whose city was ambiguous. Against the correct column: 188 rows,
+   and **zero** ambiguous ZIP codes.
+2. **Legal-type stripping is case-sensitive or it is wrong.** The Census publishes
+   `Salt Lake City city`. A case-insensitive strip produces `Salt Lake`.
+3. **There are places named after counties.** `Carroll County`, `Hampden County`
+   and `Worcester County` are census-designated places. The suffix list is
+   therefore keyed on each record's own MTFCC legal class, not guessed from the
+   words that happen to end names.
+
+### Two claims in this document that the implementation changed
+
+- **"Fetched on demand, only when someone types something that is not a ZIP"**
+  (section 3.2, point 1) is no longer true. The screening table shows a city on
+  every row, so the index is fetched once on mount. 187 kB sits alongside the
+  420 KB of map geometry the app already loads on demand.
+- The City ZIP browser shipped as specified: ZIPs listed in ZIP order, never
+  ordered by any figure.
+
+### What was deliberately not done
+
+Phase 0 adds no ranking, no recommendation, and no ordering by any published
+figure. `Austin, TX` and `Austin, AR` are both offered for "austin" with neither
+placed above the other, because ordering places by population is the one thing
+this app does not do. 4,983 ZIP codes with no incorporated city are labelled as
+their county rather than given a city name.
 
 Baseline at time of writing, for comparison after the change:
 `npm run typecheck` clean, `npm test` 211 passed / 14 skipped,
