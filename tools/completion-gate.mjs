@@ -147,14 +147,29 @@ const gates = [
   ['live API contracts', 'npx', ['vitest', 'run', '--config', 'vitest.live.config.ts', '--reporter=dot'], {}],
 ]
 
+/*
+ * The browser audit is deferred rather than queued with the other gates.
+ *
+ * It needs a served build, and a served build needs `dist/` to exist — which is
+ * created by the first gate. Queuing the audit alongside the build meant the
+ * preview was spawned *before* the build ran, so `vite preview` failed with
+ * "error when starting preview server" every time in CI, and the gate fell back
+ * to auditing the deployed site. The accessibility audit therefore reported on
+ * production rather than on the pull request it was meant to be checking.
+ *
+ * Found by a new browser test that passed locally and failed in CI, with the
+ * only clue a log line saying the preview had not started.
+ */
+let auditGate = null
+
+for (const [label, cmd, args, env] of gates) {
+  const r = run(label, cmd, args, env)
+  add(r.ok, r.label, r.detail)
+}
+
 if (!e2eSkip) {
   // Accessibility is a legal requirement (ADA Title III) for a public-facing
   // app, so it gates. axe-core runs against a real browser.
-  //
-  // The browser suite needs a served build. When the deployed site is available
-  // we test that, which is what actually ships. Otherwise a local preview is
-  // started for the duration, so the audit is never silently skipped just
-  // because nothing is serving the build yet.
   let server
   let base = e2eBase
   if (process.env.E2E_BASE_URL) {
@@ -165,37 +180,33 @@ if (!e2eSkip) {
      * Poll the address the server is actually bound to, not `localhost`.
      *
      * The preview is started with `--host 127.0.0.1`, so it listens on IPv4 only.
-     * On Linux — which is where CI runs — `localhost` resolves to `::1` first, and
-     * Node's fetch tries that first, so the readiness poll kept getting a
-     * connection refusal while the server was up and healthy. After 60 seconds the
-     * gate concluded the preview had failed and fell back to auditing the deployed
-     * site.
-     *
-     * That fallback is why the accessibility audit had been running against
-     * production on every pull request instead of against the change being
-     * reviewed. It reported a pass, and the pass was real but it was about a
-     * different build. Discovered by a new test failing in CI while passing
-     * locally for exactly that reason.
+     * On Linux — which is where CI runs — `localhost` resolves to `::1` first and
+     * Node's fetch tries that first, so a poll against `localhost` sees a
+     * connection refusal while the server is up and healthy. That was a second,
+     * independent reason the audit could silently end up pointed at production.
      */
     const target = `http://127.0.0.1:${port}`
-    // stderr is captured rather than ignored so that a preview which genuinely
-    // fails says why, instead of the reason being discarded at spawn time.
     let previewError = ''
     try {
       server = spawn(
         process.execPath,
         [join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), 'preview', '--port', String(port), '--strictPort', '--host', '127.0.0.1'],
-        { cwd: ROOT, stdio: ['ignore', 'ignore', 'pipe'], shell: false, windowsHide: true },
+        // Both streams are captured. Ignoring them meant a preview that genuinely
+        // failed said nothing at all, which is how the ordering bug above went
+        // unnoticed for so long.
+        { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], shell: false, windowsHide: true },
       )
-      server.stderr?.on('data', (chunk) => {
+      const capture = (chunk) => {
         previewError += String(chunk)
-      })
+      }
+      server.stdout?.on('data', capture)
+      server.stderr?.on('data', capture)
       const ready = await waitForServer(target, 60000)
       base = ready ? target : e2eBase
       if (!ready) {
         console.log(
           `${c.y}  note: local preview did not start; auditing ${base}${c.x}` +
-            (previewError ? `\n       preview said: ${tail(previewError)}` : ''),
+            (previewError ? `\n       preview said: ${tail(previewError, 600)}` : ''),
         )
         // The browser suite then points at the deployment. If that is also
         // unreachable the audit cannot run, and the gate says so rather than
@@ -206,12 +217,12 @@ if (!e2eSkip) {
     }
   }
 
-  gates.push([
+  auditGate = [
     'WCAG 2.2 AA audit (axe-core, real browser)',
     'npx',
     ['vitest', 'run', '--config', 'vitest.e2e.config.ts', '--reporter=dot'],
     { ...process.env, E2E_BASE_URL: base },
-  ])
+  ]
 
   process.on('exit', () => {
     try {
@@ -222,8 +233,8 @@ if (!e2eSkip) {
   })
 }
 
-for (const [label, cmd, args, env] of gates) {
-  const r = run(label, cmd, args, env)
+if (auditGate) {
+  const r = run(auditGate[0], auditGate[1], auditGate[2], auditGate[3])
   add(r.ok, r.label, r.detail)
 }
 
