@@ -161,17 +161,42 @@ if (!e2eSkip) {
     base = process.env.E2E_BASE_URL
   } else {
     const port = 4317
+    /*
+     * Poll the address the server is actually bound to, not `localhost`.
+     *
+     * The preview is started with `--host 127.0.0.1`, so it listens on IPv4 only.
+     * On Linux — which is where CI runs — `localhost` resolves to `::1` first, and
+     * Node's fetch tries that first, so the readiness poll kept getting a
+     * connection refusal while the server was up and healthy. After 60 seconds the
+     * gate concluded the preview had failed and fell back to auditing the deployed
+     * site.
+     *
+     * That fallback is why the accessibility audit had been running against
+     * production on every pull request instead of against the change being
+     * reviewed. It reported a pass, and the pass was real but it was about a
+     * different build. Discovered by a new test failing in CI while passing
+     * locally for exactly that reason.
+     */
+    const target = `http://127.0.0.1:${port}`
+    // stderr is captured rather than ignored so that a preview which genuinely
+    // fails says why, instead of the reason being discarded at spawn time.
+    let previewError = ''
     try {
       server = spawn(
         process.execPath,
         [join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), 'preview', '--port', String(port), '--strictPort', '--host', '127.0.0.1'],
-        { cwd: ROOT, stdio: 'ignore', shell: false, windowsHide: true },
+        { cwd: ROOT, stdio: ['ignore', 'ignore', 'pipe'], shell: false, windowsHide: true },
       )
-      const target = `http://localhost:${port}`
+      server.stderr?.on('data', (chunk) => {
+        previewError += String(chunk)
+      })
       const ready = await waitForServer(target, 60000)
       base = ready ? target : e2eBase
       if (!ready) {
-        console.log(`${c.y}  note: local preview did not start; auditing ${base}${c.x}`)
+        console.log(
+          `${c.y}  note: local preview did not start; auditing ${base}${c.x}` +
+            (previewError ? `\n       preview said: ${tail(previewError)}` : ''),
+        )
         // The browser suite then points at the deployment. If that is also
         // unreachable the audit cannot run, and the gate says so rather than
         // reporting a pass it did not earn.
