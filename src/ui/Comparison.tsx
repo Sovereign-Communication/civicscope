@@ -13,9 +13,12 @@ import type { DrillState } from '../core/useHousingQuery'
 export function Comparison({
   drilldowns,
   onDeselect,
+  placeLabel,
 }: {
   drilldowns: Record<string, DrillState>
   onDeselect: (zcta: string) => void
+  /** `"Austin, TX"` for a ZIP code, or null when the mapping is unavailable. */
+  placeLabel?: (zip: string) => string | null
 }) {
   const entries = Object.values(drilldowns)
   if (entries.length === 0) return null
@@ -27,13 +30,26 @@ export function Comparison({
       </h2>
 
       <div className="mt-3 space-y-4">
-        {entries.map((d) => (
+        {entries.map((d) => {
+          /*
+            The city is taken from the mapping rather than from `d.label`, which
+            is `formatPlace(place)` and varies with how the area was selected — a
+            ZIP typed into the box, a row in the sweep table, or a suggestion. Two
+            areas in the same city would otherwise be headed differently, and
+            "Austin city, Texas" from Photon is not the name the Census publishes.
+           */
+          const where = placeLabel?.(d.zcta) ?? null
+          return (
           <article key={d.zcta} className="panel panel-padded">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h3 className="text-base font-semibold text-slate-900">
                   <span className="font-mono">{d.zcta}</span>
-                  {d.label && <span className="ml-2 font-normal text-slate-600">{d.label}</span>}
+                  {where ? (
+                    <span className="ml-2 font-normal text-slate-600">{where}</span>
+                  ) : (
+                    d.label && <span className="ml-2 font-normal text-slate-600">{d.label}</span>
+                  )}
                 </h3>
                 {d.loading && (
                   <p className="mt-1 text-sm text-slate-600" role="status">
@@ -85,7 +101,8 @@ export function Comparison({
               </p>
             )}
           </article>
-        ))}
+          )
+        })}
       </div>
     </section>
   )

@@ -227,6 +227,48 @@ add(
   emojiScan.findings.slice(0, 10).join(' | '),
 )
 
+// City search.
+//
+// The mapping is a committed artefact rather than a lookup, so the checks that
+// matter are that it is complete and that reading it contacts nobody. The second
+// is the load-bearing one: `src/core/geocode.ts` records that a public geocoder
+// exhausted its budget and then refused connections, per-IP, which would reach
+// every visitor rather than just the build machine. An autocomplete asking on
+// every keystroke is that failure at a higher rate, and it would also hand a
+// third party a log of what people searched for, which is the claim
+// `docs/governance.md` rests on.
+{
+  const manifest = JSON.parse(read('public/map/manifest.json'))
+  const indexSrc = read('src/core/zcta-place-index.ts')
+  const cities = manifest.placeMappingCities ?? 0
+  const counties = manifest.placeMappingCounties ?? 0
+  add(
+    (manifest.placeMappingZctas ?? 0) >= 33000 && cities + counties === manifest.placeMappingZctas,
+    `every ZIP code names the place it is in (${manifest.placeMappingZctas ?? 0} ZIP codes: ${cities} cities, ${counties} counties)`,
+  )
+  // The generator must stay reachable, or the artefact silently stops being
+  // reproducible and the next census refresh has nothing to run.
+  add(
+    /gen:zcta-city/.test(read('package.json')) && /rel2020\/zcta520/.test(read('tools/gen-zcta-city-mapping.mjs')),
+    'the ZIP-to-place mapping is regenerable from the published Census files, not hand-made',
+  )
+  // Only same-origin URLs are allowed in the search path. `/map/zcta-places.json`
+  // is relative; anything with a scheme would be a request off this origin.
+  const urls = [...indexSrc.matchAll(/['"`]https?:\/\/[^'"`]+/g)].map((m) => m[0])
+  add(
+    urls.length === 0,
+    'city search contacts no external origin, so a search cannot be logged by a third party',
+    urls.join(' '),
+  )
+  // Every ZIP code resolves to a non-empty, labelled place rather than a blank
+  // cell down 33,791 rows. Pinned in `zcta-place-index.test.ts`; asserted here too
+  // so the artefact's own manifest cannot disagree with the code.
+  add(
+    /county — no incorporated city/.test(read('src/ui/CityZipBrowser.tsx')),
+    'a ZIP code with no incorporated city is labelled as a county rather than shown as a city',
+  )
+}
+
 // Legal spine must exist in the shipped UI.
 const app = read('src/ui/App.tsx')
 const notice = read('src/ui/FairHousingNotice.tsx')
