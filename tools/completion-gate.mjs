@@ -147,31 +147,67 @@ const gates = [
   ['live API contracts', 'npx', ['vitest', 'run', '--config', 'vitest.live.config.ts', '--reporter=dot'], {}],
 ]
 
+/*
+ * The browser audit is deferred rather than queued with the other gates.
+ *
+ * It needs a served build, and a served build needs `dist/` to exist — which is
+ * created by the first gate. Queuing the audit alongside the build meant the
+ * preview was spawned *before* the build ran, so `vite preview` failed with
+ * "error when starting preview server" every time in CI, and the gate fell back
+ * to auditing the deployed site. The accessibility audit therefore reported on
+ * production rather than on the pull request it was meant to be checking.
+ *
+ * Found by a new browser test that passed locally and failed in CI, with the
+ * only clue a log line saying the preview had not started.
+ */
+let auditGate = null
+
+for (const [label, cmd, args, env] of gates) {
+  const r = run(label, cmd, args, env)
+  add(r.ok, r.label, r.detail)
+}
+
 if (!e2eSkip) {
   // Accessibility is a legal requirement (ADA Title III) for a public-facing
   // app, so it gates. axe-core runs against a real browser.
-  //
-  // The browser suite needs a served build. When the deployed site is available
-  // we test that, which is what actually ships. Otherwise a local preview is
-  // started for the duration, so the audit is never silently skipped just
-  // because nothing is serving the build yet.
   let server
   let base = e2eBase
   if (process.env.E2E_BASE_URL) {
     base = process.env.E2E_BASE_URL
   } else {
     const port = 4317
+    /*
+     * Poll the address the server is actually bound to, not `localhost`.
+     *
+     * The preview is started with `--host 127.0.0.1`, so it listens on IPv4 only.
+     * On Linux — which is where CI runs — `localhost` resolves to `::1` first and
+     * Node's fetch tries that first, so a poll against `localhost` sees a
+     * connection refusal while the server is up and healthy. That was a second,
+     * independent reason the audit could silently end up pointed at production.
+     */
+    const target = `http://127.0.0.1:${port}`
+    let previewError = ''
     try {
       server = spawn(
         process.execPath,
         [join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), 'preview', '--port', String(port), '--strictPort', '--host', '127.0.0.1'],
-        { cwd: ROOT, stdio: 'ignore', shell: false, windowsHide: true },
+        // Both streams are captured. Ignoring them meant a preview that genuinely
+        // failed said nothing at all, which is how the ordering bug above went
+        // unnoticed for so long.
+        { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], shell: false, windowsHide: true },
       )
-      const target = `http://localhost:${port}`
+      const capture = (chunk) => {
+        previewError += String(chunk)
+      }
+      server.stdout?.on('data', capture)
+      server.stderr?.on('data', capture)
       const ready = await waitForServer(target, 60000)
       base = ready ? target : e2eBase
       if (!ready) {
-        console.log(`${c.y}  note: local preview did not start; auditing ${base}${c.x}`)
+        console.log(
+          `${c.y}  note: local preview did not start; auditing ${base}${c.x}` +
+            (previewError ? `\n       preview said: ${tail(previewError, 600)}` : ''),
+        )
         // The browser suite then points at the deployment. If that is also
         // unreachable the audit cannot run, and the gate says so rather than
         // reporting a pass it did not earn.
@@ -181,12 +217,12 @@ if (!e2eSkip) {
     }
   }
 
-  gates.push([
+  auditGate = [
     'WCAG 2.2 AA audit (axe-core, real browser)',
     'npx',
     ['vitest', 'run', '--config', 'vitest.e2e.config.ts', '--reporter=dot'],
     { ...process.env, E2E_BASE_URL: base },
-  ])
+  ]
 
   process.on('exit', () => {
     try {
@@ -197,8 +233,8 @@ if (!e2eSkip) {
   })
 }
 
-for (const [label, cmd, args, env] of gates) {
-  const r = run(label, cmd, args, env)
+if (auditGate) {
+  const r = run(auditGate[0], auditGate[1], auditGate[2], auditGate[3])
   add(r.ok, r.label, r.detail)
 }
 
@@ -226,6 +262,48 @@ add(
   `no emoji in shipped source; a screen reader would announce a glyph name instead of the sentence (${emojiScan.files} files scanned, docs/ exempt)`,
   emojiScan.findings.slice(0, 10).join(' | '),
 )
+
+// City search.
+//
+// The mapping is a committed artefact rather than a lookup, so the checks that
+// matter are that it is complete and that reading it contacts nobody. The second
+// is the load-bearing one: `src/core/geocode.ts` records that a public geocoder
+// exhausted its budget and then refused connections, per-IP, which would reach
+// every visitor rather than just the build machine. An autocomplete asking on
+// every keystroke is that failure at a higher rate, and it would also hand a
+// third party a log of what people searched for, which is the claim
+// `docs/governance.md` rests on.
+{
+  const manifest = JSON.parse(read('public/map/manifest.json'))
+  const indexSrc = read('src/core/zcta-place-index.ts')
+  const cities = manifest.placeMappingCities ?? 0
+  const counties = manifest.placeMappingCounties ?? 0
+  add(
+    (manifest.placeMappingZctas ?? 0) >= 33000 && cities + counties === manifest.placeMappingZctas,
+    `every ZIP code names the place it is in (${manifest.placeMappingZctas ?? 0} ZIP codes: ${cities} cities, ${counties} counties)`,
+  )
+  // The generator must stay reachable, or the artefact silently stops being
+  // reproducible and the next census refresh has nothing to run.
+  add(
+    /gen:zcta-city/.test(read('package.json')) && /rel2020\/zcta520/.test(read('tools/gen-zcta-city-mapping.mjs')),
+    'the ZIP-to-place mapping is regenerable from the published Census files, not hand-made',
+  )
+  // Only same-origin URLs are allowed in the search path. `/map/zcta-places.json`
+  // is relative; anything with a scheme would be a request off this origin.
+  const urls = [...indexSrc.matchAll(/['"`]https?:\/\/[^'"`]+/g)].map((m) => m[0])
+  add(
+    urls.length === 0,
+    'city search contacts no external origin, so a search cannot be logged by a third party',
+    urls.join(' '),
+  )
+  // Every ZIP code resolves to a non-empty, labelled place rather than a blank
+  // cell down 33,791 rows. Pinned in `zcta-place-index.test.ts`; asserted here too
+  // so the artefact's own manifest cannot disagree with the code.
+  add(
+    /county — no incorporated city/.test(read('src/ui/CityZipBrowser.tsx')),
+    'a ZIP code with no incorporated city is labelled as a county rather than shown as a city',
+  )
+}
 
 // Legal spine must exist in the shipped UI.
 const app = read('src/ui/App.tsx')

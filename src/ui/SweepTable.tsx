@@ -23,15 +23,30 @@ import { absenceLabel, type AbsentReason, type AreaRow } from '../core/plugins/a
 
 const num = new Intl.NumberFormat('en-US')
 
-/** A row's height in pixels, used to size the window. */
-const ROW_HEIGHT = 36
+/**
+ * A row's height in pixels, used to size the window.
+ *
+ * 46 rather than the 36 this was when a row held only a ZIP code. Each row now
+ * carries the city beneath the code, so a row is two lines of text plus padding.
+ * The window is arithmetic on this number — the scroll offset divided by it gives
+ * the first visible row — so understating it does not merely look wrong, it
+ * scrolls the wrong rows into view. Measured in the browser rather than
+ * calculated from the font size.
+ */
+const ROW_HEIGHT = 46
 /** Rows rendered above and below the viewport, so a fast scroll shows nothing blank. */
 const OVERSCAN = 8
-/** How many rows to render per screen height. */
-const WINDOW_SIZE = 60
+/**
+ * How many rows to render per screen height.
+ *
+ * 30 rather than 60, because the container is 560px tall and a row is now 46px:
+ * 30 rows is still roughly four screens of scroll, which is what the overscan
+ * exists to cover.
+ */
+const WINDOW_SIZE = 30
 
 const COLUMNS = [
-  { key: 'zcta', label: 'ZIP', sort: null },
+  { key: 'zcta', label: 'ZIP & location', sort: null },
   { key: 'median_rent_burden_pct', label: 'Rent burden', sort: 'median_rent_burden_pct' as const },
   { key: 'median_gross_rent', label: 'Median rent', sort: 'median_gross_rent' as const },
   { key: 'median_home_value', label: 'Home value', sort: 'median_home_value' as const },
@@ -92,11 +107,20 @@ export function SweepTable({
   onAdd,
   selectedZctas,
   initialSort,
+  placeLabel,
 }: {
   rows: AreaRow[]
   onAdd: (zcta: string) => void
   selectedZctas: string[]
   initialSort: (typeof COLUMNS)[number]['sort']
+  /**
+   * `"Austin, TX"` for a ZIP code, or null when the mapping is unavailable.
+   *
+   * Null is passed through and rendered as nothing rather than as a placeholder,
+   * because the alternative is a column of dashes down 33,791 rows saying "not
+   * yet imported" about a figure that is simply not part of the ACS row.
+   */
+  placeLabel?: (zip: string) => string | null
   visibleCount?: number
   totalCount?: number
   onShowMore?: () => void
@@ -234,8 +258,19 @@ export function SweepTable({
               const isSelected = selectedZctas.includes(r.zcta)
               return (
                 <tr key={r.zcta} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/40 hover:bg-blue-50/60" style={{ height: ROW_HEIGHT }}>
-                  <th scope="row" className="px-3 py-1.5 text-left font-mono text-[0.8125rem] font-medium tabular-nums text-slate-900">
-                    {r.zcta}
+                  {/*
+                    The city sits in the same cell as the ZIP code rather than in
+                    a column of its own. A 33,791-row table already scrolls
+                    sideways on a phone, and the two fields are read together every
+                    time, so separating them doubles the width for no gain.
+                  */}
+                  <th scope="row" className="px-3 py-1.5 text-left text-[0.8125rem] font-medium text-slate-900">
+                    <span className="block font-mono tabular-nums">{r.zcta}</span>
+                    {placeLabel?.(r.zcta) && (
+                      <span className="block text-[0.6875rem] font-normal not-italic text-slate-500">
+                        {placeLabel(r.zcta)}
+                      </span>
+                    )}
                   </th>
                   {COLUMNS.filter((c) => c.sort).map((c) => {
                     const value = r.metrics[c.sort!] ?? null

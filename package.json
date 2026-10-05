@@ -25,7 +25,8 @@
     "deploy": "npm run build && wrangler pages deploy dist --project-name civicscope",
     "deploy:preview": "npm run build && wrangler pages deploy dist --project-name civicscope --branch preview",
     "cf:login": "wrangler login",
-    "cf:whoami": "wrangler whoami"
+    "cf:whoami": "wrangler whoami",
+    "gen:zcta-city": "node tools/gen-zcta-city-mapping.mjs"
   },
   "dependencies": {
     "d3-geo": "^3.1.1",
