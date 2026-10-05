@@ -2,6 +2,7 @@
 import { useHousingQuery } from '../core/useHousingQuery'
 import { loadPlaceIndex, type PlaceIndex, type PlaceSuggestion } from '../core/zcta-place-index'
 import { FairHousingNotice } from './FairHousingNotice'
+import { GuidedTour, TourNotice, shouldShowTour } from './GuidedTour'
 import { KeyPrompt } from './KeyPrompt'
 import { Methodology } from './Methodology'
 import { SearchAutocomplete } from './SearchAutocomplete'
@@ -52,6 +53,19 @@ export default function App() {
    * never arrive â€” and ZIP lookup keeps working either way.
    */
   const [placeIndex, setPlaceIndex] = useState<PlaceIndex | null | undefined>(undefined)
+  /**
+   * First-visit state.
+   *
+   * Read during the first render rather than in an effect, so the notice cannot
+   * appear a frame late and shift the layout under someone who has already
+   * started typing. `shouldShowTour()` is a pure localStorage read, which is why
+   * the initialiser can call it without a try/catch of its own.
+   *
+   * The notice is dismissed by the reader or by opening the dialog; either records
+   * that it has been seen, and only the dialog can be reopened.
+   */
+  const [noticeOpen, setNoticeOpen] = useState(() => shouldShowTour())
+  const [tourOpen, setTourOpen] = useState(false)
   const statusRef = useRef<HTMLParagraphElement>(null)
 
   const q = useHousingQuery()
@@ -304,21 +318,49 @@ export default function App() {
    */
   return (
     <div className="min-h-screen">
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg"
-      >
-        Skip to main content
-      </a>
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg"
+          >
+            Skip to main content
+          </a>
 
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
-          <div className="min-w-0">
-            <h1 className="text-[1.375rem] font-semibold tracking-tight text-slate-900">CivicScope</h1>
-            <p className="text-[0.8125rem] leading-snug text-slate-600">
-              Every ZIP code in the US, from federal data, in your browser.
-            </p>
-          </div>
+          {/*
+            Mounted at the shell so it is reachable from every view. Nothing modal
+            opens by itself: the first visit gets an inline notice, and this
+            dialog appears only when someone asks for it.
+          */}
+          <GuidedTour
+            open={tourOpen}
+            onDismiss={() => {
+              setTourOpen(false)
+              setNoticeOpen(false)
+            }}
+          />
+
+          <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+            <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="min-w-0">
+                  <h1 className="text-[1.375rem] font-semibold tracking-tight text-slate-900">CivicScope</h1>
+                  <p className="text-[0.8125rem] leading-snug text-slate-600">
+                    Every ZIP code in the US, from federal data, in your browser.
+                  </p>
+                </div>
+                {/*
+                  The permanent way back into the tour. Without it, dismissal would
+                  be permanent and the orientation would be unreachable for anyone
+                  who closed it too early — which is the common case, not the
+                  exception.
+                */}
+                <button
+                  type="button"
+                  onClick={() => setTourOpen(true)}
+                  className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                >
+                  How this works
+                </button>
+              </div>
           <nav aria-label="Primary">
             <ul className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 text-sm">
               {(
@@ -349,6 +391,17 @@ export default function App() {
       </header>
 
       <main id="main" className="mx-auto max-w-7xl px-4 py-6">
+        {noticeOpen && (
+          <div className="mx-auto max-w-3xl">
+            <TourNotice
+              onOpen={() => {
+                setTourOpen(true)
+                setNoticeOpen(false)
+              }}
+              onDismiss={() => setNoticeOpen(false)}
+            />
+          </div>
+        )}
         {view === 'methodology' ? (
           <Methodology />
         ) : view === 'map' ? (
