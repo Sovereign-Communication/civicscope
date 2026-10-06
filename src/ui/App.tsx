@@ -3,6 +3,8 @@ import { useHousingQuery } from '../core/useHousingQuery'
 import { loadPlaceIndex, type PlaceIndex, type PlaceSuggestion } from '../core/zcta-place-index'
 import { FairHousingNotice } from './FairHousingNotice'
 import { GuidedTour, TourNotice, shouldShowTour } from './GuidedTour'
+import { applyFigureFilters, FIGURE_FILTERS } from '../core/figure-filters'
+import type { SortableMetricKey } from '../core/sortable-surface'
 import { KeyPrompt } from './KeyPrompt'
 import { Methodology } from './Methodology'
 import { SearchAutocomplete } from './SearchAutocomplete'
@@ -190,16 +192,40 @@ export default function App() {
   // a filter is a local operation and costs nothing.
   const activePreset = PRESETS.find((p) => p.id === preset) ?? DEFAULT_PRESET
 
+  /**
+   * The reader's figure bounds, keyed by allowlisted metric. Empty = no filter.
+   *
+   * Held as raw numbers rather than parsed strings so an empty input is
+   * distinguishable from a zero, which the filters treat differently: zero is a
+   * bound, empty is "not asking".
+   */
+  const [figureFilters, setFigureFilters] = useState<Partial<Record<SortableMetricKey, number | null>>>({})
+
+  const activeFilters = useMemo(
+    () =>
+      FIGURE_FILTERS.map((f) => ({ ...f, value: figureFilters[f.metric] ?? null })).filter(
+        (f) => f.value !== null && Number.isFinite(f.value),
+      ),
+    [figureFilters],
+  )
+
   const sweepRows = useMemo(() => {
     if (q.sweep.length === 0) return []
     const key = activePreset.sort
     // Every loaded ZIP is kept, including those with no figure for this
     // column. Filtering them out here used to hide about 7,290 of the 33,791 ZIP
     // codes from the screening table whenever a sparse column was chosen, which
-    // reads as "this area does not exist" rather than "no estimate published" â€”
+    // reads as "this area does not exist" rather than "no estimate published" —
     // the one confusion this app exists to avoid. Absent figures now render as
     // "not yet imported" and sort last, which is what they mean.
-    return [...q.sweep].sort((a, b) => {
+    //
+    // The reader's figure bounds are then applied, which DOES exclude rows
+    // without a value — a bound is a question, and an area with no figure is not
+    // an answer to it. The difference is who asked: nobody asks to see all
+    // 33,791 rows including empty ones, but a person setting "rent under $1,200"
+    // has asked a specific question. The count beside the table states how many
+    // were kept, so the removal is visible rather than silent.
+    const sorted = [...q.sweep].sort((a, b) => {
       const av = a.metrics[key] ?? null
       const bv = b.metrics[key] ?? null
       if (av === null && bv === null) return 0
@@ -207,7 +233,8 @@ export default function App() {
       if (bv === null) return -1
       return av - bv
     })
-  }, [q.sweep, activePreset.sort])
+    return activeFilters.length === 0 ? sorted : applyFigureFilters(sorted, activeFilters)
+  }, [q.sweep, activePreset.sort, activeFilters])
 
   /**
    * The lookup form and the Census key prompt.
@@ -578,6 +605,69 @@ export default function App() {
                       ))}
                     </div>
                   </fieldset>
+
+                  {/*
+                    Figure filters, inside a disclosure so the default view is
+                    unchanged. A filter is one half of the surface
+                    `src/core/types.ts` calls the single most important rule in
+                    the codebase — a metric that proxies a protected
+                    characteristic must never be offered as a sort OR filter
+                    control — so these draw from the same allowlist as the sort
+                    columns, and school and health measures are absent by
+                    decision (issue #5), not by oversight.
+                  */}
+                  <details className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <summary className="min-h-[44px] cursor-pointer text-sm font-medium text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900">
+                      Narrow by figures (rent, burden, home value, households)
+                    </summary>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Keeps only the areas inside the bounds you set, in the order you were already viewing. This
+                      filters; it does not rank, and an area with no published figure for a bound you set is left
+                      out rather than shown.
+                    </p>
+                    <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      {FIGURE_FILTERS.map((f) => {
+                        const id = `filter-${f.metric}`
+                        const label =
+                          f.metric === 'median_gross_rent'
+                            ? 'Max median gross rent ($/mo)'
+                            : f.metric === 'median_rent_burden_pct'
+                              ? 'Max rent burden (% of income)'
+                              : f.metric === 'median_home_value'
+                                ? 'Max median home value ($)'
+                                : 'Min households'
+                        return (
+                          <div key={f.metric}>
+                            <label htmlFor={id} className="block text-xs font-medium text-slate-700">
+                              {label}
+                            </label>
+                            <input
+                              id={id}
+                              type="number"
+                              min={0}
+                              inputMode="numeric"
+                              value={figureFilters[f.metric] ?? ''}
+                              onChange={(e) => {
+                                const raw = e.target.value
+                                setFigureFilters((prev) => ({
+                                  ...prev,
+                                  [f.metric]: raw === '' ? null : Number(raw),
+                                }))
+                              }}
+                              className="mt-1 w-full min-h-[44px] rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFigureFilters({})}
+                      className="mt-2 min-h-[44px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                    >
+                      Clear all bounds
+                    </button>
+                  </details>
 
                   <SweepTable
                     rows={sweepRows}
