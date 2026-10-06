@@ -322,6 +322,21 @@ add(
   )
 }
 
+// Figure filters (issue #5). The plan for these once proposed school grades and
+// a health score; both were removed before shipping, because no ZIP-level source
+// exists and a filter is steering when the figure it acts on is a protected-class
+// proxy. What is asserted here is the mechanism rather than the memory: filters
+// must draw from the same allowlist as the sort columns, so a demographic filter
+// cannot appear without also becoming a sortable column, where a test and a gate
+// check name the decision.
+{
+  const filters = read('src/core/figure-filters.ts')
+  add(
+    /SORTABLE_METRIC_KEYS/.test(filters) && read('tests/figure-filters.test.ts').length > 0,
+    'figure filters draw from the sortable allowlist, so school and health measures cannot be filtered on',
+  )
+}
+
 // Legal spine must exist in the shipped UI.
 const app = read('src/ui/App.tsx')
 const notice = read('src/ui/FairHousingNotice.tsx')
