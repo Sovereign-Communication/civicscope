@@ -99,6 +99,16 @@ export interface MetricValue {
     derived?: boolean
   }
   /**
+   * True when this metric encodes or proxies a protected characteristic.
+   *
+   * Stamped by the executor from the plugin's `legal.protectedClassProxy`, so a
+   * plugin cannot leave it off an individual metric — the same centralisation the
+   * suppression threshold already has. Such metrics are displayed but never
+   * offered as a sort or filter control, and `scoring.ts` refuses to fold them
+   * into a composite.
+   */
+  protectedClassProxy?: boolean
+  /**
    * Direction of "better", used only for user-chosen sorting and never for an
    * overall quality judgment. The engine never uses this to rank automatically.
    */

@@ -97,23 +97,38 @@ export function topological(ids: readonly string[], registry: PluginRegistry): s
   return out
 }
 
-/** Applies centrally-enforced legal rules. Plugins cannot opt out of these. */
-function applyLegalRules(metrics: MetricValue[], suppressBelow?: number): MetricValue[] {
+/**
+ * Applies centrally-enforced legal rules. Plugins cannot opt out of these.
+ *
+ * `protectedClassProxy` is stamped here rather than left to each plugin, for the
+ * same reason the suppression threshold is: `src/core/types.ts` calls this "the
+ * single most important rule in the codebase", and a rule a plugin can forget
+ * inside its own file is a rule that gets forgotten. For most of this
+ * repository's life the flag existed only in the interface — no plugin set it and
+ * nothing read it — so the guarantee rested on nobody having added a demographic
+ * sort column yet. Found while closing that gap, recorded as issue #11.
+ */
+function applyLegalRules(
+  metrics: MetricValue[],
+  suppressBelow?: number,
+  protectedClassProxy?: boolean,
+): MetricValue[] {
   return metrics.map((m) => {
-    if (m.value === null) {
-      return { ...m, quality: { ...m.quality, suppressed: true } }
+    const stamped = protectedClassProxy ? { ...m, protectedClassProxy: true } : m
+    if (stamped.value === null) {
+      return { ...stamped, quality: { ...stamped.quality, suppressed: true } }
     }
     if (
       suppressBelow !== undefined &&
-      /count|households|population|students/i.test(m.unit) &&
-      Math.abs(m.value) < suppressBelow
+      /count|households|population|students/i.test(stamped.unit) &&
+      Math.abs(stamped.value) < suppressBelow
     ) {
       // Minimum-n suppression: the value is withheld, and the UI is required
       // to show that it was withheld rather than showing a small, unreliable
       // number that invites over-reading.
-      return { ...m, value: null, quality: { ...m.quality, suppressed: true } }
+      return { ...stamped, value: null, quality: { ...stamped.quality, suppressed: true } }
     }
-    return m
+    return stamped
   })
 }
 
@@ -196,7 +211,7 @@ async function runOne(p: PluginRequest, ctx: QueryContext): Promise<PluginResult
   }
 
   try {
-    const metrics = applyLegalRules(await p.fetch(ctx), p.legal.suppressBelow)
+    const metrics = applyLegalRules(await p.fetch(ctx), p.legal.suppressBelow, p.legal.protectedClassProxy)
     const kept = metrics.filter((m) => m.value !== null || m.quality.suppressed === true)
     return {
       ...base,

@@ -153,9 +153,28 @@ export function normalize(rule: Rule, raw: number): number {
 function compute(rules: Rule[], metrics: readonly MetricValue[]): Composite['score'] extends never ? never : Composite {
   const byKey = new Map(metrics.map((m) => [m.key, m]))
   const components: Component[] = []
+  const refused: string[] = []
 
   for (const rule of rules) {
     const m = byKey.get(rule.key)
+    // The hard rule, enforced here rather than promised in the header comment.
+    // For most of this file's life this check did not exist: the comment below
+    // said the engine "refuses to fold demographic data into a composite. That is
+    // a hard rule, not a convention" while compute() read no flag, and no plugin
+    // set one. Found as issue #11 and closed by making the refusal mechanical.
+    if (m?.protectedClassProxy) {
+      refused.push(rule.label)
+      components.push({
+        key: rule.key,
+        label: rule.label,
+        score: 0,
+        raw: null,
+        unit: rule.unit,
+        weight: rule.weight,
+        excluded: 'Excluded: this metric proxies a protected characteristic',
+      })
+      continue
+    }
     if (!m || m.value === null) {
       components.push({
         key: rule.key,
@@ -194,7 +213,8 @@ function compute(rules: Rule[], metrics: readonly MetricValue[]): Composite['sco
   const basis =
     `Computed from ${present.length} of ${rules.length} published components` +
     (totalWeight < 0.999 ? ', reweighted to sum to 100% over the available components.' : '.') +
-    (missing.length ? ` Not available: ${missing.join(', ')}.` : '')
+    (missing.length ? ` Not available: ${missing.join(', ')}.` : '') +
+    (refused.length ? ` Excluded by the fair-housing rule: ${refused.join(', ')}.` : '')
 
   return {
     id: rules === EDUCATION_RULES ? 'education' : 'affordability',

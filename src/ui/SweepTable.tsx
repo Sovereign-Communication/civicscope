@@ -20,6 +20,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { absenceLabel, type AbsentReason, type AreaRow } from '../core/plugins/acs'
+import { isSortableMetricKey, type SortableMetricKey } from '../core/sortable-surface'
 
 const num = new Intl.NumberFormat('en-US')
 
@@ -45,14 +46,34 @@ const OVERSCAN = 8
  */
 const WINDOW_SIZE = 30
 
+/**
+ * The sortable columns.
+ *
+ * `sort` is typed as `SortableMetricKey | null`, so a column whose sort key is
+ * not on the allowlist in `src/core/sortable-surface.ts` is a compile error
+ * rather than a silent addition. That allowlist exists because
+ * `src/core/types.ts` promises a metric which proxies a protected
+ * characteristic is "NEVER offered as a sort or filter control", and for most
+ * of this repository's life nothing enforced that — it held only because nobody
+ * had happened to add a demographic column. Recorded as issue #11.
+ */
 const COLUMNS = [
   { key: 'zcta', label: 'ZIP & location', sort: null },
-  { key: 'median_rent_burden_pct', label: 'Rent burden', sort: 'median_rent_burden_pct' as const },
-  { key: 'median_gross_rent', label: 'Median rent', sort: 'median_gross_rent' as const },
-  { key: 'median_home_value', label: 'Home value', sort: 'median_home_value' as const },
-  { key: 'median_household_income', label: 'Median income', sort: 'median_household_income' as const },
-  { key: 'households', label: 'Households', sort: 'households' as const },
+  { key: 'median_rent_burden_pct', label: 'Rent burden', sort: 'median_rent_burden_pct' as SortableMetricKey },
+  { key: 'median_gross_rent', label: 'Median rent', sort: 'median_gross_rent' as SortableMetricKey },
+  { key: 'median_home_value', label: 'Home value', sort: 'median_home_value' as SortableMetricKey },
+  { key: 'median_household_income', label: 'Median income', sort: 'median_household_income' as SortableMetricKey },
+  { key: 'households', label: 'Households', sort: 'households' as SortableMetricKey },
 ] as const
+
+// Every declared sort key must be on the allowlist. Runs at module load, so a
+// column added with a key that is not sortable fails immediately rather than
+// when a user first clicks the header.
+for (const c of COLUMNS) {
+  if (c.sort !== null && !isSortableMetricKey(c.sort)) {
+    throw new Error(`SweepTable column "${c.label}" sorts by "${c.sort}", which is not on the sortable allowlist`)
+  }
+}
 
 const UNIT_OF: Record<string, string> = {
   median_rent_burden_pct: 'percent',
