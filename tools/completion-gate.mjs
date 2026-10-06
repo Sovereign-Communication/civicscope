@@ -337,6 +337,35 @@ add(
   )
 }
 
+// Similar-ZIP search. Four recorded decisions, each asserted so it cannot erode:
+// off by default; reader-set weights from the allowlist; alphabetical results;
+// no outcome-named template. The first is the mitigation that replaced a legal
+// sign-off this project will not obtain, so it is the one that must never
+// quietly flip.
+{
+  const sim = read('src/core/similarity.ts')
+  const panel = read('src/ui/SimilarityPanel.tsx')
+  add(
+    /localStorage\.getItem\(FLAG_KEY\) === 'true'/.test(panel),
+    'similar-ZIP search is off until the reader turns it on, so nobody is ranked at unasked',
+  )
+  // The `satisfies` clause appears only in the type expression, never in prose,
+  // so the raw source is the correct thing to match — and it avoids the
+  // `codeOnly` const, which is defined further down this file.
+  add(
+    /satisfies readonly SortableMetricKey\[\]/.test(sim) && read('tests/similarity.test.ts').length > 0,
+    'similarity weights are typed against the sortable allowlist and pinned by a test, so no protected-class measure can be weighted',
+  )
+  add(
+    /alphabetically by ZIP code|A-Z by ZIP code/.test(sim),
+    'similarity results are ordered alphabetically, never by distance, so the tool does not choose which match comes first',
+  )
+  add(
+    !/Schools Priority|Affordable Housing Focus/.test(panel),
+    'no outcome-named template ships, because a template that names an outcome is the highest-steering surface in the plan',
+  )
+}
+
 // Legal spine must exist in the shipped UI.
 const app = read('src/ui/App.tsx')
 const notice = read('src/ui/FairHousingNotice.tsx')

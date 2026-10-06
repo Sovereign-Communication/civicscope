@@ -4,6 +4,7 @@ import { loadPlaceIndex, type PlaceIndex, type PlaceSuggestion } from '../core/z
 import { FairHousingNotice } from './FairHousingNotice'
 import { GuidedTour, TourNotice, shouldShowTour } from './GuidedTour'
 import { applyFigureFilters, FIGURE_FILTERS } from '../core/figure-filters'
+import { SimilarityPanel } from './SimilarityPanel'
 import type { SortableMetricKey } from '../core/sortable-surface'
 import { KeyPrompt } from './KeyPrompt'
 import { Methodology } from './Methodology'
@@ -668,6 +669,18 @@ export default function App() {
                       Clear all bounds
                     </button>
                   </details>
+
+                  {/*
+                    Similar-ZIP search, off by default and reader-weighted. It
+                    sits with the screening tools because it reads the same
+                    in-memory screen; it is a separate disclosure so that its
+                    off state is the default view, not an absence.
+                  */}
+                  <SimilarityPanel
+                    sweep={q.sweep}
+                    selected={q.selectedZctas}
+                    onAdd={(zcta) => addZip(zcta)}
+                  />
 
                   <SweepTable
                     rows={sweepRows}
