@@ -305,6 +305,23 @@ add(
   )
 }
 
+// Export. A reader who has paid 43 Census requests for the country must be able
+// to keep the result, and the export must not become the one place a spreadsheet
+// executes something. The formula-injection guard is asserted rather than
+// assumed because it is exactly the kind of defence that gets removed as
+// "unnecessary quoting" by someone who has never seen the attack.
+{
+  const exportSrc = read('src/core/export.ts')
+  add(
+    /FORMULA_PREFIXES/.test(exportSrc) && /escapeCell/.test(exportSrc) && read('tests/export.test.ts').length > 0,
+    'the CSV export guards against formula injection and is pinned by a test, so a spreadsheet cannot execute an exported cell',
+  )
+  add(
+    /placeLabel/.test(read('src/ui/SweepTable.tsx')) && /toCsv/.test(read('src/ui/SweepTable.tsx')),
+    'the loaded screen can be exported with city names, so closing the tab is not the only way to keep the data',
+  )
+}
+
 // Legal spine must exist in the shipped UI.
 const app = read('src/ui/App.tsx')
 const notice = read('src/ui/FairHousingNotice.tsx')

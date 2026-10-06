@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The country-wide screening table.
  *
  * This is the surface that makes a single request worth it: the entire country
@@ -11,7 +11,7 @@
  *
  * The table is windowed rather than truncated. There are 33,791 rows, and the
  * earlier version drew the first 200 of whatever the current sort produced and
- * silently hid the other 33,591 — which meant a visitor who sorted by median
+ * silently hid the other 33,591 â€” which meant a visitor who sorted by median
  * home value ascending saw the least expensive corner of the country and had no
  * way to reach the rest. Only the visible window is in the DOM; the caption and
  * the row count state the true total, and a screen reader is told how many rows
@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { absenceLabel, type AbsentReason, type AreaRow } from '../core/plugins/acs'
 import { isSortableMetricKey, type SortableMetricKey } from '../core/sortable-surface'
+import { downloadCsv, toCsv } from '../core/export'
 
 const num = new Intl.NumberFormat('en-US')
 
@@ -29,8 +30,8 @@ const num = new Intl.NumberFormat('en-US')
  *
  * 46 rather than the 36 this was when a row held only a ZIP code. Each row now
  * carries the city beneath the code, so a row is two lines of text plus padding.
- * The window is arithmetic on this number — the scroll offset divided by it gives
- * the first visible row — so understating it does not merely look wrong, it
+ * The window is arithmetic on this number â€” the scroll offset divided by it gives
+ * the first visible row â€” so understating it does not merely look wrong, it
  * scrolls the wrong rows into view. Measured in the browser rather than
  * calculated from the font size.
  */
@@ -54,7 +55,7 @@ const WINDOW_SIZE = 30
  * rather than a silent addition. That allowlist exists because
  * `src/core/types.ts` promises a metric which proxies a protected
  * characteristic is "NEVER offered as a sort or filter control", and for most
- * of this repository's life nothing enforced that — it held only because nobody
+ * of this repository's life nothing enforced that â€” it held only because nobody
  * had happened to add a demographic column. Recorded as issue #11.
  */
 const COLUMNS = [
@@ -103,8 +104,8 @@ function fmtMargin(value: number | null): string | null {
   if (value === null || !Number.isFinite(value) || value < 0) {
     // "Not yet imported" implied a queue: that the figure exists and has not
     // arrived, so waiting would help. An audit of all 33,791 areas found every
-    // absence in the country is "not applicable" — a ZIP code with no rental
-    // units has no median rent — and no amount of importing will change that.
+    // absence in the country is "not applicable" â€” a ZIP code with no rental
+    // units has no median rent â€” and no amount of importing will change that.
     return reason ? absenceLabel(reason) : 'not yet imported'
   }
   // A percentage cannot exceed 100. When the publisher nevertheless returns
@@ -210,7 +211,7 @@ export function SweepTable({
           className="inline-flex items-center gap-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
         >
           {col.label}
-          <span aria-hidden="true" className="text-slate-400">{active ? (asc ? '▲' : '▼') : '↕'}</span>
+          <span aria-hidden="true" className="text-slate-400">{active ? (asc ? 'â–²' : 'â–¼') : 'â†•'}</span>
         </button>
       </th>
     )
@@ -233,10 +234,20 @@ export function SweepTable({
             className="mt-1 w-28 rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
           />
         </div>
-        <p className="text-xs text-slate-600">
-          {num.format(visible.length)} of {num.format(sorted.length)} ZIP codes shown. Select areas to compare
-          them side by side.
-        </p>
+        <div className="flex flex-wrap items-end gap-2">
+          <button
+            type="button"
+            onClick={() => downloadCsv(toCsv(visible, { placeLabel }))}
+            aria-label={`Download ${num.format(visible.length)} ZIP codes as CSV`}
+            className="min-h-[44px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+          >
+            Export CSV
+          </button>
+          <p className="text-xs text-slate-600">
+            {num.format(visible.length)} of {num.format(sorted.length)} ZIP codes shown. Select areas to compare
+            them side by side.
+          </p>
+        </div>
       </div>
 
       {/*
