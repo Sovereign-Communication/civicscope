@@ -89,6 +89,21 @@ export const cdcPlacesPlugin: PluginRequest = {
   // by every visitor regardless of whether they ever add a key.
   legal: {
     suppressBelow: 20,
+    /**
+     * Health prevalence encodes and proxies protected characteristics — age and
+     * disability above all — so every measure this plugin emits is
+     * `protectedClassProxy`. The executor stamps that onto each metric centrally,
+     * which means these figures are displayed in a drilldown but can never be
+     * offered as a sort, a filter or a ranking weight, and `scoring.ts` refuses
+     * to fold them into a composite.
+     *
+     * For most of this repository's life this flag was declared in
+     * `src/core/types.ts` and set by no plugin, read by nothing. The guarantee
+     * that health measures stay out of a ranking rested entirely on nobody having
+     * wired one in yet. Recorded as issue #11, closed by making the rule
+     * mechanical.
+     */
+    protectedClassProxy: true,
     notice:
       'These are modelled estimates for Census tracts, not medical advice and not information about any individual. Tracts are statistical areas that do not correspond to any community boundary, and single-tract estimates carry very wide confidence intervals.',
   },

@@ -432,6 +432,53 @@ add(/connect-src/.test(read('public/_headers')), 'CSP connect-src allowlist is d
 
 /** Strips comments so a gate cannot match an ID that only appears in prose. */
 const codeOnly = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+// The protected-class rule, enforced mechanically.
+//
+// `src/core/types.ts` calls this "the single most important rule in the codebase":
+// a metric that encodes or proxies a protected characteristic is displayed but
+// never offered as a sort or filter control. For most of the repository's life it
+// was prose. `scoring.ts` claimed the engine "refuses to fold demographic data
+// into a composite. That is a hard rule, not a convention" while reading no flag,
+// and no plugin set one. Closed as issue #11 by making each half checkable.
+{
+  const types = read('src/core/types.ts')
+  const executor = codeOnly(read('src/core/executor.ts'))
+  const scoring = codeOnly(read('src/core/scoring.ts'))
+  const allowlist = read('src/core/sortable-surface.ts')
+  const sweep = read('src/ui/SweepTable.tsx')
+
+  add(
+    /protectedClassProxy\??: boolean/.test(types) && /NEVER offered as a sort or filter control/.test(types),
+    'the protected-class rule is declared on the metric the engine stamps and the UI reads',
+  )
+  // At least one plugin must actually carry the flag, or the enforcement paths
+  // below are dead code that passes by never being exercised.
+  add(
+    /protectedClassProxy: true/.test(codeOnly(read('src/core/plugins/keyless.ts'))),
+    'CDC PLACES health measures are flagged as a protected-class proxy rather than trusted to behave',
+  )
+  add(
+    // Not a regex over the call: the call contains p.fetch(ctx), whose closing
+    // parenthesis ends any [^)]* match short. Both tokens on one source is the
+    // property that matters — the executor passes the plugin's flag through.
+    executor.includes('applyLegalRules') && executor.includes('p.legal.protectedClassProxy'),
+    'the executor stamps protectedClassProxy centrally, so a plugin cannot leave it off an individual metric',
+  )
+  add(
+    /m\?\.\s*protectedClassProxy|protectedClassProxy\)/.test(scoring) && /Excluded by the fair-housing rule/.test(scoring),
+    'the composite scorer refuses a protected-class metric rather than folding it in',
+  )
+  add(
+    /SORTABLE_METRIC_KEYS/.test(allowlist) && /isSortableMetricKey/.test(sweep),
+    'sort controls draw from an explicit allowlist, so a demographic column is a compile error rather than a silent addition',
+  )
+  add(
+    read('tests/sortable-surface.test.ts').length > 0,
+    'the protected-class rule is pinned by a test that fails if any surface bypasses the allowlist',
+  )
+}
+
 const acs = read('src/core/plugins/acs.ts')
 const scoring = read('src/core/scoring.ts')
 const acsCode = codeOnly(acs)
