@@ -15,5 +15,18 @@ export default defineConfig(({ mode }) => ({
     // The named gate tests live in tests/, alongside the sources they assert
     // about rather than inside them.
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    // `src/live` is excluded so the default suite is genuinely hermetic, which is
+    // what the CI workflow's verify step has claimed all along: "Hermetic: no
+    // network, no credentials." Until now that claim was false — the glob above
+    // pulled the live API contracts in, so every pull request's "hermetic" job
+    // phoned NCES, CDC and TIGERweb, and a government API outage failed an
+    // unrelated feature. Found exactly that way: NCES EDGE returned HTTP 500 on
+    // 2026-10-06 and blocked a similarity-search PR whose diff touched nothing
+    // near it.
+    //
+    // No coverage is lost. The live contracts have two dedicated homes that both
+    // remain: the `live-contracts` CI job, and the completion gate's own
+    // `live API contracts` step, which runs `vitest.live.config.ts`.
+    exclude: ['src/live/**', 'node_modules/**', 'dist/**'],
   },
 }))
