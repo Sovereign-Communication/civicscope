@@ -74,12 +74,19 @@ jobs:
     timeout-minutes: 25
     env:
       # The gate verifies the deployed site. Supplied here rather than defaulted
-      # in the script, so moving the project between accounts or domains does
-      # not silently change what CI measures.
+      # in the script, so moving the project between accounts or domains does not
+      # silently change what CI measures.
       GATE_SITE: ${{ vars.GATE_SITE || 'https://civicscope.pages.dev' }}
       # The accessibility audit needs a served build. The gate starts one, so the
       # browser suite has something to load.
       SKIP_E2E: '0'
+      # On a push to main, production must be serving the build this gate just
+      # made. Set only there: a pull request is legitimately not deployed, and
+      # deploys are a manual step (`npm run deploy`), so the post-merge run
+      # reads as stale until one has run — which is the notification that the
+      # site is behind, the failure mode found live on 2026-10-07 when
+      # production was ten merged PRs out of date and the gate still passed.
+      GATE_EXPECT_DEPLOYED: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
 
