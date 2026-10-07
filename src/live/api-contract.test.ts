@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Live API contract checks.
  *
  * These are excluded from the default `vitest run` because they hit the network.
@@ -16,8 +16,7 @@ import { describe, expect, it } from 'vitest'
 import { geocode } from '../core/geocode'
 import { resolveTract } from '../core/plugins/geography'
 import { normalizeCensusKey, validateCensusKey } from '../core/censusKey'
-import { lookupSchoolDistrict } from '../core/plugins/schools'
-import { withNetworkRetry } from './resilience'
+import { districtLookup, withNetworkRetry } from './resilience'
 
 const sig = () => new AbortController().signal
 
@@ -111,7 +110,7 @@ describe('live: Census key validation', () => {
 
 describe('live: NCES EDGE school districts', () => {
   it('resolves a district with real funding figures, keylessly, with browser CORS', async () => {
-    const found = await lookupSchoolDistrict(30.2702, -97.7431, sig()) // Austin TX
+    const found = await districtLookup('NCES Austin', 30.2702, -97.7431, sig())()
     expect(found.kind).toBe('district')
     if (found.kind !== 'district') return
     const spend = found.metrics.find((m) => m.key === 'per_pupil_spend')
@@ -127,7 +126,7 @@ describe('live: NCES EDGE school districts', () => {
       [61.2181, -149.9003, '99501'], // Anchorage AK
       [40.7506, -73.9972, '10001'], // Manhattan NY
     ] as const) {
-      const found = await lookupSchoolDistrict(lat, lon, sig())
+      const found = await districtLookup(`NCES sentinel ${zcta}`, lat, lon, sig())()
       if (found.kind === 'district') {
         for (const m of found.metrics) {
           expect(m.value, `${zcta} ${m.key} returned ${m.value}`).not.toBe(-2)
@@ -141,14 +140,14 @@ describe('live: NCES EDGE school districts', () => {
     // All of New York City sits inside "NYC Chancellor's Office", an LEA_TYPE 3
     // administrative entity with no students. Reporting it as the district
     // would be a wrong answer, not a missing one.
-    const found = await lookupSchoolDistrict(40.7506, -73.9972, sig())
+    const found = await districtLookup('NCES supervisory union', 40.7506, -73.9972, sig())()
     expect(found.kind).not.toBe('district')
   }, 300000)
 
   it('works in non-contiguous states', async () => {
-    const hi = await lookupSchoolDistrict(21.3069, -157.8583, sig()) // Honolulu HI
+    const hi = await districtLookup('NCES Honolulu', 21.3069, -157.8583, sig())()
     expect(hi.kind).toBe('district')
-    const ak = await lookupSchoolDistrict(61.2181, -149.9003, sig()) // Anchorage AK
+    const ak = await districtLookup('NCES Anchorage', 61.2181, -149.9003, sig())()
     expect(ak.kind).toBe('district')
   }, 300000)
 })

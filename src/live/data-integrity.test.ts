@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Data-integrity assertions over the live API.
  *
  * The requirement is absolute: no placeholder, sentinel, or invented figure may
@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { areaRowFromRaw, isAcsSentinel, toNum, SCREEN_VARS, VARS } from '../core/plugins/acs'
-import { lookupSchoolDistrict } from '../core/plugins/schools'
+import { districtLookup } from './resilience'
 import { CHUNK_SIZE, fetchChunk, listAllZctas, planChunks } from '../core/sweep/chunk'
 
 const sig = () => new AbortController().signal
@@ -113,12 +113,12 @@ describe.skipIf(!KEY)('data integrity: school figures are real', () => {
     // All of New York City is inside an LEA_TYPE 3 administrative entity with
     // no students. Reporting it as "the school district" would be a wrong
     // answer, not a missing one.
-const found = await lookupSchoolDistrict(40.7484, -73.9857, sig())
+const found = await districtLookup('NCES Manhattan', 40.7484, -73.9857, sig())()
     // What matters is the guarantee, not the catalogue: a supervisory union is
     // never returned as a school district with students and figures. NCES has
     // returned this point as the LEA_TYPE 3 administrative entity for years,
-    // but that is a public catalogue which has changed underneath this test —
-    // it began answering not-found — and a not-found is also a correct outcome,
+    // but that is a public catalogue which has changed underneath this test â€”
+    // it began answering not-found â€” and a not-found is also a correct outcome,
     // because it withholds an answer rather than giving a wrong one. Asserting
     // the exact upstream entity would make this a test of NCES rather than of
     // the behaviour this app promises.
@@ -137,7 +137,7 @@ const found = await lookupSchoolDistrict(40.7484, -73.9857, sig())
     // deliberately NOT used here: the whole of New York City sits inside
     // "NYC Chancellor's Office", a supervisory union that the plugin correctly
     // rejects rather than reporting as a district.
-    const found = await lookupSchoolDistrict(41.8858, -87.6229, sig())
+    const found = await districtLookup('NCES Chicago', 41.8858, -87.6229, sig())()
     if (found.kind !== 'district') throw new Error(`expected a district, got ${found.kind}`)
     for (const m of found.metrics) {
       expect(FORBIDDEN, `${m.key} held ${m.value}`).not.toContain(m.value)
