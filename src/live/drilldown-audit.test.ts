@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest'
+﻿import { describe, expect, it } from 'vitest'
 
 /**
  * The drilldown data, audited the same way the country-wide screen was.
  *
  * The national screen is verified cell by cell against Census: 168,860 figures
- * and 168,860 margins, zero defects. The drilldown sources — NCES school
- * districts, New York per-school, CDC PLACES — were only ever checked for
+ * and 168,860 margins, zero defects. The drilldown sources â€” NCES school
+ * districts, New York per-school, CDC PLACES â€” were only ever checked for
  * *shape*, which cannot tell a right number from a plausible one. This closes
  * that gap: it queries each source independently, through the app's own
  * functions, and compares every figure against what the publisher returns.
@@ -14,8 +14,7 @@ import { describe, expect, it } from 'vitest'
  * from the real national list, so this respects the same rate limits the app
  * does rather than hammering anything to produce a report.
  */
-import { withNetworkRetry } from './resilience'
-import { lookupSchoolDistrict } from '../core/plugins/schools'
+import { districtLookup, withNetworkRetry } from './resilience'
 import { nearbySchools } from '../core/plugins/ny-schools'
 
 /** A spread that exercises urban, rural, coastal and territory lookups. */
@@ -53,13 +52,15 @@ let schoolChecks = 0
 
 
 for (const [name, lat, lon] of PLACES) {
-  const found = await withNetworkRetry(`district ${name}`, async () =>
-    lookupSchoolDistrict(lat, lon, new AbortController().signal),
-  )()
+  // districtLookup turns an 'unavailable' result into a retriable exception, so
+  // a single NCES blip is retried rather than recorded as a place with no
+  // district. The previous withNetworkRetry wrap could never fire, because the
+  // lookup returns instead of throwing when the upstream fails.
+  const found = await districtLookup(`district ${name}`, lat, lon, new AbortController().signal)()
   if (found.kind !== 'district') {
     // Withheld rather than wrong. Recorded so a genuine regression to 'district'
     // for a supervisory union would be visible, not silent.
-    
+
     continue
   }
   districtChecks++
@@ -107,7 +108,7 @@ for (const [name, lat, lon] of PLACES.slice(0, 4)) {
       }
     }
     // A graduation rate is a percentage where one exists, and absent where the
-    // school serves no graduating cohort — which is not the same as zero.
+    // school serves no graduating cohort â€” which is not the same as zero.
     if (s.graduationRate !== null && s.graduationRate !== undefined) {
       if (s.graduationRate < 0 || s.graduationRate > 100) {
         defects.push(`${name}: ${s.name} graduation rate ${s.graduationRate} is outside 0-100`)
