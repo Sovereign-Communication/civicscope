@@ -13,7 +13,7 @@ follows is also a completion-gate check.
 
 ---
 
-## 1. No emoji
+## 1. No weird characters
 
 **Do not put emoji in shipped source.** `docs/` is exempt — planning documents are
 agent-facing notes, and a checkmark in a status line there harms nobody.
@@ -28,17 +28,36 @@ requirement (ADA Title III), not a goal.
 they are the only *visual* sort state a sighted reader gets. Do not delete them to
 satisfy this rule.
 
-**Enforced by:** `tools/completion-gate.mjs`, via `tools/emoji-scan.mjs`, and
-pinned by `tests/emoji-scan.test.ts`. Check your work with:
+**No mojibake and no byte-order marks, anywhere — including `docs/`.** On
+2026-10-07 the maintainer found a broken middle dot on the live site: edits had
+round-tripped source through a shell that decoded UTF-8 as Windows-1252, turning
+every `·`, `—` and `±` in the affected files into two or three characters of
+garbage, so the sort arrow drew as box-drawing noise where `▲` belongs. The same
+round-trips left byte-order marks on eight files. Neither is emoji, so the emoji
+check below saw nothing.
+
+**The trap, so you can avoid it:** doing
+`Get-Content -Raw | -replace ... | Set-Content -Encoding UTF8` in PowerShell 5.1
+decodes UTF-8 as the local codepage and writes a BOM. Use the editor tools for
+edits, or a Node script (`readFileSync(f, 'utf8')`) if a script is genuinely
+needed — never a shell text pipeline.
+
+**Enforced by:** `tools/completion-gate.mjs`, via `tools/emoji-scan.mjs` and
+`tools/mojibake-scan.mjs`, pinned by `tests/emoji-scan.test.ts` and
+`tests/mojibake-scan.test.ts`. Check your work with:
 
 ```
 node tools/emoji-scan.mjs .
+node tools/mojibake-scan.mjs .
 ```
 
-The scanner treats a pictograph as emoji only when it is actually rendered as one
-— emoji presentation by default, or a following U+FE0F. That distinction is
+The emoji scanner treats a pictograph as emoji only when it is actually rendered
+as one — emoji presentation by default, or a following U+FE0F. That distinction is
 deliberate and tested both ways; `↕️` (with the variation selector) is an emoji,
-`↕` on its own is a sort indicator.
+`↕` on its own is a sort indicator. The mojibake scanner is narrow in the same
+spirit: it flags a UTF-8 lead byte decoded as cp1252 — `Â Ã â Å` immediately
+followed by a cp1252 special — so a real `·` or `—` or a name like `Ângela` passes
+- a double-encoded middle dot (a UTF-8 middle dot decoded as Windows-1252) does not. Both are pinned in both directions.
 
 ---
 

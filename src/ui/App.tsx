@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useHousingQuery } from '../core/useHousingQuery'
 import { loadPlaceIndex, type PlaceIndex, type PlaceSuggestion } from '../core/zcta-place-index'
 import { FairHousingNotice } from './FairHousingNotice'
@@ -24,7 +24,7 @@ type View = 'explore' | 'map' | 'methodology'
  * A preset is a named, published filter configuration the user chooses. It
  * changes which criterion the country-wide screen sorts by; it never changes
  * the underlying data, and every figure remains visible. We do not rank places
- * or declare a best option â€” the user picks the criteria and the ordering.
+ * or declare a best option — the user picks the criteria and the ordering.
  */
 const PRESETS = [
   { id: 'renter', label: 'Renting', sort: 'median_rent_burden_pct' as const },
@@ -45,6 +45,21 @@ export default function App() {
   const [term, setTerm] = useState('')
   const [preset, setPreset] = useState<string>('budget')
   const [showKeyPrompt, setShowKeyPrompt] = useState(false)
+  /**
+   * Opens the key prompt once, for a visitor who has no key at all.
+   *
+   * The prompt has always been reachable behind a button, but a first-time
+   * visitor had no reason to press it and — until the mount-effect fix in
+   * `useHousingQuery` — the button itself never rendered. So they arrived at a
+   * search box that answered for one ZIP code, a country-wide view that stayed
+   * empty, and no statement of why. The maintainer reported exactly that on
+   * 2026-10-07.
+   *
+   * Once only: "Not now" is remembered for the visit by this ref, and the button
+   * below remains the way back. Focus is deliberately not moved into the prompt,
+   * so arriving readers are not pulled into a form they did not ask for.
+   */
+  const autoPrompted = useRef(false)
   const [chosenPlace, setChosenPlace] = useState<PlaceSuggestion | null>(null)
   const [placeError, setPlaceError] = useState<string | null>(null)
   /**
@@ -53,7 +68,7 @@ export default function App() {
    * The distinction is kept because they need different copy. While loading, the
    * combobox simply offers nothing yet. Once failed, the reader is told city
    * search is unavailable rather than left waiting for suggestions that will
-   * never arrive â€” and ZIP lookup keeps working either way.
+   * never arrive — and ZIP lookup keeps working either way.
    */
   const [placeIndex, setPlaceIndex] = useState<PlaceIndex | null | undefined>(undefined)
   /**
@@ -92,6 +107,15 @@ export default function App() {
     }
   }, [])
 
+  // The one-time open. See the `autoPrompted` note above for why it exists.
+  useEffect(() => {
+    if (autoPrompted.current) return
+    if (q.sweepStatus === 'needs-key' && !q.censusKeyPresent) {
+      autoPrompted.current = true
+      setShowKeyPrompt(true)
+    }
+  }, [q.sweepStatus, q.censusKeyPresent])
+
   const searchPlacesIn = useCallback(
     (query: string, limit?: number) => (placeIndex ? placeIndex.search(query, limit) : []),
     [placeIndex],
@@ -120,7 +144,7 @@ export default function App() {
    * area picked for the reader: "Springfield" is a city in at least six states,
    * and silently choosing one would put the wrong neighbourhood on screen with no
    * indication that a choice had been made. Previously this path asked Photon,
-   * which returned a single city centroid with no ZIP at all â€” and `selectPlace`
+   * which returned a single city centroid with no ZIP at all — and `selectPlace`
    * returns immediately without one, so clicking that suggestion did nothing.
    */
   function submit(e: React.FormEvent) {
@@ -146,7 +170,7 @@ export default function App() {
     if (matches.length === 0) {
       setChosenPlace(null)
       setPlaceError(
-        `No US city or ZIP code matches "${text}". This tool covers United States data only â€” there are about 33,800 ZIP codes.`,
+        `No US city or ZIP code matches "${text}". This tool covers United States data only — there are about 33,800 ZIP codes.`,
       )
       return
     }
@@ -315,7 +339,7 @@ export default function App() {
           onClick={() => setShowKeyPrompt(true)}
           className="mt-4 w-full rounded-lg border border-amber-300 bg-amber-50 p-4 text-left text-sm hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-900"
         >
-          <span className="font-semibold text-amber-950">Load every ZIP code in the country â€” free.</span>
+          <span className="font-semibold text-amber-950">Load every ZIP code in the country — free.</span>
           <span className="mt-1 block text-amber-900">
             The Census Bureau requires a free API key so they can track usage. It takes about a minute, and your
             key is stored only in this browser. We never see it and keep no record of your searches.
@@ -325,7 +349,7 @@ export default function App() {
 
       {showKeyPrompt && (
         <div className="mt-4">
-          <KeyPrompt onDismiss={() => setShowKeyPrompt(false)} />
+                <KeyPrompt onDismiss={() => setShowKeyPrompt(false)} autoFocus={false} />
         </div>
       )}
     </>
@@ -442,7 +466,7 @@ export default function App() {
               </p>
             ) : q.sweep.length === 0 ? (
               <p className="mt-6 text-sm text-slate-700" role="status" aria-live="polite">
-                Loading the country-wide figures the map draws fromâ€¦
+                Loading the country-wide figures the map draws from…
               </p>
             ) : (
               <>
@@ -523,9 +547,9 @@ export default function App() {
                       />
                     </div>
                     <p className="section-note mt-2">
-                      {q.sweepProgress.done} of {q.sweepProgress.total} areas Â·{' '}
+                      {q.sweepProgress.done} of {q.sweepProgress.total} areas ·{' '}
                       {num.format(q.sweepProgress.rows)} ZIP codes ready
-                      {q.sweepProgress.failed > 0 && ` Â· ${q.sweepProgress.failed} failed`}
+                      {q.sweepProgress.failed > 0 && ` · ${q.sweepProgress.failed} failed`}
                     </p>
                     {q.sweepProgress.budget && (
                       <p className="mt-1 text-xs text-slate-500">
@@ -535,11 +559,11 @@ export default function App() {
                     )}
                   </>
                 ) : (
-                  <p className="mt-1 text-sm text-slate-700">Working out which areas to loadâ€¦</p>
+                  <p className="mt-1 text-sm text-slate-700">Working out which areas to load…</p>
                 )}
                 <p className="section-note mt-2">
                   <strong>You do not have to wait.</strong> Look up a ZIP code above and you will get its full
-                  figures immediately â€” that request is separate and takes a couple of seconds.
+                  figures immediately — that request is separate and takes a couple of seconds.
                 </p>
                 {/*
                   The table is already usable while this runs, so the copy has to
@@ -573,7 +597,7 @@ export default function App() {
                     </h2>
                     <p className="text-xs text-slate-500">
                       {num.format(q.sweep.length)} areas loaded
-                      {q.sweepFromCache ? ' from local cache' : ''} Â· {q.quota.used} request
+                      {q.sweepFromCache ? ' from local cache' : ''} · {q.quota.used} request
                       {q.quota.used === 1 ? '' : 's'} from this browser
                     </p>
                   </div>
@@ -731,7 +755,7 @@ export default function App() {
               The Fair Housing notice is rendered unconditionally whenever
               neighbourhood data is on screen. It used to sit inside the
               "sweep loaded" branch, which meant it disappeared for exactly the
-              visitors who had not yet added a Census key â€” the people least
+              visitors who had not yet added a Census key — the people least
               informed about how to read the figures. It is a legal disclosure,
               not a decoration, so its presence cannot depend on application
               state.

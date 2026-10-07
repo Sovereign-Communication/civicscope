@@ -36,6 +36,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { scanForEmoji } from './emoji-scan.mjs'
+import { scanForWeird } from './mojibake-scan.mjs'
 const ROOT = process.cwd()
 // Every child-process argument in this file is a literal, never user input, so
 // the shell concatenation DEP0190 warns about cannot be exploited here.
@@ -262,6 +263,50 @@ add(
   `no emoji in shipped source; a screen reader would announce a glyph name instead of the sentence (${emojiScan.files} files scanned, docs/ exempt)`,
   emojiScan.findings.slice(0, 10).join(' | '),
 )
+
+// No mojibake and no byte-order marks, anywhere.
+//
+// The maintainer reported a broken middle dot on the live site on 2026-10-07.
+// The cause was edits that round-tripped source through a shell decoding UTF-8 as
+// Windows-1252, which turned every `·`, `—` and `±` in the affected files into two
+// or three characters of garbage, drawing the sort arrow as box-drawing noise.
+// The emoji check above could not see it — mojibake bytes are not emoji — so the
+// gate reported clean while the interface was visibly wrong. Found again by a
+// reader, which is the failure mode this gate exists to remove. The same
+// round-trips left byte-order marks on eight files, one of which aborted a repair
+// script mid-run.
+//
+// Unlike the emoji rule this does not exempt docs/: mojibake in a planning
+// document is corruption rather than a style choice, and a byte-order mark breaks
+// tooling wherever it sits.
+const weirdScan = scanForWeird(ROOT)
+add(
+  weirdScan.files > 50 && weirdScan.findings.length === 0,
+  `no mojibake and no byte-order marks in any text file (${weirdScan.files} files scanned)`,
+  weirdScan.findings.slice(0, 10).join(' | '),
+)
+
+// The key prompt must be reachable by a visitor who has no key.
+//
+// On 2026-10-07 the maintainer reported that the site never asked a new visitor
+// for an API key. It did not: the mount effect ran the country-wide load only
+// when a key was already stored, so a first-time visitor's status stayed 'idle'
+// and every `needs-key` branch — including the prompt — was unreachable. They saw
+// a search box that answered for one ZIP code, an empty country-wide view, and no
+// explanation. Both halves are pinned: the load runs on arrival, and the prompt is
+// wired to the status it depends on.
+{
+  const useQuery = read('src/core/useHousingQuery.ts').replace(/\s+/g, ' ')
+  add(
+    /useEffect\(\(\) => \{ void loadSweep\(\) \}, \[loadSweep\]\)/.test(useQuery) &&
+      !/if \(getCensusKey\(\)\) void loadSweep\(\)/.test(useQuery),
+    'the country-wide load runs on arrival, so a first-time visitor reaches the key prompt instead of an empty screen with no explanation',
+  )
+  add(
+    /autoPrompted/.test(read('src/ui/App.tsx')) && /sweepStatus === 'needs-key'/.test(read('src/ui/App.tsx')),
+    'the key prompt opens for a visitor with no key, without moving focus into a form they did not ask for',
+  )
+}
 
 // City search.
 //

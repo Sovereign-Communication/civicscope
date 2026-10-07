@@ -1,11 +1,11 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 /**
  * The drilldown data, audited the same way the country-wide screen was.
  *
  * The national screen is verified cell by cell against Census: 168,860 figures
- * and 168,860 margins, zero defects. The drilldown sources â€” NCES school
- * districts, New York per-school, CDC PLACES â€” were only ever checked for
+ * and 168,860 margins, zero defects. The drilldown sources — NCES school
+ * districts, New York per-school, CDC PLACES — were only ever checked for
  * *shape*, which cannot tell a right number from a plausible one. This closes
  * that gap: it queries each source independently, through the app's own
  * functions, and compares every figure against what the publisher returns.
@@ -108,7 +108,7 @@ for (const [name, lat, lon] of PLACES.slice(0, 4)) {
       }
     }
     // A graduation rate is a percentage where one exists, and absent where the
-    // school serves no graduating cohort â€” which is not the same as zero.
+    // school serves no graduating cohort — which is not the same as zero.
     if (s.graduationRate !== null && s.graduationRate !== undefined) {
       if (s.graduationRate < 0 || s.graduationRate > 100) {
         defects.push(`${name}: ${s.name} graduation rate ${s.graduationRate} is outside 0-100`)

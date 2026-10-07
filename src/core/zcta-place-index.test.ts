@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The ZIP-to-place index, pinned.
  *
  * The display-name cases here are the whole reason this file exists. Every one of
@@ -137,7 +137,7 @@ describe('decoding rejects a malformed payload', () => {
   it('rejects a record pointing outside its dictionaries', () => {
     // Built at full length deliberately. The country-size assertion runs before
     // the per-record loop, so a short fixture can never reach the dictionary
-    // check â€” and an unchecked dictionary index is exactly the corruption that
+    // check — and an unchecked dictionary index is exactly the corruption that
     // would render a plausible wrong city beside a ZIP code.
     const n = EXPECTED_PLACE_COUNT
     const zd = Array.from({ length: n }, () => 0)
@@ -230,7 +230,7 @@ describe('search', () => {
     const hits = index.search('austin')
     expect(hits.length).toBeGreaterThan(0)
     // "Austin, AR" and "Austin, TX" are both correct answers, and neither is
-    // ranked above the other by size â€” that would be this app ranking places.
+    // ranked above the other by size — that would be this app ranking places.
     // Asserted as presence, not position, deliberately.
     expect(hits.some((h) => h.displayName === 'Austin' && h.state === 'TX')).toBe(true)
     expect(hits.some((h) => h.displayName === 'Austin' && h.state === 'AR')).toBe(true)

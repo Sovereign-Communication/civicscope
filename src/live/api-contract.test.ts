@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Live API contract checks.
  *
  * These are excluded from the default `vitest run` because they hit the network.
