@@ -773,6 +773,38 @@ if (process.env.SKIP_NETWORK !== '1') {
       add(js.includes('B25077'), 'deployed bundle contains the corrected home-value table', ref)
       add(!js.includes('B25035_001E'), 'deployed bundle is free of the old home-value table', ref)
       add(js.includes('nces.ed.gov'), 'deployed bundle contains the verified NCES school source', ref)
+
+      /*
+       * The deployed bundle is this repository's build, or the deploy is stale.
+       *
+       * Found live on 2026-10-07: production was serving a build from before
+       * ten merged pull requests — no city search, no export, no tour, none of
+       * it — and every check above still passed, because those checks look for
+       * markers fixed in history. A visitor with state cached by the old build
+       * saw no data and a map that never drew. The gate reported freshness
+       * throughout, which is a pass it had not earned.
+       *
+       * So on runs against main (GATE_EXPECT_DEPLOYED=1, set by the workflow on
+       * push-to-main) the deployed bundle reference must match the bundle this
+       * very gate just built from main. Vite's asset name is a content hash, so
+       * identical sources produce identical names. A mismatch says the deploy is
+       * older than the merge, names both hashes, and says what to run.
+       *
+       * Not enforced on pull requests: production runs main, and a PR is
+       * legitimately not deployed. The historical markers above still run there.
+       * The immediate post-merge run will read as stale until `npm run deploy`
+       * has run, which is correct — at that moment production genuinely is
+       * behind, and the failure is the notification.
+       */
+      if (process.env.GATE_EXPECT_DEPLOYED === '1') {
+        const localHtml = read(join('dist', 'index.html'))
+        const localRef = localHtml.match(/\/assets\/index-[A-Za-z0-9_-]+\.js/)?.[0] ?? null
+        add(
+          localRef !== null && ref === localRef,
+          'production is serving the build this gate just made from main (not an older deploy)',
+          `deployed ${ref} / just built ${localRef ?? 'nothing'} — run npm run deploy`,
+        )
+      }
     }
     // The SEO surface is easy to generate and easy to silently lose to the SPA
     // fallback, so it is checked on the deployed site rather than in dist.
