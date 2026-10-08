@@ -308,6 +308,29 @@ add(
   )
 }
 
+// A comparison carried in the URL.
+//
+// The constraint that makes this a gate rather than a nicety: a share link
+// carries the selected ZIP codes and nothing else. Encoding a sort, a preset or
+// a profile would make a link a recommendation rather than a view, and the
+// parameter is untrusted input on arrival — hand-edited or hostile — so it is
+// validated on both ends. Pinned by test and by the browser suite.
+{
+  const us = read('src/core/url-state.ts')
+  const app = read('src/ui/App.tsx')
+  add(
+    /encodeComparison/.test(us) &&
+      /decodeComparison/.test(us) &&
+      !/preset|sort|profile/i.test(us.replace(/^(?!\s*\/\/).*$/gm, '')) &&
+      read('tests/url-state.test.ts').length > 0,
+    'a shared URL carries the selected ZIP codes, validated, and nothing else — no sort, no preset, no ranking',
+  )
+  add(
+    /replaceState/.test(app) && /decodeUrl/.test(app) && read('src/e2e/url-state.e2e.ts').length > 0,
+    'the URL follows the selection without piling up browser history, and a shared link pre-selects on arrival',
+  )
+}
+
 // City search.
 //
 // The mapping is a committed artefact rather than a lookup, so the checks that
