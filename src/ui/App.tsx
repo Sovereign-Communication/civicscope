@@ -4,6 +4,7 @@ import { loadPlaceIndex, type PlaceIndex, type PlaceSuggestion } from '../core/z
 import { FairHousingNotice } from './FairHousingNotice'
 import { GuidedTour, TourNotice, shouldShowTour } from './GuidedTour'
 import { applyFigureFilters, FIGURE_FILTERS } from '../core/figure-filters'
+import { decodeUrl, urlForSelection } from '../core/url-state'
 import { SimilarityPanel } from './SimilarityPanel'
 import type { SortableMetricKey } from '../core/sortable-surface'
 import { KeyPrompt } from './KeyPrompt'
@@ -135,6 +136,35 @@ export default function App() {
     },
     [placeIndex, q],
   )
+
+  /*
+   * A comparison carried in the URL.
+   *
+   * Two directions, both deliberate:
+   *
+   * On arrival, `?z=` pre-selects the ZIP codes a shared link names, so a reader
+   * arriving from someone else's link sees what the sender saw without typing
+   * anything. The parameter is untrusted input and goes through the same
+   * validation as everything else: invalid entries are dropped silently and the
+   * site loads normally (`src/core/url-state.ts`).
+   *
+   * After that, the URL follows the selection rather than leading it:
+   * `history.replaceState`, not `pushState`, so adding a fifth area is not five
+   * entries of back-button history and pressing Back leaves the site rather than
+   * replaying the reader's own selections one removal at a time.
+   */
+  const restoredFromUrl = useRef(false)
+  useEffect(() => {
+    if (restoredFromUrl.current) return
+    restoredFromUrl.current = true
+    const shared = decodeUrl(window.location.href)
+    for (const zip of shared) addZip(zip)
+  }, [addZip])
+
+  useEffect(() => {
+    const next = urlForSelection(window.location.href, q.selectedZctas)
+    if (next !== window.location.href) window.history.replaceState(null, '', next)
+  }, [q.selectedZctas])
 
   /**
    * Submits the search box.
