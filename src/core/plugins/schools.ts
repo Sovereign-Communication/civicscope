@@ -1,4 +1,4 @@
-﻿/**
+/**
  * School district resources, from NCES EDGE school-district boundaries.
  *
  * Source: the live NCES ArcGIS GeoService for EDGE_ADMIN district boundaries,
@@ -19,7 +19,7 @@
  *   1. `-2` is NCES's missing-value sentinel, not a number. It appears where a
  *      district is real but reports no figure.
  *   2. A point can fall inside a *supervisory union* (LEA_TYPE 3) rather than a
- *      school district â€” all of New York City is inside "NYC Chancellor's
+ *      school district — all of New York City is inside "NYC Chancellor's
  *      Office", a state-level administrative entity with no students. Returning
  *      it as "the school district" would show a user real but meaningless
  *      numbers, so those are rejected and reported honestly.
@@ -91,7 +91,7 @@ export type SchoolLookup =
  * An upstream failure is `unavailable`, never `not-found`. Until 2026-10-07 every
  * fetch error collapsed into `not-found`, which meant two wrong things at once: a
  * reader during an NCES blip was told their district does not exist, and
- * `withNetworkRetry` in the live suite could not retry â€” the function never
+ * `withNetworkRetry` in the live suite could not retry — the function never
  * throws, so a 500 arrived as a clean miss and a flapping upstream failed CI on
  * single blips. Found exactly that way: the live contract failed three times on
  * a service that was serving normally seconds later, and the failing assertion
@@ -204,7 +204,7 @@ export async function lookupSchoolDistrict(
  * `ny-schools.ts`, which is a real, keyless, CORS-enabled source.
  *
  * The honest limit is that this is one state. There is no free, licensed,
- * national source of per-school test scores â€” the NCES EDGE ArcGIS catalogue
+ * national source of per-school test scores — the NCES EDGE ArcGIS catalogue
  * was queried and publishes school districts only, with no school-level service.
  * Every other state publishes its own assessment data in its own format, and
  * GreatSchools/Niche ratings are licensed products whose terms do not permit
@@ -237,7 +237,7 @@ export const ncesSchoolCorePlugin: PluginRequest = {
     const found = await lookupSchoolDistrict(lat, lon, ctx.signal)
     // `unavailable` is thrown as SourceUnavailableError rather than returned
     // empty, because the executor already maps that error to a plugin result of
-    // status 'unavailable' with the reason â€” the engine's existing convention for
+    // status 'unavailable' with the reason — the engine's existing convention for
     // a source that could not be reached. Returning [] here would fold a dead
     // upstream into a no-district answer, which is the confusion this fix exists
     // to remove.

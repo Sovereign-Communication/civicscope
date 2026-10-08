@@ -1,4 +1,4 @@
-﻿# Worldwide data: plan only, no code
+# Worldwide data: plan only, no code
 
 The product is currently United States only, and every layer reflects that:
 Census ACS, TIGERweb ZIP geometry, NCES school districts. This is a plan for

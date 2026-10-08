@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Data-integrity assertions over the live API.
  *
  * The requirement is absolute: no placeholder, sentinel, or invented figure may
@@ -117,8 +117,8 @@ const found = await districtLookup('NCES Manhattan', 40.7484, -73.9857, sig())()
     // What matters is the guarantee, not the catalogue: a supervisory union is
     // never returned as a school district with students and figures. NCES has
     // returned this point as the LEA_TYPE 3 administrative entity for years,
-    // but that is a public catalogue which has changed underneath this test â€”
-    // it began answering not-found â€” and a not-found is also a correct outcome,
+    // but that is a public catalogue which has changed underneath this test —
+    // it began answering not-found — and a not-found is also a correct outcome,
     // because it withholds an answer rather than giving a wrong one. Asserting
     // the exact upstream entity would make this a test of NCES rather than of
     // the behaviour this app promises.

@@ -22,7 +22,21 @@ type Phase = 'idle' | 'checking' | 'paste' | 'invalid' | 'done'
  * The prompt is only ever shown inline. Nothing is blocked until the user
  * chooses to add a key.
  */
-export function KeyPrompt({ onDismiss, compact = false }: { onDismiss?: () => void; compact?: boolean }) {
+export function KeyPrompt({
+  onDismiss,
+  compact = false,
+  autoFocus = true,
+}: {
+  onDismiss?: () => void
+  compact?: boolean
+  /**
+   * False when the prompt was opened on the reader's behalf rather than by them.
+   * Arriving at the page and having focus pulled into a paste field is
+   * disorienting, so the wall never does it; a reader who pressed "Load every ZIP
+   * code" has asked, and gets the cursor in the field.
+   */
+  autoFocus?: boolean
+}) {
   const [phase, setPhase] = useState<Phase>(() => (getCensusKey() ? 'done' : 'idle'))
   const [value, setValue] = useState('')
   const [message, setMessage] = useState('')
@@ -30,13 +44,14 @@ export function KeyPrompt({ onDismiss, compact = false }: { onDismiss?: () => vo
   const inputRef = useRef<HTMLInputElement>(null)
 
   // A returning visitor lands here from the Census tab. Their key is in the
-  // clipboard's reach, so focus the paste field immediately.
+  // clipboard's reach, so focus the paste field immediately — unless the wall
+  // opened this itself, in which case focus stays where the reader left it.
   useEffect(() => {
     if (phase === 'idle') {
       setPhase('paste')
-      inputRef.current?.focus()
+      if (autoFocus) inputRef.current?.focus()
     }
-  }, [phase])
+  }, [phase, autoFocus])
 
   async function openSignup() {
     rememberReturnPath(window.location.pathname + window.location.search)

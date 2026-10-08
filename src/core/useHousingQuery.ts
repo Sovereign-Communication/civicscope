@@ -341,8 +341,22 @@ export function useHousingQuery() {
     }
   }, [])
 
+  /**
+   * Loads the country-wide screen on arrival, or says that a key is needed.
+   *
+   * This used to run only when a key was already stored (`if (getCensusKey())`),
+   * which meant a first-time visitor's status stayed 'idle' and every `needs-key`
+   * branch in the interface was unreachable — including the key prompt. The site
+   * therefore never asked a new visitor for a key at all: they saw a search box
+   * that worked for one ZIP code and no explanation of why the country-wide view
+   * was empty or how to fix it. Reported by the maintainer on 2026-10-07.
+   *
+   * `loadSweep` itself handles the no-key case by setting 'needs-key' and
+   * returning, with no network request, so calling it unconditionally costs a
+   * keyless visitor nothing and makes the prompt reachable.
+   */
   useEffect(() => {
-    if (getCensusKey()) void loadSweep()
+    void loadSweep()
   }, [loadSweep])
 
   useEffect(
