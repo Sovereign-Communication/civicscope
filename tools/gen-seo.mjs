@@ -65,10 +65,31 @@ async function fetchAllZctas() {
       `${TIGER_ZCTA}?where=1%3D1&outFields=ZCTA5&returnGeometry=false` +
       `&resultRecordCount=${PAGE_SIZE}&resultOffset=${offset}&f=json`
 
-    const res = await fetch(url).then((r) => {
-      if (!r.ok) throw new Error(`TIGERweb HTTP ${r.status}`)
-      return r.json()
-    })
+    // Retried per page. TIGERweb resets connections on large responses — the
+    // same documented failure mode `tools/gen-map-data.mjs` retries for, and one
+    // this generator lacked until a push-to-main run failed on it on 2026-10-08:
+    // a single dropped connection killed the whole build, which cascaded into
+    // six red gate checks (typecheck+build, unit, live contracts, WCAG audit,
+    // sitemap, robots) that all depend on the build having produced dist/.
+    // The identical PR run had passed hours earlier, so the code was fine and
+    // the fetch was the whole failure.
+    let res
+    let lastErr
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        const r = await fetch(url)
+        if (!r.ok) throw new Error(`TIGERweb HTTP ${r.status}`)
+        res = await r.json()
+        break
+      } catch (err) {
+        lastErr = err
+        const wait = 2000 * attempt
+        console.log(`[seo] offset ${offset}: attempt ${attempt} failed (${err.message}); retrying in ${wait}ms`)
+        await new Promise((resolve) => setTimeout(resolve, wait))
+      }
+    }
+    if (!res) throw new Error(`TIGERweb page at offset ${offset} failed after 4 attempts: ${lastErr?.message}`)
+
     const features = res.features ?? []
     console.log(`[seo] offset ${offset}: ${features.length} rows`)
     for (const f of features) {
