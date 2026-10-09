@@ -74,6 +74,10 @@ function format(m: MetricValue, reason?: AbsentReason): string {
     case 'ratio':
       return `${v}`
     case 'count':
+    case 'institutions':
+      // An institution count renders exactly like a count of anything else.
+      // It has its own unit only to escape the people-and-households
+      // suppression rule, not to look different on screen.
       return v.toLocaleString('en-US')
     default:
       return String(v)
