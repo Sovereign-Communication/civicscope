@@ -57,7 +57,7 @@ describe('ACS missing-value sentinels', () => {
       'B25064_001E',
       'B25071_001E',
       'B19013_001E',
-      'B25001_001E',
+      'B25002_002E',
       'zip code tabulation area',
     ]
     const rows = [['ZCTA5 00786', '-666666666', '-666666666.0', '-666666666', '97', '00786']]
@@ -78,7 +78,7 @@ describe('ACS missing-value sentinels', () => {
       'B25064_001E',
       'B25071_001E',
       'B19013_001E',
-      'B25001_001E',
+      'B25002_002E',
       'B25003_003E',
       'B25003_002E',
       'B01003_001E',
@@ -103,7 +103,7 @@ describe('ACS missing-value sentinels', () => {
   })
 
   it('keeps a fully-populated row intact', () => {
-    const header = ['NAME', 'B25064_001E', 'B25071_001E', 'B19013_001E', 'B25001_001E', 'zip code tabulation area']
+    const header = ['NAME', 'B25064_001E', 'B25071_001E', 'B19013_001E', 'B25002_002E', 'zip code tabulation area']
     const rows = [['ZCTA5 00667', '492', '26.3', '18729', '12153', '00667']]
     const row = areaRowFromRaw(header, rows)[0]!
     expect(row.metrics.median_gross_rent).toBe(492)

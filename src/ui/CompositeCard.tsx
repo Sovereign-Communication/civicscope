@@ -28,7 +28,11 @@ function formatRaw(value: number | null, unit: string): string {
 export function CompositeCard({ composite }: { composite: Composite }) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
-  const rules = composite.id === 'education' ? SCORE_RULES.education : SCORE_RULES.affordability
+  // The education composite is gone (see scoring.ts); affordability is the only
+  // composite. The lookup stays a lookup rather than becoming SCORE_RULES
+  // itself, so a future composite — added on a real finance source, say —
+  // plugs back in here rather than getting its own card.
+  const rules = composite.id === 'affordability' ? SCORE_RULES.affordability : SCORE_RULES.affordability
 
   return (
     <section

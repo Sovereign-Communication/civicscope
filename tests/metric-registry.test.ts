@@ -65,12 +65,12 @@ describe('the metric registry is complete', () => {
   it('the seven figures that were fetched-and-discarded are now displayable', () => {
     for (const key of [
       'vacant_units',
-      'no_internet_subscription',
+      'no_internet_access',
       'average_household_size',
       'median_age',
       'below_poverty_count',
       'bachelors_count',
-      'mean_commute_minutes',
+      'commuting_workers',
       'owner_occupied',
     ]) {
       expect(METRIC_DEFS_BY_KEY.has(key), `${key} must be defined and displayed`).toBe(true)
@@ -78,9 +78,12 @@ describe('the metric registry is complete', () => {
   })
 
   it('the wrong Census columns are gone', () => {
-    // The three that shipped wrong until 2026-10-08. If these ever come back,
-    // a headcount is being rendered as minutes and a diploma as a degree.
-    expect(VARS.meanCommuteMinutes).toBe('B08303_001E') // mean travel time, not worker count
+    // The four that shipped wrong until 2026-10-09. If these ever come back,
+    // a headcount is being rendered as minutes, a diploma as a degree, housing
+    // units as households, and dial-up households as the disconnected.
+    expect(VARS.households).toBe('B25002_002E') // occupied, not total housing units
+    expect(VARS.noInternetAccess).toBe('B28002_013E') // no access at all, not dial-up only
+    expect(VARS.commutingWorkers).toBe('B08303_001E') // workers who commute, the universe of the travel-time table
     expect(VARS.bachelorsCount).toBe('B15003_022E') // bachelor's, not high-school diploma
     expect(VARS.belowPovertyCount).toBe('B17001_002E') // count below poverty, as labelled
   })

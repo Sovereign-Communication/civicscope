@@ -570,6 +570,19 @@ export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
                 ? `, ${hover.withValue} with a figure`
                 : ''}
             </p>
+            {/*
+              The word that answers the question this hover provokes. A hexagon
+              shows the MEDIAN of the ZIP codes inside it that carry a figure —
+              not their sum, not their mean — so one extreme area cannot dominate
+              its neighbours. That design decision was documented in the legend
+              and in the screen-reader text, but not here, until a reader asked
+              why the map showed 45 for five areas whose household figures are
+              9, 30, 45, 64 and 2,086: the answer is that 45 IS the median, and
+              the hover owed them the word.
+            */}
+            {hover.count > 1 && hover.withValue > 1 && hover.value !== null ? (
+              <p className="text-slate-600">Median of the {hover.withValue} with a figure, not a sum or average.</p>
+            ) : null}
             {hover.zctas.length <= 4 ? (
               <p className="text-slate-600">{hover.zctas.join(', ')}</p>
             ) : null}

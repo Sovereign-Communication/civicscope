@@ -44,21 +44,51 @@ export const VARS = {
   /** Median gross rent as a share of household income. B25071, published. */
   medianRentBurden: 'B25071_001E',
   medianRentBurdenMoe: 'B25071_001M',
-  /** Total households. B25001, not B25002. */
-  households: 'B25001_001E',
-  householdsMoe: 'B25001_001M',
+  /**
+   * Households, meaning occupied housing units. B25002_002, not B25001: an
+   * earlier comment here claimed "B25001, not B25002" with total confidence,
+   * and B25001 is total housing units including vacant. It added up perfectly
+   * and read as households — for 69201, owner 995 + renter 626 + vacant 465 =
+   * 2,086, which was displayed as "Households" with a note saying "all
+   * occupied housing units" while 465 of them were empty. Found 2026-10-09 by
+   * a reader who compared the map's figure against the drilldown and by
+   * checking the publisher's own variable definitions, which is how all four
+   * mislabels in this batch were found.
+   */
+  households: 'B25002_002E',
+  householdsMoe: 'B25002_002M',
+  /**
+   * Workers aged 16 and over who did not work at home — the commuting
+   * universe, from the publisher's travel-time table.
+   *
+   * Two earlier drafts of this variable were both wrong in different
+   * directions, and the record deserves both: the original requested
+   * B08301_001E under the name "commutingWorkers", which is the count of all
+   * workers — a headcount that would have rendered as "36 minutes". A
+   * correction on 2026-10-08 swapped it to B08303_001E believing that was the
+   * published mean; it is not — the group definition shows B08303 is travel-
+   * time *bands* with _001E as the commuting-worker total, so Valentine NE
+   * rendered 1,861 "minutes". The publisher publishes no mean at all in this
+   * table family: a mean would be our division of aggregate minutes by this
+   * count, and this app shows published figures. The metric is therefore what
+   * the column actually is, labelled as such.
+   */
+  commutingWorkers: 'B08303_001E',
+  /**
+   * Households the Census Bureau classifies as having no internet access at
+   * all. B28002_013 — an earlier version requested B28002_003 under the name
+   * "noBroadband", which is "dial-up with no other type of internet
+   * subscription": a real category, but a handful of households in a typical
+   * area rather than the households with nothing at all that the label
+   * promised, which is why it read 0 almost everywhere it appeared.
+   */
+  noInternetAccess: 'B28002_013E',
   /** Renter-occupied units. */
   renterOccupied: 'B25003_003E',
   ownerOccupied: 'B25003_002E',
   /** Total population. */
   population: 'B01003_001E',
   vacantUnits: 'B25002_003E',
-  /**
-   * Households with no internet subscription of any kind. B28002_003, a count.
-   * The internal name says what the publisher publishes, not what an earlier
-   * draft hoped for: there is no broadband-specific column in this table.
-   */
-  noInternetSubscription: 'B28002_003E',
   /** Average household size, published directly. B25010_001. */
   averageHouseholdSize: 'B25010_001E',
   /** Median age in years. */
@@ -79,16 +109,6 @@ export const VARS = {
    * labelled exactly.
    */
   bachelorsCount: 'B15003_022E',
-  /**
-   * Mean travel time to work in minutes. B08303_001 — an earlier draft requested
-   * B08301_001, which is the count of workers aged 16 and over, under the name
-   * "meanCommuteMinutes": a headcount that would have rendered as "36 minutes"
-   * because nobody ever displayed it. Found while wiring these seven variables
-   * to the interface for the first time, on 2026-10-08: they had been fetched on
-   * every national sweep since R7 shipped and then discarded, unnamed and
-   * unshown, which is why three wrong column IDs survived.
-   */
-  meanCommuteMinutes: 'B08303_001E',
 } as const
 
 const TABLE_OF: Record<string, string> = {
@@ -101,12 +121,12 @@ const TABLE_OF: Record<string, string> = {
   ownerOccupied: 'B25003',
   population: 'B01003',
   vacantUnits: 'B25002',
-  noInternetSubscription: 'B28002',
+  noInternetAccess: 'B28002',
   averageHouseholdSize: 'B25010',
   medianAge: 'B01002',
   belowPovertyCount: 'B17001',
   bachelorsCount: 'B15003',
-  meanCommuteMinutes: 'B08303',
+  commutingWorkers: 'B08303',
 }
 
 /** The Census table a metric key comes from, for the methodology dictionary. */
@@ -313,7 +333,7 @@ const METRIC_DEFS: {
     unit: 'count',
     category: 'demographics',
     betterWhen: 'lower',
-    note: 'All occupied housing units, owner and renter alike.',
+    note: 'Occupied housing units, owner and renter alike. Until 2026-10-09 this was the total housing units of the area, vacant homes included, under this same label — for ZIP 69201 that read as 2,086 households while 465 of the units were empty.',
   },
   {
     key: 'population',
@@ -348,12 +368,12 @@ const METRIC_DEFS: {
     note: 'Housing units with nobody living in them, of any kind: for sale, for rent, seasonal or otherwise. A high count can mean a resort town as easily as abandonment.',
   },
   {
-    key: 'no_internet_subscription',
-    label: 'Households with no internet subscription',
+    key: 'no_internet_access',
+    label: 'Households with no internet access',
     unit: 'count',
     category: 'demographics',
     betterWhen: 'lower',
-    note: 'Households the Census Bureau classifies as having no internet subscription of any kind in the past 30 days, including cellular data plans. A count of households, not a share.',
+    note: 'Households the Census Bureau classifies as having no internet access at all — no subscription and no access. Until 2026-10-09 this figure was the count of households whose only internet was dial-up, a much smaller category, under a label that promised the larger one.',
   },
   {
     key: 'average_household_size',
@@ -388,12 +408,12 @@ const METRIC_DEFS: {
     note: 'People aged 25 and over whose highest attainment is a bachelor\u2019s degree. Degrees above bachelor\u2019s are not included; the publisher has no single column for them.',
   },
   {
-    key: 'mean_commute_minutes',
-    label: 'Mean commute time',
+    key: 'commuting_workers',
+    label: 'Commuting workers',
     unit: 'count',
     category: 'labor',
-    betterWhen: 'lower',
-    note: 'Average minutes spent travelling to work, one way, for workers aged 16 and over.',
+    betterWhen: 'higher',
+    note: 'Workers aged 16 and over who did not work from home — the people the Census Bureau\u2019s commute figures count. The publisher has no single figure for mean commute time at this geography; computing one would be our division of two of their columns, so this shows the published count instead.',
   },
 ]
 
@@ -459,12 +479,12 @@ export const SCREEN_VARS = [
   VARS.ownerOccupied,
   VARS.renterOccupied,
   VARS.vacantUnits,
-  VARS.noInternetSubscription,
+  VARS.noInternetAccess,
   VARS.averageHouseholdSize,
   VARS.medianAge,
   VARS.belowPovertyCount,
   VARS.bachelorsCount,
-  VARS.meanCommuteMinutes,
+  VARS.commutingWorkers,
 ]
 
 /** Everything else, fetched only for a selected area. Exported for the completeness test. */
@@ -484,7 +504,7 @@ export const DETAIL_VARS = [
   // Found by the "every detail estimate that has a published margin requests
   // it" test in tests/metric-registry.test.ts, which then failed on the four
   // figures that predate it.
-  'B25001_001M',
+  'B25002_002M',
   VARS.population,
   'B01003_001M',
   VARS.renterOccupied,
@@ -493,8 +513,8 @@ export const DETAIL_VARS = [
   'B25003_002M',
   VARS.vacantUnits,
   'B25002_003M',
-  VARS.noInternetSubscription,
-  'B28002_003M',
+  VARS.noInternetAccess,
+  'B28002_013M',
   VARS.averageHouseholdSize,
   VARS.averageHouseholdSize.replace(/E$/, 'M'),
   VARS.medianAge,
@@ -503,8 +523,8 @@ export const DETAIL_VARS = [
   'B17001_002M',
   VARS.bachelorsCount,
   'B15003_022M',
-  VARS.meanCommuteMinutes,
-  VARS.meanCommuteMinutes.replace(/E$/, 'M'),
+  VARS.commutingWorkers,
+  VARS.commutingWorkers.replace(/E$/, 'M'),
 ]
 
 /** Maps an ACS variable to the metric key the UI uses. Exported for the completeness test. */
@@ -518,12 +538,12 @@ export const METRIC_FOR_VAR: Record<string, string> = {
   [VARS.renterOccupied]: 'renter_occupied',
   [VARS.ownerOccupied]: 'owner_occupied',
   [VARS.vacantUnits]: 'vacant_units',
-  [VARS.noInternetSubscription]: 'no_internet_subscription',
+  [VARS.noInternetAccess]: 'no_internet_access',
   [VARS.averageHouseholdSize]: 'average_household_size',
   [VARS.medianAge]: 'median_age',
   [VARS.belowPovertyCount]: 'below_poverty_count',
   [VARS.bachelorsCount]: 'bachelors_count',
-  [VARS.meanCommuteMinutes]: 'mean_commute_minutes',
+  [VARS.commutingWorkers]: 'commuting_workers',
 }
 
 /**

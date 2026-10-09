@@ -109,12 +109,19 @@ describe('live: Census key validation', () => {
 })
 
 describe('live: NCES EDGE school districts', () => {
-  it('resolves a district with real funding figures, keylessly, with browser CORS', async () => {
+  it('resolves a district with real staffing figures, keylessly, with browser CORS', async () => {
     const found = await districtLookup('NCES Austin', 30.2702, -97.7431, sig())()
     expect(found.kind).toBe('district')
     if (found.kind !== 'district') return
-    const spend = found.metrics.find((m) => m.key === 'per_pupil_spend')
-    expect(spend?.value).toBeGreaterThan(0)
+    // The EDGE layer publishes no finance field, so there is no expenditure
+    // figure to assert on. What it does publish is staffing: teachers, the
+    // ratio, and enrolment. Until 2026-10-09 this test asserted on a metric
+    // called 'per_pupil_spend' that was the teacher count under a dollars
+    // label — the assertion passed, because a teacher count is a positive
+    // number; the label was the defect, and a truthy check on a mislabelled
+    // value guards nothing. Austin ISD reports thousands of teachers.
+    const teachers = found.metrics.find((m) => m.key === 'teachers_total')
+    expect(teachers?.value).toBeGreaterThan(0)
     const ratio = found.metrics.find((m) => m.key === 'student_teacher_ratio')
     expect(ratio?.value).toBeGreaterThan(0)
   }, 300000)

@@ -9,6 +9,66 @@ diff.
 
 Ordered newest first. Commit hashes are the squash merges on `main`.
 
+## 2026-10-09
+
+**Four mislabelled figures, found by a reader comparing the map against the drilldown.**
+The reader asked why the map showed 45 for five areas whose household figures
+are 9, 30, 45, 64 and 2,086. The answer to *that* question is by design — 45 is
+the median, so Valentine's 2,086 cannot dominate its rural neighbours — but the
+hover never said so, and it now does. Checking the rest of that reader's screen
+against the publisher's own variable definitions found four figures that were
+not what their labels claimed, in every area of the country, some since the
+first version:
+
+- **"Expenditure per pupil $62" was the teacher count.** The NCES EDGE layer
+  publishes no finance field at all; the metric read `TOTTCH` under a dollars
+  label, and because the education composite weighted it 0.6, every district in
+  the country scored exactly 40 on that index. The metric is now the teacher
+  count, labelled as the teacher count; the education composite is **removed
+  rather than reweighted** — a one-component composite is not a composite, and a
+  fabricated input is not a weight. It can return when a real finance source
+  (the Census school system finances survey) is wired in.
+- **"Households 2,086" was total housing units.** `B25001_001E` includes vacant
+  homes; for 69201, owner 995 + renter 626 + vacant 465 = 2,086, displayed as
+  households with a note claiming "all occupied". Now `B25002_002E`, occupied —
+  and the sum checks.
+- **"Mean commute 1,861" (Valentine) was a worker count.** Two drafts of this
+  variable were wrong in different directions: first `B08301_001E` (all workers)
+  named "meanCommuteMinutes", then a 2026-10-08 "correction" to `B08303_001E`
+  believing it the published mean — it is the commuting-worker total. The
+  publisher has no mean in this table family; the metric is now the published
+  count under an honest label.
+- **"No internet subscription 0" was dial-up households.** `B28002_003E` is
+  "dial-up with no other type" — a handful of homes everywhere — while the
+  label promised households with nothing at all. Now `B28002_013E`, "No
+  Internet access".
+
+A district's school count was also being suppressed to "not published" by the
+minimum-20 rule meant for small samples about people — a district with 3 schools
+is an exact administrative fact — so institution counts now carry their own
+`institutions` unit outside that rule.
+
+The sweep stamp moves to v7: three variables changed meaning under the same
+metric keys, so cached rows would render the old meanings under the new labels
+forever. One full refetch is the honest cost, and it is paid once.
+
+**How it was found is the lesson:** three of the four came from a reader's
+question, and the method that confirmed them — reading the publisher's own
+variable definitions instead of trusting the code's comments — is the same one
+that found the mojibake and the sort-arrow corruption. Two comments in the
+source were confidently wrong ("B25001, not B25002"; "mean travel time"), and
+each guarded a mislabel that had shipped. The completeness test family now pins
+the correct columns, and the gate fails any monetary metric in a plugin whose
+source publishes no finance fields.
+
+**`42499bc` — Skip the warm-cache contract without a Census key (#25).**
+A CI runner made two saves 0ms apart; the newest-first assertion failed because
+the store broke `savedAt` ties by random id tail. The sort is stable and stored
+order is newest-first by construction, so ties now keep save order, pinned by a
+test that freezes the clock to force the tie — otherwise it passes vacuously on
+any runner slower than a millisecond, which is how the bug shipped green
+locally.
+
 ## 2026-10-08
 
 **`2735a83` — Share exactly what you see: the comparison travels in the URL (#22).**
