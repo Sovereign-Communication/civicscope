@@ -31,6 +31,7 @@
 import { useMemo, useState } from 'react'
 
 import {
+  comparisonDims,
   DEFAULT_CUTOFF,
   DEFAULT_WEIGHTS,
   findSimilar,
@@ -153,6 +154,16 @@ export function SimilarityPanel({
 
   const originFigs = useMemo(() => (origin ? originFigures(origin) : null), [origin])
 
+  /*
+   * The dimensions the comparison actually runs on: weighted and carried by the
+   * origin. An origin figure that is absent cannot be compared, so candidates
+   * are not required to carry it either — but the reader is told the match ran
+   * on fewer than four figures, because a two-figure match is a weaker claim
+   * than a four-figure one and quietly presenting them as the same would be the
+   * exact overclaim this panel exists to avoid.
+   */
+  const dims = origin ? comparisonDims(origin, weights) : []
+
   return (
     <details className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
       <summary className="min-h-[44px] cursor-pointer text-sm font-medium text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900">
@@ -178,8 +189,9 @@ export function SimilarityPanel({
         <div className="mt-2">
           <p className="text-xs text-slate-600">
             Weighted by the sliders you set, compared against the {sweep.length.toLocaleString('en-US')} areas
-            already loaded in this browser. Results are alphabetical — the tool does not pick which match comes
-            first. A distance is shown beside each so you can see how close it is, and the cut-off is yours.
+            already loaded in this browser. Distance is each figure's share of the country's actual loaded range,
+            not a fixed scale. Results are alphabetical — the tool does not pick which match comes first — and an
+            area that does not publish all the compared figures is left out rather than scored on a subset.
           </p>
 
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -244,13 +256,14 @@ export function SimilarityPanel({
             <div className="mt-3">
               <p className="text-xs text-slate-600">
                 <strong>{origin.zcta}</strong> carries {SIMILARITY_METRICS.filter((m) => originFigs[m] !== null && originFigs[m] !== undefined).length} of the{' '}
-                {SIMILARITY_METRICS.length} weighted figures. {results.length.toLocaleString('en-US')} of{' '}
-                {sweep.length.toLocaleString('en-US')} areas are within your cut-off.
+                {SIMILARITY_METRICS.length} weighted figures. Comparing on {dims.length === SIMILARITY_METRICS.length ? 'all of them' : `${dims.length} of them`}.{' '}
+                {results.length.toLocaleString('en-US')} of {sweep.length.toLocaleString('en-US')} areas are within your cut-off.
               </p>
 
               {results.length === 0 ? (
                 <p className="mt-2 text-sm text-slate-700">
                   Nothing is within {cutoff.toFixed(2)}. Loosen the cut-off or turn a weight down.
+                  {dims.length < SIMILARITY_METRICS.length && ' Fewer compared figures also means fewer areas can be scored at all.'}
                 </p>
               ) : (
                 <ul className="mt-2 max-h-96 overflow-auto">

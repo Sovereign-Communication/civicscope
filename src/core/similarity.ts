@@ -1,7 +1,7 @@
 /**
  * Similarity between ZIP codes, computed by the reader's own weights.
  *
- * Four positions this module takes, all of them recorded decisions rather than
+ * Five positions this module takes, all of them recorded decisions rather than
  * defaults:
  *
  * **It ships off.** No visitor sees a ranking unless they turn this on, because
@@ -12,9 +12,9 @@
  * default position. The flag lives in localStorage, next to the Census key.
  *
  * **The reader sets every weight.** There are no operator-chosen defaults standing
- * in for a preference, and no outcome-named templates — "Schools Priority" was
- * dropped, not deferred, because a template that names an outcome is the highest-
- * steering thing in the plan and there is no attorney review to clear it later.
+ * in for a preference, and no outcome-named templates — a template that names the
+ * outcome a reader should want is the highest-steering surface in the plan, and
+ * there is no attorney review to clear it later.
  *
  * **The weights draw from the sortable allowlist.** `src/core/sortable-surface.ts`
  * is the same allowlist the sort columns and the figure filters draw from, and it
@@ -29,14 +29,36 @@
  * guarantees is that the tool is not choosing which of the matching areas to put
  * in front of you.
  *
+ * **Distance is measured against the loaded country's actual range, and only
+ * between areas that carry all the compared figures.** Both of these rules came
+ * from a reader's report on 2026-10-09 that a Puerto Rico ZIP showed as "distance
+ * 0.04" from a Hawaii ZIP. Two defects produced that number, and the record
+ * deserves both:
+ *
+ *  - The first version normalized each figure against the affordability index's
+ *    *scoring floors*, clamped at both ends. Any value below a floor clamped to
+ *    the same point as any other, so two areas with genuinely different cheap
+ *    incomes — $20,000 and $27,000 — normalized to *identical* coordinates, and
+ *    the distance between them read as zero. Below the floor, difference
+ *    vanished. Normalization is now the loaded screen's own observed minimum and
+ *    maximum for each figure, so every real difference counts at its true share
+ *    of the country's range.
+ *  - A missing figure was skipped and the weights renormalized over what
+ *    remained. That sounds careful and is the opposite: an area sharing ONE
+ *    figure with the origin — with a small difference on that single dimension —
+ *    scored *better* than an area sharing all four with modest differences,
+ *    because renormalizing one small difference beat averaging four real ones.
+ *    Sparse areas won by default. The comment defending the rule claimed it
+ *    stopped exactly the failure it caused. An area that does not publish all
+ *    the compared figures is now excluded, and the panel says so.
+ *
  * The whole computation is local. The country-wide screen is already in memory when
  * this runs, so comparing one ZIP against all 33,791 costs no request and needs no
  * baked payload — the plan's original design baked 0.5-1 MB of figures into the
- * bundle, which would have been five to ten times the entire application, for data
- * the visitor already holds. Measured against that design this costs zero bytes.
+ * bundle, five to ten times the entire application, for data the visitor already
+ * holds.
  */
 import type { AreaRow } from './plugins/acs'
-import { SCORE_RULES } from './scoring'
 import type { SortableMetricKey } from './sortable-surface'
 
 /**
@@ -58,8 +80,20 @@ export const SIMILARITY_METRICS = [
 export type SimilarityMetric = (typeof SIMILARITY_METRICS)[number]
 export type Weights = Record<SimilarityMetric, number>
 
-/** The reader's cut-off: a pair is "similar" at or below this distance. */
-export const DEFAULT_CUTOFF = 0.5
+/**
+ * The reader's cut-off: a pair is "similar" at or below this distance.
+ *
+ * 0.1, measured rather than inherited: the earlier default of 0.5 was a plan
+ * number, and under the old fixed bounds it admitted pairs roughly half the
+ * country's range apart. Under range normalization, areas of one metro score
+ * around 0.01-0.05 apart, different neighbourhoods of one city around
+ * 0.05-0.15, and the Puerto-Rico-versus-Hawaii pair that prompted this fix
+ * around 0.11 — real similarity, not coincidence of cheapness. 0.1 keeps
+ * metro-scale matches and excludes cross-country coincidences; the slider is
+ * there for readers who want the looser reading, and the count says what the
+ * cut-off did.
+ */
+export const DEFAULT_CUTOFF = 0.1
 
 /** Equal weights, so the first run has no operator opinion baked into it. */
 export const DEFAULT_WEIGHTS: Weights = {
@@ -69,25 +103,48 @@ export const DEFAULT_WEIGHTS: Weights = {
   median_household_income: 1,
 }
 
-/**
- * Documented reference bounds, reused from the affordability composite.
- *
- * `src/core/scoring.ts` publishes these precisely so the methodology is not
- * duplicated, and so a reader comparing the composite and the similarity view
- * sees one set of numbers, not two that nearly agree.
- */
-const BOUNDS = new Map<SimilarityMetric, { floor: number; ceiling: number }>(
-  SCORE_RULES.affordability
-    .filter((r) => (SIMILARITY_METRICS as readonly string[]).includes(r.key))
-    .map((r) => [r.key as SimilarityMetric, { floor: r.floor, ceiling: r.ceiling }]),
-)
+/** The observed range of one figure across the loaded screen. */
+export interface MetricRange {
+  min: number
+  max: number
+}
 
-/** Scales a raw figure into 0..1 against the published bounds. */
-function normalise(metric: SimilarityMetric, value: number): number {
-  const b = BOUNDS.get(metric)
-  if (!b) return 0
-  const t = (value - b.floor) / (b.ceiling - b.floor)
-  return Math.max(0, Math.min(1, t))
+/**
+ * The observed range of each figure across the loaded screen.
+ *
+ * Computed from the same rows the comparison runs over, which is the whole fix:
+ * a value can never be "below the scale" and collapse onto the same point as a
+ * different value, because the scale is the data. A figure every loaded area
+ * agrees on (min === max) carries no information; `normalise` maps everything to
+ * the same point and the dimension contributes nothing, rather than dividing by
+ * zero.
+ */
+export function computeRanges(
+  sweep: readonly AreaRow[],
+  metrics: readonly SimilarityMetric[],
+): Map<SimilarityMetric, MetricRange> {
+  const out = new Map<SimilarityMetric, MetricRange>()
+  for (const metric of metrics) {
+    let min = Infinity
+    let max = -Infinity
+    for (const row of sweep) {
+      const v = row.metrics[metric]
+      if (v === null || v === undefined || !Number.isFinite(v)) continue
+      if (v < min) min = v
+      if (v > max) max = v
+    }
+    if (min === Infinity) continue // nobody carries this figure at all
+    out.set(metric, { min, max })
+  }
+  return out
+}
+
+/** Scales a raw figure into 0..1 against the observed range. */
+function normalise(metric: SimilarityMetric, value: number, ranges: Map<SimilarityMetric, MetricRange>): number {
+  const r = ranges.get(metric)
+  if (!r) return 0
+  if (r.max === r.min) return 0 // the whole country agrees; the figure cannot separate areas
+  return (value - r.min) / (r.max - r.min)
 }
 
 export interface SimilarArea {
@@ -99,31 +156,47 @@ export interface SimilarArea {
 }
 
 /**
- * Weighted distance between two areas, over the dimensions both carry.
+ * The dimensions a comparison actually uses: the reader weighted them, and the
+ * origin carries them. An origin figure that is absent cannot be compared, so it
+ * is not fair to require it of candidates either — but the panel states how many
+ * dimensions the comparison runs on, so a reader whose origin carries two of four
+ * knows the match is on two.
+ */
+export function comparisonDims(origin: AreaRow, weights: Weights): SimilarityMetric[] {
+  return SIMILARITY_METRICS.filter(
+    (m) => (weights[m] ?? 0) > 0 && origin.metrics[m] !== null && origin.metrics[m] !== undefined,
+  )
+}
+
+/**
+ * Weighted distance between two areas, over the comparison dimensions.
  *
- * A metric missing from either side is skipped and the weights renormalised over
- * what remains, for the same reason `scoring.ts` renormalises a composite: a
- * distance computed from three of four dimensions is a different measurement than
- * one from all four, and quietly treating the missing one as equal to zero would
- * make rural areas with no rent figure look closest of all.
- *
- * Returns null when the two areas share no weighted dimension at all — there is
- * no honest distance to report, and the pair must not appear in results.
+ * Both areas must carry every compared figure. The earlier version skipped a
+ * missing figure and renormalized the weights over what remained, which meant an
+ * area sharing a single dimension — with one small difference — outscored an area
+ * sharing all four with real differences, because one small number averaged alone
+ * is smaller than four honest ones averaged together. Sparse coverage won by
+ * arithmetic, not by similarity. Returns null when either area is missing a
+ * compared figure: there is no honest distance to report, and the pair must not
+ * appear in results.
  */
 export function distance(
   a: AreaRow,
   b: AreaRow,
   weights: Weights,
+  ranges: Map<SimilarityMetric, MetricRange>,
+  dims: readonly SimilarityMetric[],
 ): number | null {
   let total = 0
   let weightSum = 0
-  for (const metric of SIMILARITY_METRICS) {
+  for (const metric of dims) {
     const w = weights[metric]
     if (!w || w <= 0) continue
     const av = a.metrics[metric] ?? null
     const bv = b.metrics[metric] ?? null
-    if (av === null || bv === null) continue
-    const d = normalise(metric, av) - normalise(metric, bv)
+    // A missing figure is not a small distance. Excluded, not imputed.
+    if (av === null || bv === null) return null
+    const d = normalise(metric, av, ranges) - normalise(metric, bv, ranges)
     total += w * d * d
     weightSum += w
   }
@@ -138,7 +211,10 @@ export function distance(
  * Sorted **alphabetically by ZIP code**, not by distance. The distance is
  * computed, returned and displayed — hiding it would be worse — but it never
  * decides the order, because the order is the one thing this application
- * refuses to choose for anyone.
+ * refuses to choose for anyone. An area that does not publish all the compared
+ * figures is excluded from the results entirely; a match the tool cannot
+ * honestly score is not a match, and saying nothing about it would let the
+ * sparsest areas back in by the same arithmetic that produced the false 0.04.
  */
 export function findSimilar(
   sweep: readonly AreaRow[],
@@ -146,13 +222,17 @@ export function findSimilar(
   weights: Weights,
   cutoff: number = DEFAULT_CUTOFF,
 ): SimilarArea[] {
+  const dims = comparisonDims(origin, weights)
+  if (dims.length === 0) return []
+  const ranges = computeRanges(sweep, dims)
+
   const out: SimilarArea[] = []
   for (const row of sweep) {
     if (row.zcta === origin.zcta) continue
-    const d = distance(origin, row, weights)
+    const d = distance(origin, row, weights, ranges, dims)
     if (d === null || d > cutoff) continue
     const figures: Partial<Record<SimilarityMetric, number | null>> = {}
-    for (const metric of SIMILARITY_METRICS) figures[metric] = row.metrics[metric] ?? null
+    for (const metric of dims) figures[metric] = row.metrics[metric] ?? null
     out.push({ zcta: row.zcta, distance: d, figures })
   }
   // A-Z by ZIP code. Deliberate: see the function comment.
@@ -161,9 +241,9 @@ export function findSimilar(
 }
 
 /** The origin's own figures, to sit beside each result in the breakdown. */
-export function originFigures(origin: AreaRow): Partial<Record<SimilarityMetric, number | null>> {
+export function originFigures(origin: AreaRow, dims?: readonly SimilarityMetric[]): Partial<Record<SimilarityMetric, number | null>> {
   const figures: Partial<Record<SimilarityMetric, number | null>> = {}
-  for (const metric of SIMILARITY_METRICS) figures[metric] = origin.metrics[metric] ?? null
+  for (const metric of dims ?? SIMILARITY_METRICS) figures[metric] = origin.metrics[metric] ?? null
   return figures
 }
 
