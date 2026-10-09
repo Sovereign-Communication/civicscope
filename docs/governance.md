@@ -116,8 +116,9 @@ Still open, in rough order of how much they would matter:
 3. Record who holds the Cloudflare Pages account, and what happens to the
    deployment if they stop paying.
 4. Publish a change-log or incident record, so that "verified" has a history
-   rather than being a claim about the current state only. This is the one item
-   that is genuinely just work.
+   rather than being a claim about the current state only. **Done:** `docs/CHANGELOG.md`
+   carries one entry per change that altered what a reader sees, what a claim
+   relied on, or what the gate enforces, with the finding that prompted it.
 
-Items 3 and 4 are decisions and work respectively, and pretending they are
-already done would be the exact overclaiming this document exists to prevent.
+Item 3 is a decision, not work; pretending otherwise would be the exact
+overclaiming this document exists to prevent.

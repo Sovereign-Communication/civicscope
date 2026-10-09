@@ -1,6 +1,8 @@
 import { registry } from '../core/useHousingQuery'
 import { SCORE_RULES, SCORE_VERSION } from '../core/scoring'
 import { CENSUS_ATTRIBUTION } from '../core/censusKey'
+import { METRIC_DEFS_BY_KEY, METRIC_KEYS, tableOfMetric, VINTAGE } from '../core/plugins/acs'
+import { isSortableMetricKey } from '../core/sortable-surface'
 
 /**
  * The methodology page is generated from the plugin registry and the scoring
@@ -81,6 +83,61 @@ export function Methodology() {
           The full position, including what would have to change for the claim to be stronger, is in{' '}
           <code>docs/governance.md</code> in the source repository.
         </p>
+      </section>
+
+      {/*
+        The figure dictionary. Generated from METRIC_DEFS_BY_KEY at render, not
+        written by hand, so a metric cannot appear in the app without appearing
+        here and cannot be described here except by its own registry entry. The
+        sortable column is derived from the same allowlist the sort controls are
+        typed against, which is the mechanism that keeps a demographic figure
+        from ever becoming an ordering control — the one thing this table must
+        be able to state truthfully.
+      */}
+      <section aria-labelledby="figures-heading">
+        <h2 id="figures-heading" className="section-title">
+          Every figure, and what it means
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Every figure this tool shows, from the American Community Survey {VINTAGE} 5-year estimates. Generated from
+          the same registry the application renders from, so this list cannot drift from what is on screen. You can
+          sort the screening table by five of these figures; the rest are shown for reading only, because ordering
+          places by the age or education of the people in them would be this tool ranking neighbourhoods by who
+          lives there.
+        </p>
+        <table className="mt-3 w-full text-left text-sm">
+          <caption className="px-3 py-2 text-left text-xs text-slate-600">
+            {METRIC_KEYS.length} figures, each with the Census table it comes from. Any number can be re-fetched from
+            that table and checked.
+          </caption>
+          <thead className="border-b border-slate-200">
+            <tr>
+              <th scope="col" className="px-3 py-2 font-semibold text-slate-700">Figure</th>
+              <th scope="col" className="px-3 py-2 font-semibold text-slate-700">What it measures</th>
+              <th scope="col" className="px-3 py-2 font-semibold text-slate-700">Table</th>
+              <th scope="col" className="px-3 py-2 font-semibold text-slate-700">Sortable</th>
+            </tr>
+          </thead>
+          <tbody>
+            {METRIC_KEYS.map((key) => {
+              const def = METRIC_DEFS_BY_KEY.get(key)
+              if (!def) return null
+              const sortable = isSortableMetricKey(key)
+              return (
+                <tr key={key} className="border-b border-slate-100 align-top">
+                  <th scope="row" className="px-3 py-2 font-medium text-slate-900">
+                    {def.label}
+                  </th>
+                  <td className="px-3 py-2 text-slate-700">{def.note}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-slate-600">{tableOfMetric(key) ?? 'ACS'}</td>
+                  <td className="px-3 py-2 text-slate-700">
+                    {sortable ? 'Yes, you choose the order' : 'No, reading only'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </section>
 
       <section aria-labelledby="data-heading">

@@ -28,7 +28,7 @@ import { fetchCached } from '../executor'
 import type { MetricValue, PluginRequest, QueryContext, SourceRef } from '../types'
 
 const DATASET = 'acs/acs5'
-const VINTAGE = '2023'
+export const VINTAGE = '2023'
 
 /** ACS variable identifiers, each verified against the live variables API. */
 export const VARS = {
@@ -53,12 +53,42 @@ export const VARS = {
   /** Total population. */
   population: 'B01003_001E',
   vacantUnits: 'B25002_003E',
-  noBroadband: 'B28002_003E',
-  personsPerHousehold: 'B25010_001E',
+  /**
+   * Households with no internet subscription of any kind. B28002_003, a count.
+   * The internal name says what the publisher publishes, not what an earlier
+   * draft hoped for: there is no broadband-specific column in this table.
+   */
+  noInternetSubscription: 'B28002_003E',
+  /** Average household size, published directly. B25010_001. */
+  averageHouseholdSize: 'B25010_001E',
+  /** Median age in years. */
   medianAge: 'B01002_001E',
-  povertyRate: 'B17001_002E',
-  bachelorsOrHigher: 'B15003_003E',
-  meanCommuteMinutes: 'B08301_001E',
+  /**
+   * People whose income in the past 12 months was below the poverty level.
+   * B17001_002 is a count, not a rate — an earlier draft named it "povertyRate"
+   * and never divided by anything, so the label would have been a lie with a
+   * real number in it. The count is what the publisher publishes.
+   */
+  belowPovertyCount: 'B17001_002E',
+  /**
+   * Adults whose highest attainment is a bachelor's degree. B15003_022 — an
+   * earlier draft requested B15003_003, which is a high-school diploma, under
+   * the name "bachelorsOrHigher": the wrong column fetched, named after a
+   * category it does not measure. Neither the wrong variable nor the "or higher"
+   * sum is published as a single figure; this is the bachelor's count alone,
+   * labelled exactly.
+   */
+  bachelorsCount: 'B15003_022E',
+  /**
+   * Mean travel time to work in minutes. B08303_001 — an earlier draft requested
+   * B08301_001, which is the count of workers aged 16 and over, under the name
+   * "meanCommuteMinutes": a headcount that would have rendered as "36 minutes"
+   * because nobody ever displayed it. Found while wiring these seven variables
+   * to the interface for the first time, on 2026-10-08: they had been fetched on
+   * every national sweep since R7 shipped and then discarded, unnamed and
+   * unshown, which is why three wrong column IDs survived.
+   */
+  meanCommuteMinutes: 'B08303_001E',
 } as const
 
 const TABLE_OF: Record<string, string> = {
@@ -70,6 +100,23 @@ const TABLE_OF: Record<string, string> = {
   renterOccupied: 'B25003',
   ownerOccupied: 'B25003',
   population: 'B01003',
+  vacantUnits: 'B25002',
+  noInternetSubscription: 'B28002',
+  averageHouseholdSize: 'B25010',
+  medianAge: 'B01002',
+  belowPovertyCount: 'B17001',
+  bachelorsCount: 'B15003',
+  meanCommuteMinutes: 'B08303',
+}
+
+/** The Census table a metric key comes from, for the methodology dictionary. */
+export function tableOfMetric(key: string): string | null {
+  // metric key → column ID (reverse of METRIC_FOR_VAR) → VARS name (reverse of
+  // VARS) → table. TABLE_OF is keyed by VARS name, so both reversals are needed.
+  const varId = Object.keys(METRIC_FOR_VAR).find((v) => METRIC_FOR_VAR[v] === key)
+  if (!varId) return null
+  const varsName = Object.keys(VARS).find((k) => VARS[k as keyof typeof VARS] === varId)
+  return varsName ? TABLE_OF[varsName] ?? null : null
 }
 
 function source(tableId: string, url: string): SourceRef {
@@ -284,9 +331,76 @@ const METRIC_DEFS: {
     betterWhen: 'lower',
     note: 'Units occupied by renters.',
   },
+  {
+    key: 'owner_occupied',
+    label: 'Owner-occupied units',
+    unit: 'count',
+    category: 'demographics',
+    betterWhen: 'higher',
+    note: 'Units occupied by their owners. Fetched and mapped since the screen first shipped, but missing from this registry until a completeness test was written for it on 2026-10-08 — until then the figure was fetched and never displayed.',
+  },
+  {
+    key: 'vacant_units',
+    label: 'Vacant units',
+    unit: 'count',
+    category: 'cost',
+    betterWhen: 'lower',
+    note: 'Housing units with nobody living in them, of any kind: for sale, for rent, seasonal or otherwise. A high count can mean a resort town as easily as abandonment.',
+  },
+  {
+    key: 'no_internet_subscription',
+    label: 'Households with no internet subscription',
+    unit: 'count',
+    category: 'demographics',
+    betterWhen: 'lower',
+    note: 'Households the Census Bureau classifies as having no internet subscription of any kind in the past 30 days, including cellular data plans. A count of households, not a share.',
+  },
+  {
+    key: 'average_household_size',
+    label: 'Average household size',
+    unit: 'ratio',
+    category: 'demographics',
+    betterWhen: 'higher',
+    note: 'The average number of people per household, published directly by the Census Bureau.',
+  },
+  {
+    key: 'median_age',
+    label: 'Median age',
+    unit: 'count',
+    category: 'demographics',
+    betterWhen: 'higher',
+    note: 'Age in years, as published. Shown for reading; never offered as a sort or filter control, because ordering places by the age of the people in them is not a question this tool will answer for you.',
+  },
+  {
+    key: 'below_poverty_count',
+    label: 'People below the poverty line',
+    unit: 'count',
+    category: 'demographics',
+    betterWhen: 'lower',
+    note: 'People whose income in the past 12 months was below the federal poverty level. A count of people, not a share — compare it against population to read it.',
+  },
+  {
+    key: 'bachelors_count',
+    label: 'Adults with a bachelor\u2019s degree',
+    unit: 'count',
+    category: 'education',
+    betterWhen: 'higher',
+    note: 'People aged 25 and over whose highest attainment is a bachelor\u2019s degree. Degrees above bachelor\u2019s are not included; the publisher has no single column for them.',
+  },
+  {
+    key: 'mean_commute_minutes',
+    label: 'Mean commute time',
+    unit: 'count',
+    category: 'labor',
+    betterWhen: 'lower',
+    note: 'Average minutes spent travelling to work, one way, for workers aged 16 and over.',
+  },
 ]
 
 export const METRIC_DEFS_BY_KEY = new Map(METRIC_DEFS.map((d) => [d.key, d]))
+
+/** Every metric key this plugin can produce, in registry order. */
+export const METRIC_KEYS: readonly string[] = METRIC_DEFS.map((d) => d.key)
 
 /**
  * Variables requested for the country-wide screen.
@@ -345,16 +459,16 @@ export const SCREEN_VARS = [
   VARS.ownerOccupied,
   VARS.renterOccupied,
   VARS.vacantUnits,
-  VARS.noBroadband,
-  VARS.personsPerHousehold,
+  VARS.noInternetSubscription,
+  VARS.averageHouseholdSize,
   VARS.medianAge,
-  VARS.povertyRate,
-  VARS.bachelorsOrHigher,
+  VARS.belowPovertyCount,
+  VARS.bachelorsCount,
   VARS.meanCommuteMinutes,
 ]
 
-/** Everything else, fetched only for a selected area. */
-const DETAIL_VARS = [
+/** Everything else, fetched only for a selected area. Exported for the completeness test. */
+export const DETAIL_VARS = [
   VARS.medianGrossRent,
   VARS.medianGrossRentMoe,
   VARS.medianHomeValue,
@@ -364,13 +478,37 @@ const DETAIL_VARS = [
   VARS.medianRentBurden,
   VARS.medianRentBurdenMoe,
   VARS.households,
+  // Households, population and the owner/renter split were fetched for the
+  // detail view without their published margins, so the drilldown showed them
+  // as bare point estimates — the one presentation this app exists to avoid.
+  // Found by the "every detail estimate that has a published margin requests
+  // it" test in tests/metric-registry.test.ts, which then failed on the four
+  // figures that predate it.
+  'B25001_001M',
   VARS.population,
+  'B01003_001M',
   VARS.renterOccupied,
+  'B25003_003M',
   VARS.ownerOccupied,
+  'B25003_002M',
+  VARS.vacantUnits,
+  'B25002_003M',
+  VARS.noInternetSubscription,
+  'B28002_003M',
+  VARS.averageHouseholdSize,
+  VARS.averageHouseholdSize.replace(/E$/, 'M'),
+  VARS.medianAge,
+  VARS.medianAge.replace(/E$/, 'M'),
+  VARS.belowPovertyCount,
+  'B17001_002M',
+  VARS.bachelorsCount,
+  'B15003_022M',
+  VARS.meanCommuteMinutes,
+  VARS.meanCommuteMinutes.replace(/E$/, 'M'),
 ]
 
-/** Maps an ACS variable to the metric key the UI uses. */
-const METRIC_FOR_VAR: Record<string, string> = {
+/** Maps an ACS variable to the metric key the UI uses. Exported for the completeness test. */
+export const METRIC_FOR_VAR: Record<string, string> = {
   [VARS.medianGrossRent]: 'median_gross_rent',
   [VARS.medianHomeValue]: 'median_home_value',
   [VARS.medianHouseholdIncome]: 'median_household_income',
@@ -379,6 +517,13 @@ const METRIC_FOR_VAR: Record<string, string> = {
   [VARS.population]: 'population',
   [VARS.renterOccupied]: 'renter_occupied',
   [VARS.ownerOccupied]: 'owner_occupied',
+  [VARS.vacantUnits]: 'vacant_units',
+  [VARS.noInternetSubscription]: 'no_internet_subscription',
+  [VARS.averageHouseholdSize]: 'average_household_size',
+  [VARS.medianAge]: 'median_age',
+  [VARS.belowPovertyCount]: 'below_poverty_count',
+  [VARS.bachelorsCount]: 'bachelors_count',
+  [VARS.meanCommuteMinutes]: 'mean_commute_minutes',
 }
 
 /**
@@ -458,7 +603,13 @@ export function areaRowFromRaw(header: readonly string[], rows: readonly (readon
           if (reason) absent[key] = reason
         }
       }
-      const m = col(varName.replace(/_001E$/, '_001M'))
+      // The margin column is the estimate's ID with E replaced by M. An earlier
+      // version derived it as _001E -> _001M, which only matches the first
+      // estimate of a table — so for B25002_003E (vacant units) it produced the
+      // estimate's own column ID, and the drilldown would have shown each of
+      // those figures as its own margin of error. Found while verifying the
+      // seven figures before they shipped, before a single reader saw it.
+      const m = col(varName.replace(/E$/, 'M'))
       if (m >= 0) {
         const v = toNum(row[m])
         if (v !== null) moes[key] = v
@@ -547,3 +698,5 @@ export const acsHousingPlugin: PluginRequest = {
     return row ? rowToMetrics(row) : []
   },
 }
+
+
