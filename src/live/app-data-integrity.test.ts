@@ -24,19 +24,34 @@ const BASE = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:4173'
 const KEY = process.env.CENSUS_KEY
 
 /**
- * The five columns the nationwide screen fetches. Must equal SCREEN_VARS in
- * src/core/plugins/acs.ts, and the gate checks that it does.
+ * Every figure the nationwide screen fetches — all fifteen, since the v6/v7
+ * figure set. Must equal SCREEN_VARS in src/core/plugins/acs.ts, and the gate
+ * checks that it does. Until 2026-10-09 this compared only the five cost
+ * columns, which meant ten fetched figures were displayed to users and
+ * verified against the publisher by nobody; extending the map extended the
+ * audit to everything the app claims.
  *
- * Deliberately does not include tenure. It is a drilldown-only figure, and an
- * audit that compared it would report a defect for every row of the country for
- * a column the app never claimed to fetch.
+ * Margins are compared for the five medians the sweep carries margins for; the
+ * ten context figures are fetched estimate-only by the screen (their margins
+ * are drilldown-only), so there is nothing to compare and the audit says so
+ * rather than inventing a column.
  */
-const COLUMNS: Record<string, string> = {
-  median_gross_rent: 'B25064_001E',
-  median_rent_burden_pct: 'B25071_001E',
-  median_home_value: 'B25077_001E',
-  median_household_income: 'B19013_001E',
-  households: 'B25002_002E',
+const COLUMNS: Record<string, { est: string; moe?: string }> = {
+  median_gross_rent: { est: 'B25064_001E', moe: 'B25064_001M' },
+  median_rent_burden_pct: { est: 'B25071_001E', moe: 'B25071_001M' },
+  median_home_value: { est: 'B25077_001E', moe: 'B25077_001M' },
+  median_household_income: { est: 'B19013_001E', moe: 'B19013_001M' },
+  households: { est: 'B25002_002E', moe: 'B25002_002M' },
+  population: { est: 'B01003_001E' },
+  owner_occupied: { est: 'B25003_002E' },
+  renter_occupied: { est: 'B25003_003E' },
+  vacant_units: { est: 'B25002_003E' },
+  no_internet_access: { est: 'B28002_013E' },
+  average_household_size: { est: 'B25010_001E' },
+  median_age: { est: 'B01002_001E' },
+  below_poverty_count: { est: 'B17001_002E' },
+  bachelors_count: { est: 'B15003_022E' },
+  commuting_workers: { est: 'B08303_001E' },
 }
 
 const SENTINELS = new Set([666666666, -666666666, 999999999, -999999999, 888888888, -888888888])
@@ -117,7 +132,9 @@ describe.skipIf(!KEY)('what the app shows is what the Census Bureau says', () =>
     sample = all.filter((_, i) => i % step === 0)
     expect(sample.length).toBeGreaterThan(500)
 
-    const vars = Object.values(COLUMNS).join(',')
+    const vars = Object.values(COLUMNS)
+      .flatMap((c) => [c.est, c.moe].filter(Boolean))
+      .join(',')
     for (let i = 0; i < sample.length; i += 800) {
       const part = sample.slice(i, i + 800)
       const url =
@@ -144,8 +161,8 @@ describe.skipIf(!KEY)('what the app shows is what the Census Bureau says', () =>
         const app = appRows.find((r) => r.zcta === zcta)
         expect(app, `the app does not hold ${zcta}`).toBeDefined()
 
-        for (const [metric, v] of Object.entries(COLUMNS)) {
-          const rawEst = o[v]
+        for (const [metric, col] of Object.entries(COLUMNS)) {
+          const rawEst = o[col.est]
           let truth: number | null = null
           if (rawEst !== undefined && rawEst !== null && rawEst !== '') {
             const n = Number(rawEst)
@@ -166,7 +183,36 @@ describe.skipIf(!KEY)('what the app shows is what the Census Bureau says', () =>
             continue
           }
           if (Math.abs(shown - truth) > Math.max(0.01, Math.abs(truth) * 1e-9)) {
-            defects.push(`${zcta} ${metric}: app ${shown} vs API ${truth} (from ${v})`)
+            defects.push(`${zcta} ${metric}: app ${shown} vs API ${truth} (from ${col.est})`)
+          }
+
+          /*
+           * The margin, compared where the sweep carries one. The screen fetches
+           * margins only for the five medians; the ten context figures are
+           * estimate-only on the screen, so there is no app margin to hold
+           * against the publisher and the audit says so rather than reporting
+           * thousands of phantom "dropped margin" defects for a column the
+           * screen never claimed — the exact mistake this file's own history
+           * records once making in the other direction.
+           */
+          if (col.moe) {
+            const rawMoe = o[col.moe]
+            let truthMoe: number | null = null
+            if (rawMoe !== undefined && rawMoe !== null && rawMoe !== '') {
+              const mn = Number(rawMoe)
+              if (SENTINELS.has(mn)) truthMoe = null
+              else if (Number.isFinite(mn)) truthMoe = mn
+            }
+            const shownMoe = app!.moes?.[metric] ?? null
+            if (truthMoe !== null && shownMoe === null) {
+              defects.push(`${zcta} ${metric}: API margin +/-${truthMoe}, app shows none`)
+            } else if (truthMoe === null && shownMoe !== null) {
+              defects.push(`${zcta} ${metric}: app margin +/-${shownMoe}, API has none`)
+            } else if (truthMoe !== null && shownMoe !== null) {
+              if (Math.abs(shownMoe - truthMoe) > Math.max(0.01, Math.abs(truthMoe) * 1e-9)) {
+                defects.push(`${zcta} ${metric} margin: app ${shownMoe} vs API ${truthMoe}`)
+              }
+            }
           }
         }
       }

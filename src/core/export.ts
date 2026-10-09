@@ -8,32 +8,42 @@
  * difference between reading the data and being able to use it, and it costs no
  * server, no account and no new request — the rows are already in memory.
  *
- * Two decisions, both of which deviate from the plan on purpose:
+ * The columns are generated from the metric registry (`METRIC_KEYS`), not
+ * hand-written. Until 2026-10-09 the export carried five figures because it
+ * had its own hand-maintained list, which is exactly how an export drifts from
+ * the app: ten figures the sweep was already fetching and displaying in the
+ * drilldown were missing from the file. Every registered figure now exports,
+ * each with its margin in a neighbouring `_moe` column when the row carries
+ * one, so the file preserves the pairing the interface insists on — a survey
+ * estimate without its precision is the thing this app exists to avoid.
  *
- * **Raw numbers, not formatted strings.** The plan asked for separate unit
- * columns (`rent` then `rent_unit = "USD"`); that duplicates a constant down
- * 33,791 rows to say something the header can say once. The header names carry
- * the unit instead — `median_gross_rent_usd_monthly` — and every cell is the
- * number the publisher published. A spreadsheet's job is formatting; shipping
- * pre-formatted strings means shipping `$1,234` that no tool can sort.
+ * Two decisions, both of which deviate from the original plan on purpose:
  *
- * **Missing values are empty cells, not "N/A".** The plan asked for N/A. Empty is
- * what a spreadsheet and every dataframe reader parse as missing; N/A forces the
- * column to text and silently breaks arithmetic on the values that are present.
- * The absence is not hidden — an empty cell in a CSV is the conventional, honest
- * representation of "the publisher published no value here", and the app itself
- * distinguishes the reasons in its own UI where there is room to.
+ * **Raw numbers, not formatted strings.** Headers carry the unit
+ * (`median_gross_rent_usd_monthly`); every cell is the number the publisher
+ * published. A spreadsheet's job is formatting; shipping pre-formatted strings
+ * means shipping "$1,450" that no tool can sort.
+ *
+ * **Missing values are empty cells, not "N/A".** Empty is what every
+ * spreadsheet and dataframe reader parses as missing; an "N/A" string forces
+ * the column to text and silently breaks arithmetic on the values that are
+ * present. The app itself still distinguishes the reasons for an absence in
+ * its own UI, where there is room to.
  *
  * **Formula injection is treated as an attack.** Cell values here come from the
- * Census Bureau, so an attacker-controlled string is unlikely — but the city names
- * arrive via a baked file that a future contributor could regenerate from a
- * different source, and the export must not become the one place a spreadsheet
+ * Census Bureau, so an attacker-controlled string is unlikely — but the city
+ * names arrive via a baked file a future contributor could regenerate from
+ * another source, and an export must not become the one place a spreadsheet
  * executes something. Any value beginning with `=`, `+`, `-`, `@`, a tab or a
- * carriage return is prefixed with an apostrophe, which every major spreadsheet
- * reads as literal text. This is the OWASP guidance for CSV, and the cost is zero
- * when nothing matches.
+ * carriage return gets a leading apostrophe, which every major spreadsheet
+ * reads as literal text. This is the OWASP guidance for CSV, and it costs
+ * nothing when nothing matches.
+ *
+ * The export preserves the order the reader last sorted by, deliberately: the
+ * alternative would mean this module owning a definition of "the right order",
+ * which is the ranking decision this application does not make.
  */
-import type { AreaRow } from './plugins/acs'
+import { METRIC_KEYS, METRIC_DEFS_BY_KEY, type AreaRow } from './plugins/acs'
 
 /** Characters that make a spreadsheet treat a cell as a formula. */
 const FORMULA_PREFIXES = new Set(['=', '+', '-', '@', '\t', '\r'])
@@ -52,16 +62,30 @@ export function escapeCell(value: string): string {
   return needsQuotes ? `"${guarded.replace(/"/g, '""')}"` : guarded
 }
 
-/** The columns, in order. Kept as data so the test can assert header and rows agree. */
+/** Unit suffixes for the header, so the file states what each number is. */
+const UNIT_SUFFIX: Record<string, string> = {
+  median_gross_rent: 'usd_monthly',
+  median_home_value: 'usd',
+  median_household_income: 'usd',
+  median_rent_burden_pct: 'percent',
+  average_household_size: 'persons',
+}
+
+/** zcta, city and state first, then every registered figure and its margin. */
 export const COLUMNS = [
   { key: 'zcta', header: 'zcta' },
   { key: 'city', header: 'city' },
   { key: 'state', header: 'state' },
-  { key: 'median_rent_burden_pct', header: 'median_rent_burden_pct_percent' },
-  { key: 'median_gross_rent', header: 'median_gross_rent_usd_monthly' },
-  { key: 'median_home_value', header: 'median_home_value_usd' },
-  { key: 'median_household_income', header: 'median_household_income_usd' },
-  { key: 'households', header: 'households_count' },
+  ...METRIC_KEYS.flatMap((key) => {
+    const def = METRIC_DEFS_BY_KEY.get(key)
+    const unit = UNIT_SUFFIX[key] ?? def?.unit ?? ''
+    const header = unit ? `${key}_${unit}` : key
+    const moeHeader = unit ? `${key}_moe` : `${key}_moe`
+    return [
+      { key, header, isMetric: true as const },
+      { key, header: moeHeader, isMetric: false as const },
+    ]
+  }),
 ] as const
 
 export interface ExportOptions {
@@ -72,11 +96,9 @@ export interface ExportOptions {
 /**
  * Builds the CSV for the loaded rows.
  *
- * The rows arrive in whatever order the caller last sorted them, and the export
- * preserves that order deliberately: a person who sorted by rent before exporting
- * gets a file in that order, and the alternative — re-sorting here — would mean
- * this module owning a definition of "the right order", which is exactly the
- * ranking decision this application does not make.
+ * A metric cell is the row's value or empty; a margin cell is the row's margin
+ * or empty. Neither is ever zero: null means the publisher published nothing,
+ * and writing anything else would invent a figure.
  */
 export function toCsv(rows: readonly AreaRow[], options: ExportOptions = {}): string {
   const header = COLUMNS.map((c) => escapeCell(c.header)).join(',')
@@ -92,10 +114,12 @@ export function toCsv(rows: readonly AreaRow[], options: ExportOptions = {}): st
       if (col.key === 'zcta') return escapeCell(row.zcta)
       if (col.key === 'city') return escapeCell(city)
       if (col.key === 'state') return escapeCell(state)
-      const value = row.metrics[col.key] ?? null
-      // null is an empty cell, not a zero and not a placeholder: the publisher
-      // published no value, and writing anything else would invent one.
-      return value === null ? '' : String(value)
+      if ('isMetric' in col && col.isMetric) {
+        const value = row.metrics[col.key] ?? null
+        return value === null ? '' : String(value)
+      }
+      const moe = row.moes?.[col.key] ?? null
+      return moe === null ? '' : String(moe)
     })
     return cells.join(',')
   })

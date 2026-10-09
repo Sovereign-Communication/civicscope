@@ -27,27 +27,48 @@ const KEY = process.env.CENSUS_KEY
 const OUT = 'audit'
 
 /**
- * The five columns the nationwide screen actually fetches, which is SCREEN_VARS
- * in src/core/plugins/acs.ts.
+ * Every figure the nationwide screen fetches, which is SCREEN_VARS in
+ * src/core/plugins/acs.ts: five medians with their margins, and ten context
+ * figures. Until 2026-10-09 this audit covered only the five cost columns,
+ * which meant ten fetched figures were being paid for on every chunk request
+ * and verified by nobody.
  *
- * An earlier version of this audit also compared renter-occupied and
- * owner-occupied units and reported 67,544 defects for them. Those were the
- * audit's error rather than the app's: tenure is deliberately a drilldown-only
- * figure, because the nationwide screen is a cost screen and adding two columns
- * to all 43 requests to carry a figure nobody screens on is the wrong trade. The
- * app showing nothing for a column it never claimed is correct behaviour, and an
- * audit that cannot tell the difference will eventually condemn it.
+ * Two corrections recorded here because they were this audit's own errors:
+ *
+ * An earlier version also compared renter- and owner-occupied units and
+ * reported 67,544 defects. Those were the audit's error: tenure was then a
+ * drilldown-only figure, the screen showing nothing for a column it never
+ * claimed was correct, and an audit that cannot tell the difference will
+ * eventually condemn the app for being right.
+ *
+ * And the households entry read B25001_001E — total housing units, vacant
+ * included — after the app was corrected to B25002_002E (occupied) on
+ * 2026-10-09. Until the reference was corrected with it, this audit would have
+ * condemned the fix as thousands of defects: the app showing occupied units
+ * against a reference fetching total units is exactly the cell-by-cell
+ * disagreement this tool exists to detect, and it fires on whichever side is
+ * wrong, including its own.
  */
 const COLUMNS = {
   median_gross_rent: { est: 'B25064_001E', moe: 'B25064_001M' },
   median_rent_burden_pct: { est: 'B25071_001E', moe: 'B25071_001M' },
   median_home_value: { est: 'B25077_001E', moe: 'B25077_001M' },
   median_household_income: { est: 'B19013_001E', moe: 'B19013_001M' },
-  households: { est: 'B25001_001E', moe: 'B25001_001M' },
+  households: { est: 'B25002_002E', moe: 'B25002_002M' },
+  // The ten context figures the screen has carried since the R7 work; verified
+  // against the publisher's own variable definitions on 2026-10-09 after three
+  // of them proved to be the wrong columns entirely.
+  population: { est: 'B01003_001E' },
+  owner_occupied: { est: 'B25003_002E' },
+  renter_occupied: { est: 'B25003_003E' },
+  vacant_units: { est: 'B25002_003E' },
+  no_internet_access: { est: 'B28002_013E' },
+  average_household_size: { est: 'B25010_001E' },
+  median_age: { est: 'B01002_001E' },
+  below_poverty_count: { est: 'B17001_002E' },
+  bachelors_count: { est: 'B15003_022E' },
+  commuting_workers: { est: 'B08303_001E' },
 }
-
-/** Checked separately, because the app must not claim them and must not have them. */
-const NOT_CLAIMED = ['renter_occupied', 'owner_occupied']
 /**
  * Must match ACS_SENTINELS in src/core/plugins/acs.ts.
  *
@@ -208,16 +229,10 @@ for (let i = 0; i < zctas.length; i += CHUNK) {
       continue
     }
 
-    for (const unclaimed of NOT_CLAIMED) {
-      if (app.metrics && unclaimed in app.metrics && app.metrics[unclaimed] !== undefined) {
-        defects.push({
-          kind: 'unclaimed-column',
-          zcta,
-          metric: unclaimed,
-          detail: 'the nationwide screen carries a figure it does not claim to fetch',
-        })
-      }
-    }
+    // Tenure is now claimed (it is in COLUMNS above), so the old
+    // "unclaimed-column" check has nothing left to guard. The sweep rows now
+    // carry all fifteen figures, so the cell-by-cell comparison below covers
+    // everything, and a figure the screen does not claim cannot exist to find.
 
     for (const [metric, col] of Object.entries(COLUMNS)) {
       const rawEst = o[col.est]

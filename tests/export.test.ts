@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { COLUMNS, escapeCell, toCsv, type ExportOptions } from '../src/core/export'
+import { METRIC_KEYS } from '../src/core/plugins/acs'
 import type { AreaRow } from '../src/core/plugins/acs'
 
 const row = (over: Partial<AreaRow> = {}): AreaRow => ({
@@ -26,6 +27,34 @@ const row = (over: Partial<AreaRow> = {}): AreaRow => ({
 })
 
 const placeLabel = (zip: string) => (zip === '78701' ? 'Austin, TX' : null)
+
+/** Counts CSV fields respecting quoting, which a naive split cannot do. */
+function countFields(line: string): number {
+  let fields = 0
+  let inQuotes = false
+  for (const ch of line) {
+    if (ch === '"') inQuotes = !inQuotes
+    else if (ch === ',' && !inQuotes) fields++
+  }
+  return fields + 1
+}
+
+/** Parses one CSV line into a header-name -> cell map, respecting quoting. */
+function parseLine(line: string): Record<string, string> {
+  const cells: string[] = []
+  let field = ''
+  let inQuotes = false
+  for (const ch of line) {
+    if (ch === '"') inQuotes = !inQuotes
+    if (ch === ',' && !inQuotes) {
+      cells.push(field)
+      field = ''
+    } else field += ch
+  }
+  cells.push(field)
+  const header = toCsv([row()], { placeLabel }).split('\r\n')[0]!.split(',')
+  return Object.fromEntries(header.map((h, i) => [h, cells[i] ?? '']))
+}
 
 describe('cell escaping', () => {
   it('leaves a plain value alone', () => {
@@ -61,23 +90,53 @@ describe('cell escaping', () => {
 })
 
 describe('the file', () => {
-  it('has a header naming every column, and rows with the same field count', () => {
+  it('has a header naming every registered figure and its margin, in registry order', () => {
     const csv = toCsv([row()], { placeLabel })
     const lines = csv.split('\r\n').filter((l) => l !== '')
-    expect(lines[0]).toBe(
-      'zcta,city,state,median_rent_burden_pct_percent,median_gross_rent_usd_monthly,' +
-        'median_home_value_usd,median_household_income_usd,households_count',
-    )
+    const header = lines[0]!.split(',')
+
+    // zcta, city, state, then every registry figure with a neighbouring margin
+    // column. Generated from METRIC_KEYS, so the file cannot drift from what
+    // the app displays; an export with its own hand-written list once shipped
+    // five figures while the app fetched fifteen.
+    expect(header.slice(0, 3)).toEqual(['zcta', 'city', 'state'])
+    for (const key of METRIC_KEYS) {
+      // The figure column carries the unit suffix; the margin column is bare
+      // `<key>_moe`. Both must exist for every registered figure.
+      expect(header.some((h) => h.startsWith(key)), `${key} must have a figure column`).toBe(true)
+      expect(header, `${key} must have a margin column beside it`).toContain(`${key}_moe`)
+    }
+    // Every figure column is immediately followed by its margin column — the
+    // margin's name is the bare key plus _moe, carrying no unit, because a
+    // margin is in the figure's own unit already. The pairing is positional, so
+    // the file preserves the estimate-with-precision coupling the UI insists on.
+    METRIC_KEYS.forEach((key, k) => {
+      const figureIdx = 3 + k * 2
+      expect(header[figureIdx]!.startsWith(key)).toBe(true)
+      expect(header[figureIdx + 1]).toBe(`${key}_moe`)
+    })
+    const expectedWidth = 3 + METRIC_KEYS.length * 2
     for (const line of lines) {
-      expect(line.split(',').length).toBe(COLUMNS.length)
+      expect(countFields(line)).toBe(expectedWidth)
     }
   })
 
   it('writes raw numbers, not formatted strings', () => {
     const csv = toCsv([row()], { placeLabel })
-    const data = csv.split('\r\n')[1]!
-    expect(data).toContain(',28.4,1450,510000,78000,4210')
-    expect(data).not.toMatch(/\$|,450/)
+    const data = parseLine(csv.split('\r\n')[1]!)
+    expect(data['median_rent_burden_pct_percent']).toBe('28.4')
+    expect(data['median_gross_rent_usd_monthly']).toBe('1450')
+    expect(data['median_home_value_usd']).toBe('510000')
+    expect(data['households_count']).toBe('4210')
+    expect(JSON.stringify(data)).not.toMatch(/\$/)
+  })
+
+  it('carries the margin beside its figure, or empty when the row has none', () => {
+    const csv = toCsv([row({ moes: { median_gross_rent: 120 } })], { placeLabel })
+    const data = parseLine(csv.split('\r\n')[1]!)
+    expect(data['median_gross_rent_moe']).toBe('120')
+    // A margin the row does not carry is empty, never zero and never invented.
+    expect(data['median_home_value_moe']).toBe('')
   })
 
   it('splits the place label into separate city and state columns', () => {
