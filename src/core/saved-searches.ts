@@ -61,9 +61,14 @@ export function readSaved(): SavedSearch[] {
     if (zips.length === 0) continue
     out.push({ id: e.id, name: e.name.slice(0, MAX_NAME_LENGTH), zips, savedAt: e.savedAt })
   }
-  // Newer first, for a list that reads most-recent-on-top. Stable on ties so the
-  // same storage always renders in the same order.
-  return out.sort((a, b) => b.savedAt - a.savedAt || (a.id < b.id ? -1 : 1)).slice(0, MAX_SAVED)
+  // Newest first. Array.prototype.sort is stable by specification, and the
+  // stored order is already newest-first by construction — saveSearch prepends —
+  // so entries saved within the same millisecond keep their save order. An
+  // earlier version broke ties by id string, which reorders same-millisecond
+  // saves arbitrarily; a CI runner hit exactly that, failing the newest-first
+  // assertion on two saves 0ms apart, and the honest fix is to let the sort's
+  // stability do the work rather than inventing a tiebreak.
+  return out.sort((a, b) => b.savedAt - a.savedAt).slice(0, MAX_SAVED)
 }
 
 /** True when the drawer is full and a save would be refused. */
