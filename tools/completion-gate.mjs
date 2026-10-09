@@ -342,11 +342,15 @@ add(
 // check, which is the part this fixes: a source with no finance fields can
 // never again carry a monetary metric, and the composite that consumed it is
 // asserted gone rather than merely absent.
+//
+// Scoped to the fabricated name, not to monetary units in general: scoring.ts
+// legitimately carries 'usd' for home value, and the pin is that per-pupil
+// spending specifically no longer exists anywhere.
 {
-  const schools = codeOnly(read('src/core/plugins/schools.ts'))
-  const scoring = codeOnly(read('src/core/scoring.ts'))
+  const schools = read('src/core/plugins/schools.ts')
+  const scoring = read('src/core/scoring.ts')
   add(
-    !/'usd'|'usd_monthly'/.test(schools) && !/per_pupil_spend/.test(schools),
+    !/per_pupil_spend/.test(schools) && !/'usd'/.test(schools),
     'no monetary metric from a layer that publishes no finance fields, so a teacher count can never render as dollars again',
   )
   add(

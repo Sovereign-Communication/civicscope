@@ -162,15 +162,15 @@ export async function lookupSchoolDistrict(
 
   // The EDGE admin-data layer publishes no finance field at all — its only
   // figures are schools, enrolment, teachers and the ratio. From the first
-  // version until 2026-10-09 this slot read `per_pupil_spend` from TOTTCH —
-  // the teacher count — under a dollars label: a district with 62 teachers
-  // displayed "Expenditure per pupil $62", and because the education composite
-  // weighted it 0.6, every district in the country scored 40 on that index,
-  // exactly. Found by a reader comparing their county's card against common
-  // sense. This is now the teacher count, labelled as the teacher count, and
-  // the composite is gone rather than fed: restoring per-pupil spending means
-  // a real finance source (the Census school system finances survey), not a
-  // relabelled staffing figure.
+  // version until 2026-10-09 this slot was named as an expenditure-per-pupil
+  // metric and read `TOTTCH` — the teacher count — under a dollars label: a
+  // district with 62 teachers displayed "Expenditure per pupil $62", and
+  // because the education composite weighted it 0.6, every district in the
+  // country scored 40 on that index, exactly. Found by a reader comparing
+  // their county's card against common sense. This is now the teacher count,
+  // labelled as the teacher count, and the composite is gone rather than fed:
+  // restoring per-pupil spending means a real finance source (the Census
+  // school system finances survey), not a relabelled staffing figure.
   push('teachers_total', 'Teachers in district', attrs.TOTTCH, 'count', '', 'higher',
     'Teachers reported by the district, all types. A staffing input, not a measure of teaching quality.')
   push('student_teacher_ratio', 'Students per teacher', attrs.STUTERATIO, 'ratio', '', 'lower',
