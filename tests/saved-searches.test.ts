@@ -108,4 +108,22 @@ describe('saved searches', () => {
     localStorage.setItem('civicscope.saved-searches.v1', '[{"name":"no id or zips"}]')
     expect(readSaved()).toEqual([])
   })
+
+  it('keeps save order for saves that land in the same millisecond', () => {
+    // A CI runner made two saves 0ms apart and the newest-first assertion
+    // failed: the store broke savedAt ties by id string, which orders by
+    // random id characters rather than by anything. The sort is stable and the
+    // stored order is newest-first by construction, so a tie now keeps save
+    // order. Freezing the clock forces the tie on purpose; without the freeze
+    // the test passes vacuously whenever the runner is slower than 1ms.
+    const realNow = Date.now
+    Date.now = () => 1700000000000
+    try {
+      saveSearch('First', ['78701'])
+      saveSearch('Second', ['10001'])
+      expect(readSaved().map((s) => s.name)).toEqual(['Second', 'First'])
+    } finally {
+      Date.now = realNow
+    }
+  })
 })
