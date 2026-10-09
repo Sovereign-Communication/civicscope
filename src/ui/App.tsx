@@ -6,6 +6,7 @@ import { GuidedTour, TourNotice, shouldShowTour } from './GuidedTour'
 import { applyFigureFilters, FIGURE_FILTERS } from '../core/figure-filters'
 import { decodeUrl, urlForSelection } from '../core/url-state'
 import { SimilarityPanel } from './SimilarityPanel'
+import { SavedSearches } from './SavedSearches'
 import type { SortableMetricKey } from '../core/sortable-surface'
 import { KeyPrompt } from './KeyPrompt'
 import { Methodology } from './Methodology'
@@ -780,6 +781,17 @@ export default function App() {
             {q.selected.length > 0 && q.sweepStatus !== 'ready' && (
               <Comparison drilldowns={q.drilldowns} onDeselect={q.deselect} placeLabel={placeLabel} />
             )}
+
+            {/*
+              Saved comparisons, mounted unconditionally in the explore view. The
+              panel hides itself when there is nothing to save and nothing saved,
+              but it must NOT live inside a "selection present" branch: an empty
+              comparison is exactly when Restore matters, and a panel that
+              vanishes with the last removed area strands every saved entry.
+              Found by a browser test that emptied the comparison before
+              restoring, which is a perfectly ordinary thing for a reader to do.
+            */}
+            <SavedSearches selectedZctas={q.selectedZctas} onRestore={(zips) => zips.forEach(addZip)} />
 
             {/*
               The Fair Housing notice is rendered unconditionally whenever

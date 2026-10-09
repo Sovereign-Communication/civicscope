@@ -331,6 +331,33 @@ add(
   )
 }
 
+// The figure dictionary and the saved-comparison store.
+//
+// The dictionary exists because seven ACS variables were fetched on every
+// national sweep since the map shipped and then discarded, unnamed, while the
+// roadmap described them as shown — and three of them requested the wrong
+// Census column, which nobody noticed precisely because nothing displayed the
+// result. A completeness test now makes a fetched-but-unmapped column a
+// failure, and the methodology page renders from the registry so the
+// documentation cannot drift from the definitions.
+{
+  const methodology = read('src/ui/Methodology.tsx')
+  const registryTest = read('tests/metric-registry.test.ts')
+  const saved = read('src/core/saved-searches.ts')
+  add(
+    /METRIC_DEFS_BY_KEY/.test(methodology) && registryTest.length > 0,
+    'the methodology page documents every figure from the registry it renders from, pinned by a completeness test',
+  )
+  add(
+    /METRIC_FOR_VAR/.test(registryTest) && /DETAIL_VARS/.test(registryTest),
+    'a variable the app fetches but never maps is a test failure, so the fetched-and-discarded defect cannot recur',
+  )
+  add(
+    /encodeComparison/.test(saved) && read('tests/saved-searches.test.ts').length > 0,
+    'saved comparisons validate through the URL codec and refuse a full drawer rather than evicting',
+  )
+}
+
 // City search.
 //
 // The mapping is a committed artefact rather than a lookup, so the checks that

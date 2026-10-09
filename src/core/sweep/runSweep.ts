@@ -45,8 +45,15 @@ export interface SweepManifest {
  * by the build that shipped sentinels as numbers were stored under v1 and replayed
  * verbatim, because a cache hit skips parsing entirely. The stamp is the invalidation
  * mechanism, so a parsing change must invalidate too.
+ *
+ * v6: the screen's variable-to-key mapping grew eight keys (vacant units,
+ * no-internet households, household size, median age, poverty count, bachelor's
+ * count, mean commute, owner-occupied units). Chunks cached under v5 hold rows
+ * without those keys, which would render as a permanent labelled absence —
+ * "no figure" for figures the publisher does publish — for every returning
+ * visitor, so the stamp moves and one full refetch is the honest cost.
  */
-export const SWEEP_VERSION = 'acs5:2023:screen:v5-complete'
+export const SWEEP_VERSION = 'acs5:2023:screen:v6-figure-set'
 
 export interface SweepScope {
   /** Empty means the whole country. Otherwise a list of two-digit ZIP prefixes. */
