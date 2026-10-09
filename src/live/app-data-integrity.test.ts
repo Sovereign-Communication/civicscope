@@ -36,7 +36,7 @@ const COLUMNS: Record<string, string> = {
   median_rent_burden_pct: 'B25071_001E',
   median_home_value: 'B25077_001E',
   median_household_income: 'B19013_001E',
-  households: 'B25001_001E',
+  households: 'B25002_002E',
 }
 
 const SENTINELS = new Set([666666666, -666666666, 999999999, -999999999, 888888888, -888888888])

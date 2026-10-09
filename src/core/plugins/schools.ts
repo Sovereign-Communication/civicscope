@@ -160,12 +160,23 @@ export async function lookupSchoolDistrict(
     void derivation
   }
 
-  push('per_pupil_spend', 'Expenditure per pupil', attrs.TOTTCH, 'usd', '', 'higher',
-    'Annual district spending per student, as reported to NCES. A resource input, not a measure of teaching quality.')
+  // The EDGE admin-data layer publishes no finance field at all — its only
+  // figures are schools, enrolment, teachers and the ratio. From the first
+  // version until 2026-10-09 this slot was named as an expenditure-per-pupil
+  // metric and read `TOTTCH` — the teacher count — under a dollars label: a
+  // district with 62 teachers displayed "Expenditure per pupil $62", and
+  // because the education composite weighted it 0.6, every district in the
+  // country scored 40 on that index, exactly. Found by a reader comparing
+  // their county's card against common sense. This is now the teacher count,
+  // labelled as the teacher count, and the composite is gone rather than fed:
+  // restoring per-pupil spending means a real finance source (the Census
+  // school system finances survey), not a relabelled staffing figure.
+  push('teachers_total', 'Teachers in district', attrs.TOTTCH, 'count', '', 'higher',
+    'Teachers reported by the district, all types. A staffing input, not a measure of teaching quality.')
   push('student_teacher_ratio', 'Students per teacher', attrs.STUTERATIO, 'ratio', '', 'lower',
-    'Total enrollment divided by teacher count. All teachers, not classroom-only.')
+    'Total enrollment divided by teacher count, as published by NCES. All teachers, not classroom-only.')
   push('enrolled_students', 'Enrolled students', attrs.MEMBER, 'count', '', 'lower')
-  push('school_count', 'Schools in district', attrs.SCH, 'count', '', 'lower',
+  push('school_count', 'Schools in district', attrs.SCH, 'institutions', '', 'lower',
     'How many schools this district operates. A high count often means a fragmented district, which limits how much any one school can specialise.')
 
   // Context that helps a user judge what the numbers describe, taken from the

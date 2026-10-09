@@ -90,15 +90,45 @@ async function seedCompleteCache(page: import('playwright').Page): Promise<numbe
           // depend on the cache the sweep is about to fill. Without it seeded,
           // a fully warm load still re-reads the list, which is what this test
           // caught the first time it ran.
+          //
+          // This write is its own IndexedDB transaction, and the promise below
+          // used to resolve on the CHUNK transaction completing alone. A
+          // transaction is not durable until it fires its own oncomplete, so a
+          // reload could abort the enumeration write before it committed, the
+          // app would re-read the list from TIGERweb, and the test would fail
+          // with exactly the "re-read the national ZIP list" message it exists
+          // to catch — reporting a caching failure that was the fixture's race,
+          // not the app's. It lost that race for the first time on a busy CI
+          // runner on 2026-10-09, after passing by luck on every earlier run.
+          // Both transactions are now awaited before the promise resolves.
+          let chunksDone = false
+          let enumDone = false
+          const maybeDone = () => {
+            if (chunksDone && enumDone) resolve(k.length)
+          }
+          t.oncomplete = () => {
+            chunksDone = true
+            maybeDone()
+          }
+          t.onerror = () => resolve(-1)
           try {
             const rt = db.transaction('responses', 'readwrite')
             const rs = rt.objectStore('responses')
-            rs.put({ url: enumKey, body: all, fetchedAt: Date.now() })
+            const put = rs.put({ url: enumKey, body: all, fetchedAt: Date.now() })
+            put.onsuccess = () => {
+              enumDone = true
+              maybeDone()
+            }
+            put.onerror = () => resolve(-1)
+            rt.oncomplete = () => {
+              enumDone = true
+              maybeDone()
+            }
+            rt.onerror = () => resolve(-1)
           } catch {
             /* the assertion below reports it */
+            resolve(-1)
           }
-          t.oncomplete = () => resolve(k.length)
-          t.onerror = () => resolve(-1)
         }
       }),
     { keys, version: SWEEP_VERSION, zctas, enumKey: ENUM_CACHE_KEY },

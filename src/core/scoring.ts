@@ -7,11 +7,17 @@
  *     a convenience; the parts are the truth. Users who disagree with the
  *     weights can see exactly what moved the result.
  *
- *  2. Weights are published, versioned, and documented. This is the primary
- *     fair-housing mitigation available to a ranking product: the operator
- *     chose these inputs, and disclosing that choice — including the known
- *     correlation between school funding and block-group demographics — is
- *     what separates a good-faith tool from a negligent one.
+ *  2. A composite is built only from figures its source actually publishes.
+ *     There was an education index here once — 60% per-pupil spending, 40%
+ *     students per teacher — and it was removed on 2026-10-09, because the
+ *     spending component had never been a spending figure: the NCES layer this
+ *     app reads publishes no finance field, and the metric labelled
+ *     "Expenditure per pupil" carried the district's teacher count. Normalized
+ *     inside a per-pupil spending range that clamped it to zero everywhere in
+ *     the country, every district scored exactly 40. An index with a fabricated
+ *     input is worse than no index, so the index is gone. It can return when a
+ *     real finance source is wired in — the Census school system finances
+ *     survey — and its rules table will say so at that point.
  *
  * Scoring is only ever applied to metrics that are not marked
  * `protectedClassProxy`. The engine refuses to fold demographic data into a
@@ -42,7 +48,6 @@ export interface Composite {
   /** Human-readable statement of what was included and excluded. */
   basis: string
 }
-
 /**
  * Percentile-style normalization without a population to compute against.
  *
@@ -109,30 +114,15 @@ const AFFORDABILITY_RULES: Rule[] = [
   },
 ]
 
-const EDUCATION_RULES: Rule[] = [
-  {
-    key: 'per_pupil_spend',
-    label: 'Expenditure per pupil',
-    unit: 'usd',
-    weight: 0.6,
-    floor: 8000,
-    ceiling: 24000,
-    betterWhen: 'higher',
-    note: 'Annual district spending per student. A resource input, not a measure of teaching quality.',
-  },
-  {
-    key: 'student_teacher_ratio',
-    label: 'Students per teacher',
-    unit: 'ratio',
-    weight: 0.4,
-    floor: 11,
-    ceiling: 22,
-    betterWhen: 'lower',
-    note: 'All teachers, not classroom-only. A rough staffing indicator rather than a class-size measure.',
-  },
-]
+// There is no education rules table here, on purpose. The one that lived at
+// this spot until 2026-10-09 weighted "Expenditure per pupil" at 0.6, and that
+// metric was the district's teacher count under a dollars label — the NCES
+// layer publishes no finance field. Every district in the country therefore
+// scored exactly 40 on the education index. The index is removed rather than
+// reweighted, because a one-component composite is not a composite and a
+// fabricated input is not a weight. See the header comment for the full story.
 
-export const SCORE_VERSION = '1.0.0'
+export const SCORE_VERSION = '1.1.0'
 
 /**
  * Maps a raw metric onto 0-100.
@@ -217,7 +207,7 @@ function compute(rules: Rule[], metrics: readonly MetricValue[]): Composite['sco
     (refused.length ? ` Excluded by the fair-housing rule: ${refused.join(', ')}.` : '')
 
   return {
-    id: rules === EDUCATION_RULES ? 'education' : 'affordability',
+    id: 'affordability',
     label: '',
     score: Math.round(score),
     components,
@@ -230,18 +220,17 @@ export function affordabilityIndex(metrics: readonly MetricValue[]): Composite {
   return { ...c, id: 'affordability', label: 'Affordability' }
 }
 
-export function educationIndex(metrics: readonly MetricValue[]): Composite {
-  const c = compute(EDUCATION_RULES, metrics)
-  return { ...c, id: 'education', label: 'Education resources' }
-}
-
+/**
+ * The one composite that remains. There was a second — education — removed on
+ * 2026-10-09; see the header. scoreBoth keeps its name because it is what the
+ * drilldown consumes, and the list is what changes, not every caller.
+ */
 export function scoreBoth(metrics: readonly MetricValue[]): Composite[] {
-  return [affordabilityIndex(metrics), educationIndex(metrics)]
+  return [affordabilityIndex(metrics)]
 }
 
 /** Exposed so the methodology page can render the rules without duplication. */
 export const SCORE_RULES = {
   affordability: AFFORDABILITY_RULES,
-  education: EDUCATION_RULES,
   version: SCORE_VERSION,
 } as const

@@ -37,7 +37,16 @@ export type MetricCategory =
   | 'environment'
   | 'labor'
 
-export type MetricUnit = 'usd' | 'usd_monthly' | 'percent' | 'ratio' | 'count' | 'index'
+/**
+ * 'institutions' counts organisations, not people or households — school
+ * buildings, for instance. The distinction is load-bearing: the engine's
+ * minimum-n suppression exists so a reader cannot over-read a figure about a
+ * handful of *people*, and a district with 3 schools is an exact administrative
+ * fact the publisher publishes, not a small-sample estimate. Before this unit
+ * existed, "Schools in district: 3" was suppressed to "not published" by a rule
+ * that was never meant for it.
+ */
+export type MetricUnit = 'usd' | 'usd_monthly' | 'percent' | 'ratio' | 'count' | 'index' | 'institutions'
 
 /** The five progressively finer stages of data resolution. */
 export type ZoomLevel = 0 | 1 | 2 | 3 | 4

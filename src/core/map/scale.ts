@@ -131,7 +131,7 @@ export const MAP_METRICS: MapMetric[] = [
     label: 'Households',
     unit: 'count',
     betterWhen: 'lower',
-    blurb: 'How many households live in the area. Darker means more households. This measures size, not quality.',
+    blurb: 'Occupied housing units — households, meaning homes with people living in them, vacant homes excluded. Darker means more households. This measures size, not quality.',
   },
 ]
 

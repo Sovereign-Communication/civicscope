@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { affordabilityIndex, educationIndex, normalize, SCORE_RULES } from './scoring'
+import { affordabilityIndex, normalize, SCORE_RULES, scoreBoth } from './scoring'
 import type { MetricValue } from './types'
 
 function m(key: string, value: number | null, unit: MetricValue['unit'] = 'count'): MetricValue {
@@ -94,48 +94,36 @@ describe('affordabilityIndex', () => {
   })
 })
 
-describe('educationIndex', () => {
-  it('weights spending above staffing, and documents why', () => {
-    const spend = SCORE_RULES.education.find((r) => r.key === 'per_pupil_spend')!
-    const ratio = SCORE_RULES.education.find((r) => r.key === 'student_teacher_ratio')!
-    expect(spend.weight).toBeGreaterThan(ratio.weight)
-    expect(spend.weight + ratio.weight).toBeCloseTo(1, 5)
+/*
+ * The education index is gone, and the tests that pinned it are replaced by
+ * tests that pin its absence and the reason. From the first version until
+ * 2026-10-09 it weighted "Expenditure per pupil" at 0.6 — a metric the NCES
+ * layer never had, populated with the district's teacher count under a dollars
+ * label — so every district in the country scored exactly 40. These assertions
+ * prevent it quietly returning with the same fabricated input, and prevent any
+ * composite from carrying a monetary rule sourced from a layer with no finance
+ * fields at all.
+ */
+describe('the education composite is gone, and cannot return silently', () => {
+  it('exposes no education rules, because its spending input never existed', () => {
+    expect(Object.keys(SCORE_RULES)).not.toContain('education')
   })
 
-  it('scores a well-resourced district above a poorly resourced one', () => {
-    const strong = educationIndex([
-      m('per_pupil_spend', 22000, 'usd'),
-      m('student_teacher_ratio', 12, 'ratio'),
-    ])
-    const weak = educationIndex([
-      m('per_pupil_spend', 9000, 'usd'),
-      m('student_teacher_ratio', 20, 'ratio'),
-    ])
-    expect(weak.score!).toBeLessThan(strong.score!)
-  })
-
-  it('only references metrics the education plugin actually produces', () => {
-    // Guards against a composite silently degrading to null because a rule
-    // points at a metric no plugin emits.
-    const available = ['per_pupil_spend', 'student_teacher_ratio']
-    for (const r of SCORE_RULES.education) {
-      expect(available).toContain(r.key)
-    }
-  })
-
-  it('always exposes its components alongside the score', () => {
-    const out = educationIndex([m('per_pupil_spend', 15000, 'usd')])
-    expect(out.components.length).toBe(SCORE_RULES.education.length)
-    expect(out.components.some((c) => c.key === 'per_pupil_spend' && c.raw === 15000)).toBe(true)
+  it('the only composite is affordability', () => {
+    const metrics = [
+      m('median_rent_burden_pct', 30),
+      m('median_gross_rent', 1200),
+      m('median_home_value', 300000),
+      m('median_household_income', 60000),
+    ]
+    const out = scoreBoth(metrics)
+    expect(out.map((c) => c.id)).toEqual(['affordability'])
   })
 })
 
 describe('composite safety', () => {
   it('never folds a protected-class metric into a composite', () => {
-    const ruleKeys = [
-      ...SCORE_RULES.affordability.map((r) => r.key),
-      ...SCORE_RULES.education.map((r) => r.key),
-    ]
+    const ruleKeys = [...SCORE_RULES.affordability.map((r) => r.key)]
     // A demographic key reaching a scoring rule would be the single worst bug
     // in this codebase, so it is pinned by an explicit assertion.
     for (const key of ruleKeys) {

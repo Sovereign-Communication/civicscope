@@ -52,8 +52,18 @@ export interface SweepManifest {
  * without those keys, which would render as a permanent labelled absence —
  * "no figure" for figures the publisher does publish — for every returning
  * visitor, so the stamp moves and one full refetch is the honest cost.
+ *
+ * v7: three variables changed what they mean under the same metric keys, after
+ * a reader compared the map against the drilldown and the publisher's own
+ * definitions were checked. "Households" was B25001_001E, total housing units
+ * including vacant — now B25002_002E, occupied. "No internet subscription"
+ * was B28002_003E, dial-up-only households — now B28002_013E, no internet
+ * access at all. "Mean commute time" was B08303_001E, which is not a mean but
+ * the count of commuting workers — the metric is now that count under an honest
+ * label. Rows cached under v6 would render the old meanings under the new
+ * labels forever, so the stamp moves again.
  */
-export const SWEEP_VERSION = 'acs5:2023:screen:v6-figure-set'
+export const SWEEP_VERSION = 'acs5:2023:screen:v7-honest-labels'
 
 export interface SweepScope {
   /** Empty means the whole country. Otherwise a list of two-digit ZIP prefixes. */

@@ -74,8 +74,8 @@ for (const [name, lat, lon] of PLACES) {
     if (typeof m.value === 'number' && SENTINELS.has(m.value)) {
       defects.push(`${name}: ${m.key} returned the sentinel ${m.value}`)
     }
-    if (typeof m.value === 'number' && m.key === 'per_pupil_spend' && m.value <= 0) {
-      defects.push(`${name}: expenditure per pupil ${m.value} is not positive`)
+    if (typeof m.value === 'number' && m.key === 'teachers_total' && m.value <= 0) {
+      defects.push(`${name}: teacher count ${m.value} is not positive`)
     }
     if (typeof m.value === 'number' && m.key === 'student_teacher_ratio' && (m.value < 1 || m.value > 100)) {
       defects.push(`${name}: students per teacher ${m.value} is outside 1-100`)

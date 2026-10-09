@@ -331,6 +331,34 @@ add(
   )
 }
 
+// No fabricated monetary figures from the school layer.
+//
+// The NCES EDGE admin-data layer publishes staffing and enrolment and no
+// finance field at all. From the first version until 2026-10-09 the metric
+// named "Expenditure per pupil" read the district's teacher count under a
+// dollars label — a district with 62 teachers displayed "$62 per pupil" — and
+// because the education composite weighted it 0.6, every district in the
+// country scored exactly 40 on that index. Found by a reader, not by any
+// check, which is the part this fixes: a source with no finance fields can
+// never again carry a monetary metric, and the composite that consumed it is
+// asserted gone rather than merely absent.
+//
+// Scoped to the fabricated name, not to monetary units in general: scoring.ts
+// legitimately carries 'usd' for home value, and the pin is that per-pupil
+// spending specifically no longer exists anywhere.
+{
+  const schools = read('src/core/plugins/schools.ts')
+  const scoring = read('src/core/scoring.ts')
+  add(
+    !/per_pupil_spend/.test(schools) && !/'usd'/.test(schools),
+    'no monetary metric from a layer that publishes no finance fields, so a teacher count can never render as dollars again',
+  )
+  add(
+    !/per_pupil_spend/.test(scoring) && !/educationIndex/.test(scoring),
+    'the composite that scored a fabricated spending figure is removed, not reweighted',
+  )
+}
+
 // The figure dictionary and the saved-comparison store.
 //
 // The dictionary exists because seven ACS variables were fetched on every
@@ -1008,10 +1036,12 @@ if (TYPESAFE_KEY) {
         'their own Census API key, stored only in their browser. Requests originate from the visitor, not us.',
         'Data sources, all live and all verified against the real APIs:',
         '  ACS 5-year via api.census.gov — median gross rent, median home value, median household income,',
-        '    median rent as a share of income, households, population, renter-occupied units.',
+        '    median rent as a share of income, occupied households, population, renter-occupied units.',
         '  Census TIGERweb ArcGIS — ZIP Code Tabulation Area boundaries and centroids, census tracts.',
-        '  NCES EDGE ArcGIS — school district expenditure per pupil, students per teacher, enrolment,',
-        '    school count, grade span, locale, county. Covers all 50 states.',
+        '  NCES EDGE ArcGIS — school district teachers, students per teacher, enrolment,',
+        '    school count, grade span, locale, county. Covers all 50 states. The layer publishes',
+        '    no finance field: until 2026-10-09 a metric named "Expenditure per pupil" carried the',
+        '    district teacher count under a dollars label, and that metric no longer exists.',
         '  CDC PLACES — tract-level health and access measures with 95% confidence intervals.',
         '  NYC Open Data (NYSED school-level) — named individual schools near a ZIP with enrolment,',
         '    graduation rate and attendance rate. Currently New York only.',
@@ -1059,7 +1089,7 @@ if (TYPESAFE_KEY) {
         'Median home value now reads B25077, not B25035, which is median year structure built. Also a real bug, also fixed and pinned by a gate check.',
         'Rent burden is the published B25071 median, not our own interpolation.',
         'New York per-school detail returns named schools with real enrolment, graduation and attendance figures.',
-        'School district figures return real per-pupil expenditure and student-teacher ratios, and the -2 missing-value sentinel is never presented as a figure.',
+        'School district figures return real teacher counts, student-teacher ratios and enrolment, and the -2 missing-value sentinel is never presented as a figure. Per-pupil expenditure is NOT shown, because the NCES layer publishes no finance field; the metric that once claimed to show it was the teacher count under a dollars label, found by a reader on 2026-10-09 and removed rather than relabelled.',
         'The Fair Housing notice renders on every screen showing data, verified in a browser; it was previously conditional on the country-wide screen having loaded, which meant it was invisible to exactly the visitors who had not yet added a key.',
         'ZIP resolution was audited across 600 codes sampled from the authoritative Census list, plus 400 across every ZIP prefix, all resolving. Non-US and unassigned codes are correctly reported as not a US ZIP.',
         'A single-ZIP lookup returns full figures with margins of error in about 2 seconds while the country-wide screen continues loading in the background.',

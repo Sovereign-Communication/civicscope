@@ -193,7 +193,13 @@ export function Methodology() {
           {(
             [
               ['Affordability', SCORE_RULES.affordability],
-              ['Education resources', SCORE_RULES.education],
+              // There was an education composite here. It is gone, and the
+              // reason is on the page rather than in a commit message nobody
+              // reads: its spending component never existed — the NCES layer
+              // publishes no finance field, and the metric carried a teacher
+              // count under a dollars label, which scored every district in the
+              // country exactly 40. It returns when a real finance source is
+              // wired in.
             ] as const
           ).map(([label, rules]) => (
             <div key={label} className="overflow-x-auto rounded-md border border-slate-200 bg-white">
