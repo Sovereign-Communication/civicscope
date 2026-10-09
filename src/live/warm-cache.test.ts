@@ -107,11 +107,16 @@ async function seedCompleteCache(page: import('playwright').Page): Promise<numbe
 }
 
 // Only runs where the application is actually being served with a browser
-// available. The unit job has neither, and running it there would fail on a
-// missing server rather than on anything about caching.
+// available AND a Census key is present. The unit job has neither. Found while
+// replicating CI locally: the suite was run against a served build with
+// E2E_BASE_URL set but no key, which CI never does, and this test failed at the
+// "Loaded N ZIP codes" assertion instead of skipping — a served-but-keyless
+// environment can never observe a warm load, so it is a skip condition, not a
+// failure.
 const SERVED = Boolean(process.env.E2E_BASE_URL)
+const KEYED = Boolean(process.env.CENSUS_KEY)
 
-describe.skipIf(!SERVED)('a warm cache costs nothing', () => {
+describe.skipIf(!SERVED || !KEYED)('a warm cache costs nothing', () => {
   it('loads the whole country without spending a single request', async () => {
     if (!existsSync(join(__dirname, '..', '..', 'public', 'map', 'zcta-centroids.bin'))) {
       // The baked map is the source of the real ZCTA list; without it there is
