@@ -54,7 +54,30 @@ const COLUMNS: Record<string, { est: string; moe?: string }> = {
   commuting_workers: { est: 'B08303_001E' },
 }
 
-const SENTINELS = new Set([666666666, -666666666, 999999999, -999999999, 888888888, -888888888])
+/*
+ * Must equal ACS_SENTINELS in src/core/plugins/acs.ts — all five of them.
+ *
+ * -333333333 and -222222222 appear only on margin columns, which is exactly why
+ * nothing caught them until an audit compared margins. The version of this set
+ * that shipped with margin comparison yesterday carried only the three estimate
+ * encodings, so ZCTA 01540's not-applicable rent-burden margin read as a real
+ * number and the audit condemned the app for correctly showing no margin — a
+ * phantom defect in the audit, not a wrong figure in the app. An audit that has
+ * not been taught what a missing value looks like will condemn the code for
+ * handling one, and this file's own history now records it twice.
+ */
+const SENTINELS = new Set([
+  666666666,
+  -666666666,
+  999999999,
+  -999999999,
+  888888888,
+  -888888888,
+  333333333,
+  -333333333,
+  222222222,
+  -222222222,
+])
 
 /** How many ZCTAs to compare. Two chunks keeps CI honest and affordable. */
 const SAMPLE_SIZE = 1600
