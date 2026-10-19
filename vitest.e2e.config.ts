@@ -6,13 +6,14 @@ import react from '@vitejs/plugin-react'
  * the production bundle, including the Content-Security-Policy that would block
  * a source that a dev server happily serves.
  *
- * Skipped automatically when CENSUS_KEY is absent.
+ * Suites that need a Census key skip those checks; keyless browser checks still run.
  */
 export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'node',
     include: ['src/e2e/**/*.e2e.ts'],
+    globalSetup: ['./src/e2e/validate-preview.ts'],
     testTimeout: 300000,
     hookTimeout: 180000,
     // Serialised deliberately. The placeholder and dogfood suites both seed and

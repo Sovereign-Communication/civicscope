@@ -686,8 +686,11 @@ add(
   'the cache stamp changes when parsing behaviour changes, not only when the data does',
 )
 add(
-  /not yet imported/.test(read('src/ui/SweepTable.tsx')) &&
-    /not yet imported/.test(read('src/ui/MetricCard.tsx')),
+  /function absenceLabel/.test(read('src/ui/metric-format.ts')) &&
+    /no valid data available here/.test(read('src/ui/metric-format.ts')) &&
+    /formatMetricValue\(metric, metric\.absentReason\)/.test(read('src/ui/MetricCard.tsx')) &&
+    /formatMetricValue\(metric, metric\.absentReason\)/.test(read('src/ui/Comparison.tsx')) &&
+    /absenceLabel\(reason\)/.test(read('src/ui/SweepTable.tsx')),
   'an absent figure is labelled, never rendered as a number or a dash',
 )
 
@@ -834,7 +837,14 @@ add(!/if \(!key\) return/.test(read('src/core/useHousingQuery.ts')), 'a missing 
 
 // Per-state school plugins are the extension point for the requirement the gate
 // identified as unmet; they must be registered from the list, not one by one.
-add(/STATE_SCHOOL_PLUGINS/.test(read('src/core/useHousingQuery.ts')), 'per-state school plugins join the drilldown from one list')
+const pluginCatalog = read('src/core/plugin-catalog.ts')
+add(
+  /const DRILLDOWN_PLUGINS\s*=/.test(pluginCatalog) &&
+    /nationalSchoolOutcomesPlugin/.test(pluginCatalog) &&
+    /\.\.\.STATE_SCHOOL_PLUGINS/.test(pluginCatalog) &&
+    /DRILLDOWN_PLUGIN_IDS/.test(read('src/core/useHousingQuery.ts')),
+  'national and per-state school plugins join the drilldown through one catalog',
+)
 
 // Cloudflare Pages rejects a deployment over 20,000 files, which is a hard
 // failure rather than a warning. A 33,791-page sitemap is fine; 33,791 page

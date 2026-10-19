@@ -60,10 +60,28 @@ written rationale, because the constraints in the README are load-bearing
 rather than incidental. That specifically includes:
 
 - Adding a metric to either composite index
-- Introducing any default ordering, ranking, or "best match" of places
+- Introducing a default metric order, composite ranking, or "best match" of places
 - Any change to the suppression thresholds
 - Adding advertising, referral, or any paid placement
 - Any change to the licence
+
+## Current planning posture
+
+The single source of truth for phase status is still `docs/jev-roadmap.md`.
+This file does not replace that contract.
+
+For the current prioritized work direction, see [docs/jev-alignment-2026-10-16.md](docs/jev-alignment-2026-10-16.md).
+That document is the result of an in-session Jev-style alignment pass over the
+use cases, data sources, and existing functions. It is planning, not evidence,
+and it does not close any roadmap row by itself.
+
+The executable cross-plan backlog and its evidence owners live in
+[docs/canon-work-mission.md](docs/canon-work-mission.md). Fair housing product
+decisions are recorded in [docs/fair-housing-design-decisions.md](docs/fair-housing-design-decisions.md).
+
+The important constraint is unchanged from below: **no roadmap row is marked
+complete on the strength of planning prose.** A row is complete only when the
+evidence exists and the project's own gate can see it.
 
 ## Legal review
 
@@ -79,13 +97,15 @@ former:
   the engine refuses to offer them as a sort or filter control, so the rule cannot
   be forgotten inside an individual plugin. Suppression thresholds are applied
   centrally for the same reason.
-- There is no default ordering, ranking or "best match" of places anywhere. Every
-  sort is something the reader chose, and a Fair Housing notice with HUD and DOJ
-  complaint routes renders on every screen showing neighbourhood data.
+- The national screen starts in ascending ZIP code order. A reader may explicitly
+  sort by one published figure; the app does not create a universal place ranking
+  or "best match". A Fair Housing notice with HUD and DOJ complaint routes renders
+  on every screen showing neighbourhood data.
 - Where a feature would rank places at all — the similarity scoring in Phase 2B —
-  it ships **disabled by default**, behind a flag, and the weights are set by the
-  reader rather than by the operator. That is a design decision about defaults,
-  not a substitute for review.
+  it ships **disabled by default**, behind a flag. When enabled, its equal starting
+  weights and measured cutoff are disclosed and adjustable. Results are alphabetized,
+  not ordered by score. That is a design decision about defaults, not a substitute
+  for review.
 
 **What this does not establish:** that the design complies with the Fair Housing
 Act or with any state law. That determination needs a qualified lawyer, and the

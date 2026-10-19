@@ -1,8 +1,7 @@
 /**
- * Similarity between ZIP codes, computed by the reader's own weights.
+ * Similarity between ZIP codes, using disclosed starting weights the reader can adjust.
  *
- * Five positions this module takes, all of them recorded decisions rather than
- * defaults:
+ * Five positions this module takes, with literal defaults disclosed below:
  *
  * **It ships off.** No visitor sees a ranking unless they turn this on, because
  * "the ZIP codes most like yours" is inherently a ranking — an earlier draft of
@@ -11,10 +10,11 @@
  * not whether the output ranks. Making it opt-in is what actually changes the
  * default position. The flag lives in localStorage, next to the Census key.
  *
- * **The reader sets every weight.** There are no operator-chosen defaults standing
- * in for a preference, and no outcome-named templates — a template that names the
- * outcome a reader should want is the highest-steering surface in the plan, and
- * there is no attorney review to clear it later.
+ * **Starting values are uniform and disclosed.** The opt-in panel begins with
+ * equal weights and a measured cutoff, both adjustable by the reader. There are
+ * no outcome-named templates — a template that names the outcome a reader should
+ * want is the highest-steering surface in the plan, and there is no attorney
+ * review to clear it later.
  *
  * **The weights draw from the sortable allowlist.** `src/core/sortable-surface.ts`
  * is the same allowlist the sort columns and the figure filters draw from, and it
@@ -95,7 +95,7 @@ export type Weights = Record<SimilarityMetric, number>
  */
 export const DEFAULT_CUTOFF = 0.1
 
-/** Equal weights, so the first run has no operator opinion baked into it. */
+/** Equal starting weights; the opt-in panel discloses these and lets readers change them. */
 export const DEFAULT_WEIGHTS: Weights = {
   median_rent_burden_pct: 1,
   median_gross_rent: 1,

@@ -34,25 +34,12 @@ afterAll(async () => {
 })
 
 async function lookUp(zip: string): Promise<string> {
-  // The submit control is disabled until the sweep has loaded, and a cold start
-  // on CI takes minutes. Clicking it before then is a race with the app's own
-  // readiness, not a defect in it, so the control is waited for rather than
-  // clicked optimistically.
   await page.waitForSelector('#place', { state: 'visible', timeout: 60000 })
-  await page
-    .waitForFunction(
-      () => {
-        const form = document.querySelector('form')
-        const button = form?.querySelector('button[type="submit"]')
-        return Boolean(button) && !(button as HTMLButtonElement).disabled
-      },
-      undefined,
-      { timeout: 300000 },
-    )
-    .catch(() => undefined)
+  const submit = page.getByRole('button', { name: 'Add to comparison' })
+  expect(await submit.isEnabled(), 'ZIP lookup should remain available without a Census key').toBe(true)
 
   await page.fill('#place', zip)
-  await page.click('button[type="submit"]')
+  await submit.click()
   // Wait for either a result heading, an alert, or a settled state.
   await page
     .waitForFunction(
@@ -112,7 +99,8 @@ describe('live site: shell integrity', () => {
     await page.goto(BASE, { waitUntil: 'domcontentloaded' })
     await lookUp('78701')
     const text = await page.locator('body').innerText()
-    expect(text).toMatch(/steering/i)
-    expect(text).toMatch(/hud\.gov|Department of Housing/i)
+    expect(text).toMatch(/not an overall ranking or a recommendation/i)
+    expect(text).toMatch(/Fair Housing Assistance Program/i)
+    expect(text).toMatch(/Department of Housing/i)
   }, 120000)
 })

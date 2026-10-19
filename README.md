@@ -42,32 +42,44 @@ to different people. That is a legal property, not just a cost saving.
 | ZIP boundaries and centroids | Census TIGERweb ArcGIS | no |
 | ZIP geocoding | Census TIGERweb ZCTA layer | no |
 | Health and access measures | CDC PLACES | no |
-| School district funding and staffing | NCES EDGE boundaries ArcGIS | no |
+| School district staffing and enrollment | NCES EDGE boundaries ArcGIS | no |
 
-**Per-school data: New York only, and the limit is structural.** The completion
-gate identified school depth as the one materially unmet requirement, and it was
-correct. What exists now:
+**School coverage combines nationwide district context, one nationwide graduation
+outcome, and richer NYC-only detail.** These sources describe different measures
+and vintages:
 
-- *All 50 states, district level, from NCES EDGE:* expenditure per pupil,
-  students per teacher, enrollment, school count, grade span, locale, county.
-- *New York, per school:* named schools within 3km of the ZIP centroid, with
-  enrollment, graduation rate and attendance rate, from the NYSED school-level
-  dataset on data.ny.gov. Verified live: keyless, `Access-Control-Allow-Origin: *`,
-  with latitude and longitude per school.
+- *All 50 states, district level, from NCES EDGE:* teacher count, students per
+  teacher, enrolled students, and school count. District boundaries and metadata
+  are administrative context, not school-quality measures.
+- *Nationwide, per public school:* 2019 four-year adjusted cohort graduation-rate
+  midpoints from U.S. Department of Education EDFacts, joined by NCES school ID to
+  NCES EDGE 2019–20 public-school locations. Up to the eight nearest schools with
+  reportable outcomes within 3km of the selected point are shown. Many records are published as ranges;
+  missing, not-applicable, and suppressed outcomes are omitted. The eight-school display cap means
+  this is not a complete list of nearby schools. This does not cover
+  every school, grade, year, or outcome, and is not a school-quality rating.
+- *New York City, per school:* named schools within 3km of the ZIP centroid, with
+  enrollment, graduation rate and attendance rate from NYC DOE&rsquo;s 2020 High
+  School Directory (2018–19 rates), served through NYC Open Data. The portal
+  metadata attributes the dataset to DOE but lists no license identifier, so
+  this source is attributed without claiming a specific license. It is keyless
+  and includes latitude and longitude per school.
 
-The limit is not an oversight. The NCES EDGE ArcGIS catalogue publishes school
-*districts* only — it was queried and has no school-level service — and there is
-no free, licensed, national source of per-school test scores. Every other state
-publishes its own assessment data in an incompatible format, and GreatSchools and
-Niche ratings are licensed products whose terms do not permit this use. Each
-further state is one plugin implementing `StateSchoolPlugin`;
-`STATE_SCHOOL_PLUGINS` is the list, and a new state joins the drilldown
-automatically.
+The NCES EDGE district plugin still supplies district, not school-level, staffing and
+enrollment. The nationwide outcome lane is a separate direct browser query to the Urban
+Institute Education Data Portal, whose 2019 EDFacts ACGR endpoint is CORS-readable. Its
+data are joined to NCES EDGE public-school points by NCES school ID; attribution names
+both sources and the Portal&rsquo;s ODC-By 1.0 license. The prior 2022–23 ED Data Express
+research remains a batch-download lead, not the app&rsquo;s source. See
+[source research](docs/data-sources-research.md) for the query, attribution, browser
+verification, and limits. NYC&rsquo;s 2018–19 DOE measures remain in place as a separate,
+more detailed local source.
 
 Two things about that data are disclosed rather than smoothed over: a graduation
-rate is blank for schools serving no graduating cohort, which means *not
-applicable*, not poor; and attendance is not achievement. The drilldown panel says
-so in words, and `STATE_ASSESSMENT_COVERAGE` records it in code.
+rate may be absent because EDFacts has no reportable record, while some published rates
+are ranges represented by their midpoint; and attendance is not achievement. The
+drilldown panel says so in words, and `STATE_ASSESSMENT_COVERAGE` records the coverage
+limits in code.
 
 One bug worth recording, because no type system would have caught it: Socrata
 returns numeric fields as **strings**. `typeof latitude === 'number'` was false for
@@ -83,13 +95,13 @@ figures. Verified against the live variables API:
 | Median home value | `B25077_001E` | `B25035` is *median year structure built* |
 | Median household income | `B19013_001E` | |
 | Median rent as share of income | `B25071_001E` | published, so no interpolation from `B25070` |
-| Households | `B25001_001E` | `B25002` is *occupied housing units* |
+| Households | `B25002_002E` | `B25001` is *total housing units* (vacant included) |
 | Population | `B01003_001E` | |
 | Renter / owner occupied | `B25003_003E` / `_002E` | |
 
-The school panel reads per-pupil expenditure, student-teacher ratio, enrollment
-and school count straight off the NCES EDGE boundary service, which already
-joins them to the geometry. Two hazards are handled explicitly, both found by
+The school panel reads teacher count, student-teacher ratio, enrollment and
+school count straight off the NCES EDGE boundary service, which joins them to
+the geometry. Two hazards are handled explicitly, both found by
 querying live data: `-2` is NCES's missing-value sentinel and is never shown as
 a number, and a point can fall inside a *supervisory union* (`LEA_TYPE 3`) rather
 than a district — all of New York City is inside "NYC Chancellor's Office", a
@@ -203,6 +215,26 @@ pages: they change annually, they need a key, and a stale number in a search
 snippet is exactly the confidently-wrong output this project exists to avoid. The
 static page is a doorway to the live, auditable view.
 
+## Planned direction
+
+The current cross-plan work inventory, statuses, priorities, and evidence owners are
+in [docs/canon-work-mission.md](docs/canon-work-mission.md). The reasoning and
+prioritization are in [docs/jev-alignment-2026-10-16.md](docs/jev-alignment-2026-10-16.md),
+and fair housing product decisions are in [docs/fair-housing-design-decisions.md](docs/fair-housing-design-decisions.md).
+
+Two things worth restating from that plan, because they are easy to misread:
+
+- The biggest remaining gap is not a missing data source. The site already fetches
+  and renders a lot. The gap is that it does not always help a human understand what
+  they are looking at.
+- More data is not automatically stronger data. The plan deliberately keeps several
+  genuine sources — SVI, PLACES health measures, FEMA hazard data, archived EJ
+  tools, HUD LAI, EPA transit-access — out of scoring and similarity unless a real
+  use case earns them with a clear context-only lane and the existing fair-housing
+  review.
+
+The single source of truth for phase status is still [docs/jev-roadmap.md](docs/jev-roadmap.md).
+The planning and backlog documents do not close roadmap rows by themselves.
 
 ## Commands
 
@@ -320,17 +352,18 @@ export const myPlugin: PluginRequest = {
 
 These are product constraints, not a policy page.
 
-- We never filter, sort, or rank by race or ethnicity. Area composition is shown
-  as context, in its own section, and is **excluded from both indices** (pinned
-  by a test).
-- We never publish a ranked leaderboard of neighbourhoods, and we never tell you
-  which place is best. You choose the criteria.
+- Race and ethnicity measures are not included. Protected-class proxy metrics are
+  excluded from sorting, filtering, similarity, and composite scores by code.
+- The national screen starts in ZIP code order; a reader may sort it by one
+  published figure. The app does not publish a universal best-area ranking or
+  recommendation. The selected-area view includes a disclosed affordability
+  index, and Similar ZIP search is off by default and ordered alphabetically.
 - No advertising, no referral fees, no payment for placement. There is nothing to
   sell and no service to withhold, so there is no allocation for us to make.
 - Coarsest geography the data supports, small counts withheld, margins of error
   always shown.
-- Scoring weights, sources, and the known correlation between school funding and
-  area demographics are all published.
+- The affordability-index weights and source definitions are published. School
+  staffing figures are not presented as school-quality ratings.
 
 ## Licence and governance
 

@@ -1,6 +1,3 @@
-/** The state the map opens in, and the target every reset returns to. */
-const INITIAL_VIEWPORT: Viewport = { width: 900, height: 560, scale: 1, offsetX: 0, offsetY: 0 }
-
 /**
  * Relative luminance of a hex colour, by the WCAG formula.
  *
@@ -57,9 +54,7 @@ import {
   projectAll,
   screenTransform,
   buildOutlinePath,
-  zoomAround,
   type Basemap,
-  type Viewport,
 } from '../core/map/projection'
 import type { ZctaPoint } from '../core/map/centroids'
 import {
@@ -73,6 +68,7 @@ import {
 } from '../core/map/scale'
 import type { AreaRow } from '../core/plugins/acs'
 import { FairHousingNotice } from './FairHousingNotice'
+import { useMapCanvasInteractions, useMapViewport } from './map-interactions'
 
 interface Props {
   rows: readonly AreaRow[]
@@ -83,30 +79,16 @@ interface Props {
   selectedZctas: readonly string[]
 }
 
-interface Hover {
-  cx: number
-  cy: number
-  value: number | null
-  count: number
-  withValue: number
-  zctas: string[]
-}
-
 export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
   const headingId = useId()
   const legendId = useId()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
-  // Pointer and touch state for panning. Held in a ref rather than React state
-  // so a drag never triggers a render; only the resulting viewport does.
-  const drag = useRef<{ pointerId: number; x: number; y: number; startX: number; startY: number } | null>(null)
-  const dragged = useRef(false)
 
   const [metric, setMetric] = useState<MapMetricKey>('median_rent_burden_pct')
   const [assets, setAssets] = useState<{ centroids: ZctaPoint[]; basemap: Basemap | null } | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [hover, setHover] = useState<Hover | null>(null)
-  const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEWPORT)
+  const { viewport, setViewport, setWidth, zoomAtData, reset } = useMapViewport()
 
   const active = MAP_METRICS.find((m) => m.key === metric) ?? MAP_METRICS[0]!
   const unit = active.unit
@@ -160,12 +142,11 @@ export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
     if (!wrap) return
     const observer = new ResizeObserver(() => {
       const width = Math.round(wrap.getBoundingClientRect().width)
-      if (width < 1) return
-      setViewport((v) => (v.width === width ? v : { ...v, width }))
+      setWidth(width)
     })
     observer.observe(wrap)
     return () => observer.disconnect()
-  }, [])
+  }, [setWidth])
 
   // The fit is computed once when the assets arrive, not per frame: it
   // projects all 33,791 positions, and recomputing it on every pan or zoom
@@ -219,6 +200,18 @@ export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
     return hexbin(inputs, radius)
   }, [assets, fit, projected, viewport, valueByZcta])
 
+  const {
+    hover,
+    onKeyDown,
+    onMouseMove,
+    onMouseLeave,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+    onClick,
+  } = useMapCanvasInteractions({ canvasRef, geoms, viewport, setViewport, onSelect })
+
   // Canvas has no accessibility tree, so an equivalent is published as live
   // text. A screen-reader user gets the bins, not silence.
   const summary = useMemo(() => {
@@ -235,33 +228,6 @@ export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
     )
   }, [geoms, metric])
 
-
-  /**
-   * Zooms about the centre of what is actually drawn.
-   *
-   * Zooming about the geometric centre of the canvas looks correct until the
-   * canvas centre is empty ocean, which is where repeated clicks land: the map
-   * went blank at around seventeen times zoom with every figure off screen. The
-   * centroid of the drawn hexagons is always somewhere worth looking at.
-   */
-  const zoomAtData = useCallback(
-    (factor: number) => {
-      setViewport((v) => {
-        const drawn = geoms.filter(
-          (g) => g.cx >= 0 && g.cx <= v.width && g.cy >= 0 && g.cy <= v.height,
-        )
-        if (drawn.length === 0) return zoomAround(v, factor, v.width / 2, v.height / 2)
-        let sx = 0
-        let sy = 0
-        for (const g of drawn) {
-          sx += g.cx
-          sy += g.cy
-        }
-        return zoomAround(v, factor, sx / drawn.length - v.width / 2, sy / drawn.length - v.height / 2)
-      })
-    },
-    [geoms],
-  )
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
@@ -369,76 +335,6 @@ export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
     draw()
   }, [draw])
 
-  const hit = useCallback(
-    (clientX: number, clientY: number): Hover | null => {
-      const canvas = canvasRef.current
-      if (!canvas) return null
-      const rect = canvas.getBoundingClientRect()
-      const x = clientX - rect.left
-      const y = clientY - rect.top
-      for (const bin of geoms) {
-        const r = hexRadius(viewport.scale)
-        const dx = x - bin.cx
-        const dy = y - bin.cy
-        // Hexagon containment, without solving the polygon: the bounding
-        // hexagon test is a regular hexagon, so the exact apothem check is
-        // both cheaper and correct.
-        if (Math.abs(dx) > r || Math.abs(dy) > r) continue
-        if (Math.abs(dx) * 0.866 + Math.abs(dy) * 0.5 <= r) {
-          return {
-            cx: bin.cx,
-            cy: bin.cy,
-            value: bin.value,
-            count: bin.count,
-            withValue: bin.withValue,
-            zctas: bin.zctas,
-          }
-        }
-      }
-      return null
-    },
-    [geoms, viewport.scale],
-  )
-
-  const zoomBy = useCallback((factor: number) => {
-    setViewport((v) => ({ ...v, scale: v.scale * factor }))
-  }, [])
-
-  const onKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLCanvasElement>) => {
-      const step = 40
-      switch (event.key) {
-        case 'ArrowLeft':
-          setViewport((v) => ({ ...v, offsetX: v.offsetX + step }))
-          break
-        case 'ArrowRight':
-          setViewport((v) => ({ ...v, offsetX: v.offsetX - step }))
-          break
-        case 'ArrowUp':
-          setViewport((v) => ({ ...v, offsetY: v.offsetY + step }))
-          break
-        case 'ArrowDown':
-          setViewport((v) => ({ ...v, offsetY: v.offsetY - step }))
-          break
-        case '+':
-        case '=':
-          zoomBy(1.4)
-          break
-        case '-':
-        case '_':
-          zoomBy(1 / 1.4)
-          break
-        case '0':
-          setViewport((v) => ({ ...v, scale: 1, offsetX: 0, offsetY: 0 }))
-          break
-        default:
-          return
-      }
-      event.preventDefault()
-    },
-    [zoomBy],
-  )
-
   const covered = useMemo(() => geoms.filter((g) => g.value !== null).length, [geoms])
 
   return (
@@ -507,48 +403,13 @@ export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
           aria-labelledby={`${headingId} ${legendId}`}
           onKeyDown={onKeyDown}
           style={{ touchAction: 'pan-y' }}
-          onMouseMove={(e) => setHover(hit(e.clientX, e.clientY))}
-          onMouseLeave={() => setHover(null)}
-          onPointerDown={(e) => {
-            // Primary button only, and only after the pointer has actually
-            // moved, so a plain click to select an area does not also drag.
-            if (e.button !== 0) return
-            drag.current = {
-              pointerId: e.pointerId,
-              x: e.clientX,
-              y: e.clientY,
-              startX: e.clientX,
-              startY: e.clientY,
-            }
-            ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-          }}
-          onPointerMove={(e) => {
-            const d = drag.current
-            if (!d || d.pointerId !== e.pointerId) return
-            const dx = e.clientX - d.x
-            const dy = e.clientY - d.y
-            // A few pixels of movement means this is a drag, not a click.
-            if (Math.abs(e.clientX - d.startX) + Math.abs(e.clientY - d.startY) < 4) return
-            d.x = e.clientX
-            d.y = e.clientY
-            dragged.current = true
-            setViewport((v) => ({ ...v, offsetX: v.offsetX + dx, offsetY: v.offsetY + dy }))
-          }}
-          onPointerUp={(e) => {
-            if (drag.current?.pointerId === e.pointerId) drag.current = null
-          }}
-          onPointerCancel={() => {
-            drag.current = null
-          }}
-          onClick={() => {
-            // A drag ends with a click event too, so selecting here would add
-            // an area the reader only panned past.
-            if (dragged.current) {
-              dragged.current = false
-              return
-            }
-            if (hover && hover.zctas.length > 0) onSelect(hover.zctas)
-          }}
+          onMouseMove={onMouseMove}
+          onMouseLeave={onMouseLeave}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
+          onClick={onClick}
           className="block h-[560px] w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
         />
         {hover ? (
@@ -597,7 +458,7 @@ export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
         <div className="absolute right-2 top-2 flex flex-col gap-1 rounded-lg border border-slate-200 bg-white/90 p-1 shadow-sm backdrop-blur">
           <button
             type="button"
-            onClick={() => zoomAtData(1.5)}
+            onClick={() => zoomAtData(geoms, 1.5)}
             aria-label="Zoom in"
             className="h-7 w-7 rounded-md text-lg leading-none text-slate-700 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
           >
@@ -605,7 +466,7 @@ export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => zoomAtData(1 / 1.5)}
+            onClick={() => zoomAtData(geoms, 1 / 1.5)}
             aria-label="Zoom out"
             className="h-7 w-7 rounded-md text-lg leading-none text-slate-700 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
           >
@@ -613,7 +474,7 @@ export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => setViewport({ ...INITIAL_VIEWPORT, width: viewport.width, height: viewport.height })}
+            onClick={reset}
             aria-label="Reset the map to the whole country"
             className="h-7 w-7 rounded-md text-xs leading-none text-slate-700 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
           >
@@ -670,46 +531,45 @@ export function MapView({ rows, loading, onSelect, selectedZctas }: Props) {
       {/*
         Schools, and why this map does not rank them.
         
-        This is the most-asked question the tool cannot answer directly, so it is
-        answered here rather than left as a silence. School figures exist for
-        every selected area in the drilldown: expenditure per pupil, students per
-        teacher and enrolment, from NCES EDGE, plus named individual schools with
-        graduation and attendance for New York. They are not on this map because
-        NCES publishes school *districts*, not schools, and mapping a district
-        layer is not something this tool can do without boundary geometry for
-        13,000 entities.
-        
-        A "best schools" ranking is deliberately absent. Two of the reasons are
-        practical and one is not. There is no free, licensed, national source of
-        school-level results, and the commercial ratings that do exist are not
-        licensed for this use. But the deeper reason is that ranking areas by
-        their schools, next to their cost, is a statement about which places are
-        worth moving to, which is the thing the Fair Housing notice exists to
-        warn about. Two published numbers can be compared by anyone; ranking them
-        for you is a recommendation this tool does not make.
+        District staffing and enrollment figures exist for selected areas in all
+        states. A separate national source joins 2019 EDFacts four-year graduation
+        outcomes to 2019–20 public-school locations; up to eight nearest schools
+        within 3 km with a reportable outcome appear. NYC DOE also supplies named-school
+        enrollment, graduation and attendance from its separate 2018–19 directory.
+
+        This map does not turn school measures into a quality score or combine
+        them with housing costs into a "best schools for the price" result. That
+        is a product boundary: these measures describe different things and do
+        not establish which place is right for a reader. It is not a claim that
+        publishing school information is inherently unlawful.
       */}
       <details className="mt-3 rounded-lg border border-slate-200 bg-white">
         <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-semibold text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900">
-          Schools: what is available, and why there is no ranking
+          Schools: current coverage and why there is no combined score
         </summary>
         <div className="border-t border-slate-200 px-3 py-2.5 text-[0.8125rem] leading-relaxed text-slate-700">
           <p>
             <strong className="text-slate-900">Every area, all 50 states:</strong> the school district covering
-            it, with expenditure per pupil, students per teacher, enrolment, school count and grade span.
+            it, with teacher count, students per teacher, enrolled students and school count.
             Open any area from the map or the table and these appear.
           </p>
           <p className="mt-2">
-            <strong className="text-slate-900">New York only:</strong> named individual schools near the
-            area, with enrolment, graduation rate and attendance rate.
+            <strong className="text-slate-900">Nationwide, with limits:</strong> up to eight nearest public
+            schools within 3 km with a reportable 2019 four-year adjusted cohort graduation outcome. The
+            displayed figure is the Urban Institute Portal&rsquo;s midpoint and many records also have a published
+            range. Schools with missing, not-applicable, or suppressed outcomes are omitted; this does not cover
+            all grades, years, or types of school outcome.
+          </p>
+          <p className="mt-2">
+            <strong className="text-slate-900">New York City:</strong> its separate DOE directory also gives
+            nearby school enrolment, graduation and attendance from the 2018–19 school year.
           </p>
           <p className="mt-2">
             <strong className="text-slate-900">Why there is no &ldquo;best schools for the price&rdquo;
-            ranking.</strong> Two reasons are practical: there is no free, licensed national source of
-            school-level results, and the commercial ratings that do exist are not licensed for this use. The
-            third is not. Ranking areas by school results alongside cost is a statement about which places
-            are worth moving to, which is exactly what the Fair Housing notice below warns about. The figures
-            are here so you can compare them yourself; the ranking is not here because this tool does not
-            make recommendations about places.
+            score.</strong> School measures describe different things and do not establish school quality.
+            We show the available source figures without combining them with housing costs or recommending
+            a place. This is a product boundary, not a claim that publishing school information is inherently
+            unlawful.
           </p>
           <p className="mt-2">
             Spending per pupil is a cost of provision, not a measure of quality. It varies with local budgets

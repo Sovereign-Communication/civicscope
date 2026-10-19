@@ -3,16 +3,14 @@
  *
  * Source: the live NCES ArcGIS GeoService for EDGE_ADMIN district boundaries,
  * reached through the Data.ed.gov catalog. Verified working: a point query
- * returns the district containing that coordinate, with per-pupil expenditure
+ * returns the district containing that coordinate, with teacher count
  * (TOTTCH), student-teacher ratio (STUTERATIO), enrollment (MEMBER), school
  * count (SCH), and grade span already joined in. It sends
  * Access-Control-Allow-Origin, so it is keyless and works in the browser.
  *
  * This replaced an earlier integration against educationdata.education.gov.
- * That host is unreachable from this environment and, more importantly, is not
- * a better source: the EDGE service already carries the funding and staffing
- * figures joined to the boundary, so no second request and no name-matching
- * guess is needed.
+ * The EDGE admin-data layer supplies the staffing and enrollment figures joined
+ * to the boundary, so no second request and no name-matching guess is needed.
  *
  * Two data hazards are handled explicitly, both found by querying live data:
  *
@@ -24,8 +22,8 @@
  *      it as "the school district" would show a user real but meaningless
  *      numbers, so those are rejected and reported honestly.
  *
- * This reports funding and staffing inputs. It does not invent a school
- * quality rating.
+ * This reports district staffing and enrollment indicators. It does not invent
+ * a school quality rating.
  */
 
 import { getJson, SourceUnavailableError } from '../http'
@@ -211,23 +209,22 @@ export async function lookupSchoolDistrict(
  *
  * The original brief asked for per-state school detail on drilldown. The
  * completion gate identified this as the one materially unmet requirement, and
- * it is now partly delivered: New York has per-school detail via
- * `ny-schools.ts`, which is a real, keyless, CORS-enabled source.
+ * it is now partly delivered: the app has NYC DOE school detail and a separate
+ * nationwide 2019 EDFacts graduation-outcome lane joined to NCES EDGE locations.
  *
- * The honest limit is that this is one state. There is no free, licensed,
- * national source of per-school test scores — the NCES EDGE ArcGIS catalogue
- * was queried and publishes school districts only, with no school-level service.
- * Every other state publishes its own assessment data in its own format, and
- * GreatSchools/Niche ratings are licensed products whose terms do not permit
- * this use. Each further state will be added as its own plugin, following the
- * `StateSchoolPlugin` interface in `ny-schools.ts`.
+ * National outcomes are limited to the eight nearest public schools with
+ * reportable 2019 four-year adjusted cohort graduation data within 3 km. This
+ * is not all-grade or current-year school coverage; missing, not-applicable,
+ * and suppressed values are not shown. The 55-portal search did not cover this
+ * federal API and is not evidence that other school-level sources do not exist.
  */
 export const STATE_ASSESSMENT_COVERAGE = {
-  federal: 'District level, all 50 states, from NCES EDGE.',
-  perSchool: ['NY'],
-  notYetCovered: 'All states other than New York have district-level data only.',
+  federal: 'NCES EDGE district context nationwide; up to 8 nearby 2019 EDFacts ACGR outcomes per selected location.',
+  perSchool: ['Up to 8 nearest public schools within 3 km with reportable 2019 ACGR', 'New York City DOE detail (2018–19)'],
+  notYetCovered:
+    'National school outcomes show at most 8 public schools within 3 km per selected location and are limited to reportable 2019 ACGR; other years, grades, outcome types, private schools, and non-reportable records are not covered.',
   reason:
-    'No free licensed national source of per-school results exists. NCES EDGE publishes school districts only; each state publishes assessment data in an incompatible format.',
+    'NCES EDGE 2019–20 public-school locations are joined by NCES school ID to 2019 EDFacts ACGR from the Urban Institute Education Data Portal. Up to eight nearest reportable schools are shown; the source reports ranges for many cohorts and omits non-reportable outcomes.',
 } as const
 
 export const ncesSchoolCorePlugin: PluginRequest = {
@@ -239,7 +236,7 @@ export const ncesSchoolCorePlugin: PluginRequest = {
   legal: {
     suppressBelow: 20,
     notice:
-      'School district boundaries are administrative and historical, not a reflection of school quality. Attendance zone assignment varies by district and can change, and these are funding and staffing inputs rather than ratings. Figures NCES reports as unavailable are shown as blank rather than substituted.',
+      'School district boundaries are administrative and historical, not a reflection of school quality. Attendance zone assignment varies by district and can change. These are staffing and enrollment indicators, not ratings. Figures NCES reports as unavailable are shown as blank rather than substituted.',
   },
 
   async fetch(ctx: QueryContext): Promise<MetricValue[]> {

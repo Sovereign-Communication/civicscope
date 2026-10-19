@@ -28,6 +28,7 @@ export type GeographyLevel =
   | 'tract'
   | 'blockgroup'
   | 'schoolDistrict'
+  | 'school'
 
 export type MetricCategory =
   | 'cost'
@@ -46,7 +47,14 @@ export type MetricCategory =
  * existed, "Schools in district: 3" was suppressed to "not published" by a rule
  * that was never meant for it.
  */
-export type MetricUnit = 'usd' | 'usd_monthly' | 'percent' | 'ratio' | 'count' | 'index' | 'institutions'
+export type MetricUnit = 'usd' | 'usd_monthly' | 'percent' | 'ratio' | 'number' | 'count' | 'index' | 'institutions'
+
+export type AbsentReason =
+  | 'not-applicable'
+  | 'not-comparable'
+  | 'missing'
+  | 'too-few-households'
+  | 'out-of-range'
 
 /** The five progressively finer stages of data resolution. */
 export type ZoomLevel = 0 | 1 | 2 | 3 | 4
@@ -86,13 +94,10 @@ export interface MetricValue {
      * with no civilian households: the Census Bureau returns not-applicable for
      * every median and a real 0 for the counts, and both are true.
      */
-    absentReason?:
-      | 'not-applicable'
-      | 'not-comparable'
-      | 'missing'
-      | 'too-few-households'
-      | 'out-of-range'
+    absentReason?: AbsentReason
   unit: MetricUnit
+  /** Fixed decimal places for context figures whose published precision is meaningful. */
+  displayPrecision?: number
   category: MetricCategory
   source: SourceRef
   quality: {
@@ -122,6 +127,8 @@ export interface MetricValue {
    * overall quality judgment. The engine never uses this to rank automatically.
    */
   betterWhen?: 'higher' | 'lower'
+  /** Area-specific geography that must stay beside this value in comparisons. */
+  geographyContext?: string
   /** Longer explanation shown in the metric's detail popover. */
   note?: string
 }

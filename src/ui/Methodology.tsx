@@ -1,4 +1,4 @@
-import { registry } from '../core/useHousingQuery'
+import { registry } from '../core/plugin-catalog'
 import { SCORE_RULES, SCORE_VERSION } from '../core/scoring'
 import { CENSUS_ATTRIBUTION } from '../core/censusKey'
 import { METRIC_DEFS_BY_KEY, METRIC_KEYS, tableOfMetric, VINTAGE } from '../core/plugins/acs'
@@ -39,10 +39,9 @@ export function Methodology() {
             the original and check.
           </p>
           <p>
-            We publish our scoring weights rather than hiding them. School funding and neighbourhood
-            demographics are correlated in the United States, and any index that uses one implies something
-            about the other. We would rather state that openly than present a composite as if it were an
-            objective verdict on a place.
+            The affordability index is a limited summary of selected housing-cost figures, not an objective
+            verdict on a place. Its inputs, weights, and exclusions are published, and the underlying figures
+            remain available beside it.
           </p>
         </div>
       </section>
@@ -53,11 +52,18 @@ export function Methodology() {
         </h2>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
           <li>
-            <strong>Nothing</strong>, unless you choose to add a Census API key. That key is stored in your
-            browser&rsquo;s local storage and is transmitted only to Census.gov.
+            Your browser stores a Census API key only if you add one. It is saved in local storage and sent only
+            to Census.gov.
           </li>
-          <li>No accounts, no analytics, no advertising, no third-party scripts, no cookies.</li>
-          <li>Fetched data is cached in your browser so pages load quickly and work offline. Clear it any time.</li>
+          <li>
+            Saved comparisons and display preferences stay in this browser. CivicScope does not receive them or
+            keep a search history.
+          </li>
+          <li>
+            Public source responses are cached in this browser. Remove saved comparisons in the app, or clear
+            the site&rsquo;s browser storage to remove the key, preferences, and cache.
+          </li>
+          <li>No accounts, analytics, advertising, third-party scripts, or cookies.</li>
         </ul>
       </section>
 
@@ -169,7 +175,8 @@ export function Methodology() {
                     )}
                     {p.legal.protectedClassProxy && (
                       <p className="mt-1 text-xs font-medium text-slate-700">
-                        Describes area composition. Shown for context and never used to rank or filter.
+                        Can proxy a protected characteristic at area level. Shown in the detail view only and
+                        excluded from sorting, filtering, similarity, and composite scores.
                       </p>
                     )}
                   </li>
@@ -246,12 +253,17 @@ export function Methodology() {
         </h2>
         <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-slate-700">
           <li>
-            We never filter, sort, or rank by race or ethnicity. Area composition is shown as context, in its
-            own section, and is excluded from both indices.
+            This tool does not include race or ethnicity measures. Those measures are not used in filters,
+            figure sorts, similarity, or composite scores; protected-class proxies are excluded from those
+            controls by the metric allowlists.
           </li>
           <li>
-            We never show a ranked list of neighbourhoods, and we never tell you which place is best. You choose
-            the criteria; we show the numbers.
+            The national screen starts in ZIP code order. You can choose to order it by one published figure,
+            but that figure-specific order is not an overall ranking or a judgment about which place is best.
+          </li>
+          <li>
+            The selected-area view includes a limited affordability index with its published inputs and weights.
+            Similar-ZIP search is off by default and lists matches alphabetically rather than by similarity score.
           </li>
           <li>
             We take no advertising, no referral fees, and no payment for placement. There is nothing to sell and
@@ -262,8 +274,8 @@ export function Methodology() {
             error.
           </li>
           <li>
-            We publish our weights, our sources, and the known correlation between school funding and area
-            demographics.
+            We publish the sources, measure definitions, and affordability-index weights so readers can
+            examine the choices and their limits.
           </li>
         </ul>
       </section>
@@ -277,6 +289,45 @@ export function Methodology() {
           <p>
             Contains information from the U.S. Department of Education&rsquo;s NCES Common Core of Data and
             from the CDC PLACES programme.
+          </p>
+          <p>
+            New York school details come from the New York City Department of Education&rsquo;s 2020 High School
+            Directory, via{' '}
+            <a
+              href="https://data.cityofnewyork.us/d/23z9-6uk9"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-blue-800 underline"
+            >
+              NYC Open Data
+            </a>
+            . The portal metadata attributes the dataset to DOE and does not list a license identifier; this
+            attribution is not a claim about the dataset&rsquo;s license.
+          </p>
+          <p>
+            Nationwide public-school graduation outcomes use 2019 EDFacts Adjusted Cohort Graduation Rates,
+            served by the{' '}
+            <a
+              href="https://educationdata.urban.org/documentation/schools.html"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-blue-800 underline"
+            >
+              Urban Institute Education Data Portal
+            </a>{' '}
+            under its ODC Attribution License (ODC-By 1.0), joined by NCES school ID to{' '}
+            <a
+              href="https://nces.ed.gov/programs/edge/Geographic/SchoolLocations"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-blue-800 underline"
+            >
+              NCES EDGE public-school locations
+            </a>{' '}
+            from 2019–20. The value shown is the Portal midpoint; many records have a reported rate range.
+            Coverage is up to eight nearest public schools within 3 km with reportable 2019 four-year cohort
+            graduation data, not all schools, grades, years, or outcomes. This measure is not a school-quality
+            rating.
           </p>
           <p>
             Geocoding by{' '}

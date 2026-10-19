@@ -5,8 +5,8 @@
  * two of the original ones were wrong in ways that would have produced
  * confidently incorrect numbers:
  *
- *   - `B25002_001E` is "Total OCCUPIED HOUSING UNITS", not households. It was
- *     labelled and displayed as a household count. Correct table is `B25001`.
+ *   - `B25002_002E` is occupied housing units, which is the household count.
+ *     `B25001_001E` is total housing units and includes vacant homes.
  *   - `B25035_001E` is "Median YEAR STRUCTURE BUILT", not median home value.
  *     Correct table is `B25077`.
  *
@@ -25,7 +25,7 @@
  */
 
 import { fetchCached } from '../executor'
-import type { MetricValue, PluginRequest, QueryContext, SourceRef } from '../types'
+import type { AbsentReason, MetricValue, PluginRequest, QueryContext, SourceRef } from '../types'
 
 const DATASET = 'acs/acs5'
 export const VINTAGE = '2023'
@@ -116,7 +116,7 @@ const TABLE_OF: Record<string, string> = {
   medianHomeValue: 'B25077',
   medianHouseholdIncome: 'B19013',
   medianRentBurden: 'B25071',
-  households: 'B25001',
+  households: 'B25002',
   renterOccupied: 'B25003',
   ownerOccupied: 'B25003',
   population: 'B01003',
@@ -200,46 +200,6 @@ const ACS_SENTINELS = new Set([
   -333333333,
   -222222222,
 ])
-
-/**
- * Why a figure is absent, in the words a reader needs.
- *
- * An audit of all 33,791 areas found every single absence in the country comes
- * from one encoding, "not applicable", which the ACS uses when a median cannot
- * be computed because there is nothing to compute it over: a ZIP code with no
- * rental units has no median rent. There is no source to import that from,
- * because the publisher does not publish it.
- *
- * "Not yet imported" was the wrong label for that. It reads as a queue: the
- * data exists and has not arrived yet, so waiting would help. It has not
- * arrived because it does not exist, and it will not. Saying so plainly is both
- * shorter and the only answer that is true.
- */
-export type AbsentReason =
-  | 'not-applicable'
-  | 'not-comparable'
-  | 'missing'
-  | 'too-few-households'
-  | 'out-of-range'
-
-/** Shown in place of a figure, chosen by cause rather than one phrase for all. */
-export function absenceLabel(reason: AbsentReason): string {
-  switch (reason) {
-    case 'not-applicable':
-      return 'no valid data available here'
-    case 'not-comparable':
-      return 'not comparable'
-    case 'missing':
-      return 'not published'
-    case 'too-few-households':
-      return 'too few households to be reliable'
-    case 'out-of-range':
-      // The publisher returned a number, and it is not a possible value for
-      // this measure. Saying "not yet imported" would be wrong in a new way:
-      // the data has arrived, and what arrived cannot be shown.
-      return 'outside the published range'
-  }
-}
 
 /**
  * True when a raw ACS value is one of the missing-value sentinels.

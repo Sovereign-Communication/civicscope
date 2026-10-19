@@ -9,6 +9,30 @@ diff.
 
 Ordered newest first. Commit hashes are the squash merges on `main`.
 
+## 2026-10-16
+
+**Audit reconciliation: align visible behavior, source claims, and the canonical plan.**
+The ACS variable itself used occupied housing units, but the methodology lookup still
+pointed households to B25001 (all housing units). It now points to B25002, with an
+explicit regression assertion. The national table previously fell back to a rent-burden
+sort even though governance described no default metric order; it now starts by ZIP code,
+and each optional sort is named after its figure. Selected areas now have a shared
+comparison matrix limited to a matching publisher, dataset, table, unit, and vintage.
+Similarity search remains opt-in and alphabetic; it now shows labeled origin figures and
+discloses its equal starting weights and 0.10 cutoff. Fair Housing copy and methodology
+describe these actual controls, the limited affordability index, browser storage, and
+official HUD/DOJ routes. The school-source description now matches the current code:
+NCES district staffing/enrollment, plus NYC DOE named-school data. NYC dataset terms
+remain unresolved, so no license is claimed. The canonical backlog and design record now
+own status and evidence.
+
+Verification: `npm run verify` passed (333 tests and production build); emoji and
+mojibake scans reported 0 findings. Browser smoke, city-search, tour, and axe checks
+passed against the local preview. The larger live browser run was stopped after three
+minutes before all keyless/live geocoding scenarios completed; Census-key-dependent
+national-sweep scenarios were skipped because no key was configured. No roadmap phase
+was closed by this entry.
+
 ## 2026-10-09
 
 **Four mislabelled figures, found by a reader comparing the map against the drilldown.**

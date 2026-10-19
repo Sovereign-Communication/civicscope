@@ -25,6 +25,7 @@ import {
   tableOfMetric,
   VARS,
 } from '../src/core/plugins/acs'
+import { NYC_SCHOOLS_SOURCE } from '../src/core/plugins/ny-schools'
 import { SORTABLE_METRIC_KEYS } from '../src/core/sortable-surface'
 
 /** The estimates among a variable list, with their margins stripped. */
@@ -86,6 +87,16 @@ describe('the metric registry is complete', () => {
     expect(VARS.commutingWorkers).toBe('B08303_001E') // workers who commute, the universe of the travel-time table
     expect(VARS.bachelorsCount).toBe('B15003_022E') // bachelor's, not high-school diploma
     expect(VARS.belowPovertyCount).toBe('B17001_002E') // count below poverty, as labelled
+    expect(tableOfMetric('households')).toBe('B25002') // methodology follows the occupied-units estimate
+  })
+
+  it('attributes New York school figures to the dataset metadata actually used', () => {
+    expect(NYC_SCHOOLS_SOURCE).toMatchObject({
+      publisher: 'New York City Department of Education (DOE)',
+      dataset: '2020 DOE High School Directory',
+      tableId: '23z9-6uk9',
+      vintage: '2018-19 school year',
+    })
   })
 
   it('the demographic figures the dictionary documents are not sortable', () => {
