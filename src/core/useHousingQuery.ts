@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { executePlugins, PluginRegistry } from './executor'
-import { acsHousingPlugin, fetchAreas, rowToMetrics, type AreaRow } from './plugins/acs'
-import { cdcPlacesPlugin } from './plugins/keyless'
+import { executePlugins } from './executor'
+import { fetchAreas, rowToMetrics, type AreaRow } from './plugins/acs'
 import { enrichWithTracts } from './plugins/geography'
-import { ncesSchoolCorePlugin } from './plugins/schools'
-import { STATE_SCHOOL_PLUGINS } from './plugins/ny-schools'
+import { DRILLDOWN_PLUGIN_IDS, isSchoolPlugin, registry } from './plugin-catalog'
 import { runSweep, type SweepProgress, type SweepScope } from './sweep/runSweep'
 import { CHUNK_SIZE, groupByState, listAllZctas, type ZctasByPrefix } from './sweep/chunk'
 import { describeScope, estimateChunks, stateOptions, toggleState, type StateOption } from './sweep/states'
@@ -14,15 +12,6 @@ import { sweepCache } from './cache'
 import { getQuota, onQuotaChange, type QuotaState } from './http'
 import { scoreBoth, type Composite } from './scoring'
 import type { MetricValue, QueryContext, ResolvedPlace, ZoomLevel } from './types'
-
-export const registry = new PluginRegistry().registerAll([
-  acsHousingPlugin,
-  cdcPlacesPlugin,
-  ncesSchoolCorePlugin,
-  // Per-state plugins. Each covers one state's own assessment data; the list is
-  // the extension point, so adding a state is a single registration.
-  ...STATE_SCHOOL_PLUGINS,
-])
 
 export type SweepStatus = 'idle' | 'loading' | 'ready' | 'error' | 'needs-key'
 export interface DrillState {
@@ -67,31 +56,6 @@ const initial: QueryState = {
   quota: getQuota(),
   zoom: 2,
 }
-
-/**
- * Plugins run at each drilldown depth.
- *
- * The per-state school plugins are included at every depth rather than being
- * listed by hand, so a newly added state participates automatically instead of
- * needing a second edit here. Each one filters to its own state internally, so
- * running them for an area in another state simply yields nothing.
- */
-const STATE_PLUGIN_IDS = STATE_SCHOOL_PLUGINS.map((p) => p.id)
-
-/**
- * Everything, always.
- *
- * This used to be keyed to a "detail level" the reader chose up front, and the
- * default level ran NO extra plugins at all: opening a ZIP code gave housing
- * figures and nothing else, with health and school data hidden behind a control
- * that read like a setting. People read it as broken.
- *
- * The budget was never the reason. A national sweep costs 43 requests against a
- * daily allowance of 450, and a complete drilldown costs about four, so there is
- * room to answer the question that was asked rather than to ask a narrower one
- * first.
- */
-const DRILL_PLUGINS = ['cdc-places', 'nces-school-core', ...STATE_PLUGIN_IDS]
 
 export function useHousingQuery() {
   const [state, setState] = useState<QueryState>(initial)
@@ -210,7 +174,7 @@ export function useHousingQuery() {
 
         const results = await executePlugins({
           registry,
-          ids: DRILL_PLUGINS,
+          ids: DRILLDOWN_PLUGIN_IDS,
           ctx,
         })
         if (signal.aborted) return
@@ -236,7 +200,7 @@ export function useHousingQuery() {
               composites: scoreBoth(metrics),
               loading: false,
               hasSchools: results.some(
-                (r) => (r.pluginId === 'nces-school-core' || r.pluginId === 'nysed-school-detail') && r.status === 'ok',
+                (r) => isSchoolPlugin(r.pluginId) && r.status === 'ok',
               ),
             },
           },

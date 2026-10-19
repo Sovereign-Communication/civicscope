@@ -1,5 +1,5 @@
 /**
- * Source: the New York State Education Department's school-level dataset.
+ * Source: the NYC Department of Education's 2020 High School Directory.
  *
  * Verified live: `data.ny.gov` responds with a 308 redirect to
  * `data.cityofnewyork.us`, which is where the data actually lives. A browser
@@ -18,9 +18,9 @@
  * middle schools, and schools too small to report. A blank means "not
  * applicable", not "poor", and the UI says so rather than showing a zero.
  *
- * This is one state's data. Every other state publishes its own assessment
- * results in a different format, and each will be added as its own plugin. The
- * `StateSchoolPlugin` interface below is what those will implement.
+ * This is NYC data, not a statewide New York directory. Other state and local
+ * sources need their own schema and reuse-term review before integration. The
+ * `StateSchoolPlugin` interface below is the extension point.
  */
 
 import { getJson } from '../http'
@@ -44,15 +44,17 @@ export interface StateSchoolPlugin extends PluginRequest {
 const DATASET = 'https://data.cityofnewyork.us/resource/23z9-6uk9.json'
 const VINTAGE = '2018-19 school year'
 
+export const NYC_SCHOOLS_SOURCE: SourceRef = {
+  publisher: 'New York City Department of Education (DOE)',
+  dataset: '2020 DOE High School Directory',
+  tableId: '23z9-6uk9',
+  vintage: VINTAGE,
+  url: DATASET,
+  citation: `NYC DOE 2020 High School Directory (${VINTAGE}), via NYC Open Data`,
+}
+
 function source(url: string): SourceRef {
-  return {
-    publisher: 'New York State Education Department',
-    dataset: 'NY State school-level data',
-    tableId: 'data.cityofnewyork.us/23z9-6uk9',
-    vintage: VINTAGE,
-    url,
-    citation: `NYSED school-level data (${VINTAGE}), via the NYC Open Data portal`,
-  }
+  return { ...NYC_SCHOOLS_SOURCE, url }
 }
 
 interface NySchool {
@@ -96,17 +98,15 @@ function metresBetween(lat1: number, lon1: number, lat2: number, lon2: number): 
 }
 
 /**
- * New York State's bounding box, including Long Island and the far western
- * counties, with slack. It is a filter to avoid pointless requests, not a
- * geocoding mechanism — a point just outside the state is not a data problem,
- * and a point just inside a neighbouring state that falls in the box still
- * returns only New York schools, because the underlying query is a New York
- * dataset.
+ * Bounding box for the five NYC boroughs, with room for coastline and nearby
+ * centroids. The source is a NYC Department of Education dataset; using a
+ * statewide box caused needless requests for areas where it could never return
+ * a nearby school.
  */
-const NY_BOUNDS = { minLat: 40.49, maxLat: 45.02, minLon: -79.77, maxLon: -71.85 }
+const NYC_BOUNDS = { minLat: 40.49, maxLat: 40.93, minLon: -74.28, maxLon: -73.65 }
 
-function inNewYork(lat: number, lon: number): boolean {
-  return lat >= NY_BOUNDS.minLat && lat <= NY_BOUNDS.maxLat && lon >= NY_BOUNDS.minLon && lon <= NY_BOUNDS.maxLon
+export function isInNycCoverage(lat: number, lon: number): boolean {
+  return lat >= NYC_BOUNDS.minLat && lat <= NYC_BOUNDS.maxLat && lon >= NYC_BOUNDS.minLon && lon <= NYC_BOUNDS.maxLon
 }
 
 export interface NearbySchool {
@@ -176,12 +176,12 @@ export async function nearbySchools(
 }
 
 export const nySchoolPlugin: StateSchoolPlugin = {
-  id: 'nysed-school-detail',
+  id: 'nyc-doe-school-detail',
   stateCode: 'NY',
   stateName: 'New York',
-  title: 'Individual schools (NYSED)',
+  title: 'Individual schools (NYC DOE)',
   category: 'education',
-  geography: 'schoolDistrict',
+  geography: 'school',
   minZoom: 4,
   legal: {
     suppressBelow: 20,
@@ -193,12 +193,10 @@ export const nySchoolPlugin: StateSchoolPlugin = {
     const { lat, lon } = ctx.geo ?? {}
     if (lat === undefined || lon === undefined) return []
 
-    // Only run for New York. The geocoder deliberately does not report a state
-    // for a bare ZIP code — the Census ZCTA layer's ZCTA5 field is a string and
-    // carries no USPS state code — so the state is inferred from the point
-    // instead, against a small bounding box for New York State. Outside it this
-    // plugin yields nothing, which is the correct behaviour.
-    if (!inNewYork(lat, lon)) return []
+    // The source is a New York City directory, not a statewide school feed.
+    // Bare ZIP geocoding does not carry a USPS state code, so use the source
+    // coverage area to avoid requests that cannot produce a nearby result.
+    if (!isInNycCoverage(lat, lon)) return []
 
     const near = await nearbySchools(lat, lon, ctx.signal)
     if (near.length === 0) return []

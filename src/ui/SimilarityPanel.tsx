@@ -1,5 +1,6 @@
 /**
- * Find ZIP codes similar to one of yours, by weights you set.
+ * Find ZIP codes similar to one of yours, using disclosed starting weights that
+ * the reader can change.
  *
  * Everything this panel does follows from one position: a similarity result is
  * inherently a ranking, so it exists only when the reader has asked for it, and
@@ -12,11 +13,12 @@
  * attorney has reviewed the design and that this is a design decision about
  * defaults, not a compliance finding.
  *
- * **The reader sets every weight.** Four sliders, persisted locally, equal by
- * default so no operator opinion is baked in. Outcome-named templates were
- * dropped rather than deferred: a template that names the outcome a reader
- * should want is the highest-steering surface in the whole plan, and with no
- * attorney review there is no basis on which to ship one later either.
+ * **The starting values are explicit and adjustable.** Four sliders begin at
+ * equal weights and the measured cutoff, are persisted locally, and can be
+ * changed by the reader. Outcome-named templates were dropped rather than
+ * deferred: a template that names the outcome a reader should want is the
+ * highest-steering surface in the whole plan, and with no attorney review there
+ * is no basis on which to ship one later either.
  *
  * **Results are alphabetical.** The distance is shown beside each match and the
  * cut-off is a slider, but the order is A-Z by ZIP code, because "closest first"
@@ -47,20 +49,11 @@ const FLAG_KEY = 'civicscope.similarity.v1.enabled'
 const WEIGHTS_KEY = 'civicscope.similarity.v1.weights'
 const CUTOFF_KEY = 'civicscope.similarity.v1.cutoff'
 
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-
 const LABELS: Record<SimilarityMetric, string> = {
   median_rent_burden_pct: 'Rent burden',
   median_gross_rent: 'Monthly rent',
   median_home_value: 'Home value',
   median_household_income: 'Household income',
-}
-
-function formatFigure(metric: SimilarityMetric, value: number | null | undefined): string {
-  if (value === null || value === undefined) return 'no figure'
-  if (metric === 'median_rent_burden_pct') return `${value}%`
-  if (metric === 'median_gross_rent') return `${usd.format(value)}/mo`
-  return usd.format(value)
 }
 
 /** Reads the flag. Tolerates a browser with storage disabled: off, not broken. */
@@ -173,9 +166,9 @@ export function SimilarityPanel({
       {!enabled ? (
         <div className="mt-2">
           <p className="text-xs text-slate-600">
-            This is off because a similarity result is a ranking: it only runs when you ask for it. You set the
-            weights, the results are ordered alphabetically rather than by closeness, and no protected-class
-            measure can be weighted — see the Fair Housing notice for how to read any figure on this site.
+            This is off because a similarity result is a ranking: it only runs when you ask for it. It starts
+            with equal weights and a 0.10 distance cut-off; you can change both. Results are ordered
+            alphabetically rather than by closeness, and no protected-class measure can be weighted.
           </p>
           <button
             type="button"
@@ -277,9 +270,6 @@ export function SimilarityPanel({
                         <div className="min-w-0">
                           <span className="font-mono text-sm font-medium text-slate-900">{r.zcta}</span>
                           <span className="ml-2 text-xs text-slate-500">distance {r.distance.toFixed(2)}</span>
-                          <span className="ml-2 text-xs text-slate-600">
-                            {SIMILARITY_METRICS.map((m) => formatFigure(m, r.figures[m])).join(' · ')}
-                          </span>
                         </div>
                         <button
                           type="button"

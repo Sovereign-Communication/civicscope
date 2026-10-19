@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { DRILLDOWN_PLUGIN_IDS, registry } from '../src/core/plugin-catalog'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (p: string) => readFileSync(join(root, p), 'utf8')
@@ -79,10 +80,10 @@ describe('gate: ACS request construction', () => {
     // nothing else, with health and school data behind a setting that read like
     // a preference. People read it as broken.
     const q = read('src/core/useHousingQuery.ts')
-    expect(q, 'the drilldown must run every plugin').toMatch(/const DRILL_PLUGINS = \[/)
-    expect(q, 'the drilldown plugin list must include health and schools').toMatch(/cdc-places/)
-    expect(q).toMatch(/nces-school-core/)
-    expect(q, 'the per-level plugin map must be gone').not.toMatch(/DRILL_PLUGINS: Record<ZoomLevel/)
+    expect(q, 'the query hook must execute the catalog drilldown IDs').toMatch(/ids: DRILLDOWN_PLUGIN_IDS/)
+    expect(DRILLDOWN_PLUGIN_IDS).toEqual(expect.arrayContaining(['cdc-places', 'nces-school-core', 'epa-nwi-context']))
+    expect(DRILLDOWN_PLUGIN_IDS.every((id) => registry.get(id) !== undefined)).toBe(true)
+    expect(q, 'the per-level plugin map must be gone').not.toMatch(/DRILLDOWN_PLUGIN_IDS: Record<ZoomLevel/)
 
     const app = read('src/ui/App.tsx')
     expect(app, 'the depth control must be gone').not.toMatch(/How much detail to fetch/)
@@ -99,9 +100,10 @@ describe('gate: ACS request construction', () => {
     // ZCTA 20771 is a military ZIP with no civilian households, and the Census
     // Bureau returns not-applicable for every median and a real 0 for the counts.
     const card = read('src/ui/MetricCard.tsx')
-    expect(card, 'the drilldown must show the cause').toMatch(/absenceLabel/)
+    const formatting = read('src/ui/metric-format.ts')
+    expect(formatting, 'the formatter must map absence causes to language').toMatch(/absenceLabel/)
     expect(card, 'the cause must reach the formatter').toMatch(/metric\.absentReason/)
-    expect(card, 'the old hardcoded phrase must be gone as a constant').not.toMatch(
+    expect(formatting, 'the old hardcoded phrase must be gone as a constant').not.toMatch(
       /const ABSENT_LABEL/,
     )
     expect(read('src/core/types.ts')).toMatch(/absentReason/)
@@ -111,9 +113,9 @@ describe('gate: ACS request construction', () => {
   it('never puts a currency sign on a count', () => {
     // A count of renter-occupied units was rendered with its margin as "0 plus
     // or minus $0". A dollar sign on a headcount is simply wrong.
-    const card = read('src/ui/MetricCard.tsx')
-    expect(card).toMatch(/function formatMargin/)
-    expect(card, 'only monetary units may be formatted as currency').toMatch(
+    const formatting = read('src/ui/metric-format.ts')
+    expect(formatting).toMatch(/function formatMetricMargin/)
+    expect(formatting, 'only monetary units may be formatted as currency').toMatch(
       /unit === 'usd' \|\| unit === 'usd_monthly'/,
     )
   })
@@ -127,12 +129,11 @@ describe('gate: ACS request construction', () => {
     // that genuinely has not been fetched.
     const table = read('src/ui/SweepTable.tsx')
     const card = read('src/ui/MetricCard.tsx')
-    const acs = read('src/core/plugins/acs.ts')
+    const formatting = read('src/ui/metric-format.ts')
+    expect(formatting, 'an out-of-range value needs its own wording').toMatch(/out-of-range/)
+    expect(formatting).toMatch(/outside the published range/)
 
-    expect(acs, 'an out-of-range value needs its own wording').toMatch(/out-of-range/)
-    expect(acs).toMatch(/outside the published range/)
-
-    for (const [name, src] of [['SweepTable', table], ['MetricCard', card]] as const) {
+    for (const [name, src] of [['SweepTable', table], ['MetricCard formatting', formatting]] as const) {
       // Wherever the phrase remains, it must be behind a null check on a value
       // that never arrived, never behind an out-of-range branch.
       // Comments are stripped first. The explanatory note beside this branch
@@ -154,15 +155,17 @@ describe('gate: ACS request construction', () => {
     }
     // The drilldown runs every source automatically, so a null there can only
     // mean the publisher holds no value. It must not reach the phrase.
-    expect(card, 'the drilldown must never claim a loaded figure is unloaded').not.toMatch(
+    expect(formatting, 'the drilldown must never claim a loaded figure is unloaded').not.toMatch(
       /return reason \? absenceLabel\(reason\) : 'not yet imported'/,
     )
-    expect(card, 'a null in the drilldown means the publisher has no value').toMatch(
+    expect(formatting, 'a null in the drilldown means the publisher has no value').toMatch(
       /absenceLabel\(reason \?\? 'missing'\)/,
     )
 
     // And the honest phrase is what the table actually shows.
-    expect(table, 'an out-of-range percentage must say so').toMatch(/absenceLabel\(reason \?\? 'out-of-range'\)/)
+    expect(table, 'the shared display guard must label an out-of-range percentage').toMatch(
+      /!isMetricDisplayable\(value, unit\)[\s\S]*absenceLabel\(reason \?\? 'out-of-range'\)/,
+    )
   })
 
   it('never claims an absent figure is merely un-imported', () => {
@@ -172,10 +175,13 @@ describe('gate: ACS request construction', () => {
     // reader the opposite — that the figure exists and is on its way. The cause
     // is now carried on the row and shown in words.
     const acs = read('src/core/plugins/acs.ts')
+    const types = read('src/core/types.ts')
+    const formatting = read('src/ui/metric-format.ts')
     expect(acs, 'the cause of an absence must be recorded').toMatch(/absent\?: Record<string, AbsentReason>/)
     expect(acs, 'each encoding must say what it means').toMatch(/ACS_SENTINEL_REASONS/)
-    expect(acs, 'absent figures must be labelled from the cause').toMatch(/function absenceLabel/)
-    expect(acs).toMatch(/no valid data available here/)
+    expect(types, 'absent reasons are shared across metric sources').toMatch(/export type AbsentReason/)
+    expect(formatting, 'absent figures must be labelled from the cause').toMatch(/function absenceLabel/)
+    expect(formatting).toMatch(/no valid data available here/)
     // And the honest phrase must survive for a figure genuinely not loaded.
     expect(read('src/ui/SweepTable.tsx')).toMatch(/not yet imported/)
   })

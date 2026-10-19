@@ -77,6 +77,7 @@ loudly.
 | `scripts/` | Does not exist. Generators live in `tools/` and are wired as npm scripts. |
 | `ResolvedPlace` | Has `name` and `zip`, **not** `zcta` and `city`. See `src/core/types.ts`. |
 | `selectPlace()` | Returns immediately without `zip` (`useHousingQuery.ts`). A suggestion with no ZIP is a silent no-op. |
+| **No offline/external judgement calls.** | Do not hand a decision off to a skill, script, or outside command as if that were the analysis. The Jev pass for this project is run here in-session over the planning docs, with reasoning in [docs/jev-alignment-2026-10-16.md](docs/jev-alignment-2026-10-16.md) and executable work statuses in [docs/canon-work-mission.md](docs/canon-work-mission.md). If a choice is genuinely consequential and not resolvable from the repo, say so in prose rather than dispatching it. |
 
 ## 3. Conventions
 
@@ -92,3 +93,6 @@ loudly.
 - **Do not add a phase row, or claim a UX score, without measuring it.** Several
   rows in that roadmap were closed by measuring rather than reviewing, and the
   difference is the point of the file.
+- **Keep planning decisions discoverable.** If a decision is worth keeping, it goes
+  into a canonical doc (roadmap, governance, alignment pass, or audit), not into a
+  throwaway scratch note.

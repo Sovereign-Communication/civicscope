@@ -1,14 +1,6 @@
-import { absenceLabel, type AbsentReason } from '../core/plugins/acs'
 import { useId, useState } from 'react'
 import type { MetricValue } from '../core/types'
-
-const num = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 })
-
-const usd = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-})
+import { formatMetricMargin, formatMetricValue, isMetricDisplayable } from './metric-format'
 
 /**
  * Renders a figure, or states plainly that there is none.
@@ -19,70 +11,6 @@ const usd = new Intl.NumberFormat('en-US', {
  * would be a confident lie rather than a placeholder.
  */
 
-
-function isDisplayable(value: number | null, unit: MetricValue['unit']): boolean {
-  if (value === null || !Number.isFinite(value) || value < 0) return false
-  if (unit === 'percent' && value > 100) return false
-  return true
-}
-
-/**
- * Formats a margin of error in the unit of the figure it belongs to.
- *
- * It used to be rendered as currency for anything that was not a percentage or
- * a ratio, so a count of renter-occupied units came out as "0 plus or minus $0"
- * — a dollar sign on a headcount. Percent and ratio carry no currency either,
- * and a plain count does not, so only the two monetary units get one.
- */
-function formatMargin(moe: number, unit: MetricValue['unit']): string {
-  if (unit === 'usd' || unit === 'usd_monthly') return usd.format(moe)
-  return num.format(moe)
-}
-
-function format(m: MetricValue, reason?: AbsentReason): string {
-  /*
-   * The cause is shown when we have one. The panel this came from displayed
-   * "not yet imported" beside four medians the Census Bureau had explicitly
-   * marked not applicable, which told the reader the data was still on its way
-   * when the publisher had said there is nothing to have. Verified against the
-   * live endpoint: ZCTA 20771 returns -666666666 for every median and a real 0
-   * for households, population and renter units. Both are facts about the area;
-   * only one of them was being described correctly.
-   */
-  // "Not yet imported" is now only ever true when the figure genuinely has
-  // not been loaded. A figure that arrived but cannot be shown, because the
-  // publisher returned something outside the possible range, is labelled as
-  // that instead.
-  if (!isDisplayable(m.value, m.unit)) {
-    // A value that arrived but cannot be shown is out of range, not unloaded.
-    if (m.value !== null) return absenceLabel(reason ?? 'out-of-range')
-    // Every drilldown source now runs automatically, so a null reaching here is
-    // a value the publisher does not hold, not a request that has not been made.
-    // The phrase was surviving on exactly this path: the school and health
-    // plugins never set a reason, so their nulls fell back to it and read as a
-    // queue for data that was never going to arrive.
-    return absenceLabel(reason ?? 'missing')
-  }
-  const v = m.value as number
-  switch (m.unit) {
-    case 'usd':
-      return usd.format(v)
-    case 'usd_monthly':
-      return `${usd.format(v)}/mo`
-    case 'percent':
-      return `${v}%`
-    case 'ratio':
-      return `${v}`
-    case 'count':
-    case 'institutions':
-      // An institution count renders exactly like a count of anything else.
-      // It has its own unit only to escape the people-and-households
-      // suppression rule, not to look different on screen.
-      return v.toLocaleString('en-US')
-    default:
-      return String(v)
-  }
-}
 
 /**
  * A single figure with its uncertainty and its provenance.
@@ -105,10 +33,10 @@ export function MetricCard({ metric, notice }: { metric: MetricValue; notice?: s
         <div className="min-w-0">
           <h3 className="text-sm font-medium text-slate-700">{metric.label}</h3>
           <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
-            {format(metric, metric.absentReason)}
-            {moe !== undefined && isDisplayable(metric.value, metric.unit) && (
+            {formatMetricValue(metric, metric.absentReason)}
+            {moe !== undefined && isMetricDisplayable(metric.value, metric.unit) && (
               <span className="ml-1 text-sm font-normal text-slate-500">
-                ±{formatMargin(moe, metric.unit)}
+                ±{formatMetricMargin(moe, metric.unit)}
               </span>
             )}
           </p>
@@ -135,6 +63,12 @@ export function MetricCard({ metric, notice }: { metric: MetricValue; notice?: s
 
       {open && (
         <div id={panelId} className="mt-2 space-y-2 text-xs text-slate-600">
+          {metric.geographyContext && (
+            <p>
+              <span className="font-medium">Geography: </span>
+              {metric.geographyContext}
+            </p>
+          )}
           {metric.note && <p className="text-slate-700">{metric.note}</p>}
           {metric.quality.derivation && (
             <p>
@@ -145,7 +79,7 @@ export function MetricCard({ metric, notice }: { metric: MetricValue; notice?: s
           {moe !== undefined && (
             <p>
               <span className="font-medium">Margin of error: </span>±
-              {formatMargin(moe, metric.unit)} at the 90% confidence
+              {formatMetricMargin(moe, metric.unit)} at the 90% confidence
               level, as published by {metric.source.publisher}.
             </p>
           )}

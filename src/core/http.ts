@@ -10,8 +10,8 @@ import { isFresh, readCache, writeCache } from './cache'
 import { paced } from './ratelimit'
 
 
-/** In-flight requests keyed by URL, so concurrent callers share one fetch. */
-const inFlight = new Map<string, Promise<unknown>>()
+/** Requests share a fetch only when they share a cancellation scope. */
+const inFlight = new WeakMap<AbortSignal, Map<string, Promise<unknown>>>()
 
 export interface QuotaState {
   used: number
@@ -116,6 +116,9 @@ export async function fetchResilient(
 ): Promise<Response> {
   let lastErr: unknown
   for (let i = 1; i <= attempts; i++) {
+    if (init.signal?.aborted) {
+      throw init.signal.reason ?? new DOMException('The operation was aborted', 'AbortError')
+    }
     try {
       const res = await fetch(url, init)
       if (!RETRYABLE_STATUS.has(res.status) || i === attempts) return res
@@ -124,7 +127,7 @@ export async function fetchResilient(
       await sleep(retryAfter > 0 ? Math.min(retryAfter, 30_000) : backoffMs(i, res.status))
     } catch (err) {
       lastErr = err
-      if (i === attempts) throw err
+      if (init.signal?.aborted || i === attempts) throw err
       await sleep(1200 * i)
     }
   }
@@ -132,8 +135,13 @@ export async function fetchResilient(
 }
 
 export async function getJson<T>(url: string, opts: GetJsonOptions): Promise<T> {
-  const existing = inFlight.get(url)
+  let requests = inFlight.get(opts.signal)
+  const existing = requests?.get(url)
   if (existing) return existing as Promise<T>
+  if (!requests) {
+    requests = new Map()
+    inFlight.set(opts.signal, requests)
+  }
 
   const p = (async (): Promise<T> => {
     // The cache is consulted before anything is spent: a hit costs no request,
@@ -165,10 +173,11 @@ export async function getJson<T>(url: string, opts: GetJsonOptions): Promise<T> 
     return body
   })()
 
-  inFlight.set(url, p)
+  requests.set(url, p)
   try {
     return await p
   } finally {
-    inFlight.delete(url)
+    requests.delete(url)
+    if (requests.size === 0) inFlight.delete(opts.signal)
   }
 }

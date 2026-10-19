@@ -1,6 +1,8 @@
+import { formatMetricMargin, formatMetricValue, isMetricDisplayable } from './metric-format'
 import { MetricCard } from './MetricCard'
 import { CompositeCard } from './CompositeCard'
 import type { DrillState } from '../core/useHousingQuery'
+import { comparableMetricRows } from '../core/comparison'
 
 /**
  * Side-by-side comparison of the areas the user selected.
@@ -22,6 +24,7 @@ export function Comparison({
 }) {
   const entries = Object.values(drilldowns)
   if (entries.length === 0) return null
+  const comparableRows = comparableMetricRows(entries)
 
   return (
     <section aria-labelledby="comparison-heading" className="mt-8">
@@ -30,6 +33,68 @@ export function Comparison({
       </h2>
 
       <div className="mt-3 space-y-4">
+        {entries.length > 1 && comparableRows.length > 0 && (
+          <section aria-labelledby="comparison-matrix-heading" className="panel panel-padded">
+            <h3 id="comparison-matrix-heading" className="text-sm font-semibold text-slate-900">
+              Compare shared figures side by side
+            </h3>
+            <p className="mt-1 text-xs text-slate-600">
+              Only measures available for every selected area from the same publisher, table, and vintage appear
+              here. Margins of error stay beside their estimates. The figures describe differences; they do not
+              explain causes or recommend an area.
+            </p>
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full border-collapse text-left text-sm">
+                <caption className="sr-only">
+                  Published measures available for all selected areas from the same source, table, and vintage.
+                </caption>
+                <thead>
+                  <tr className="border-b border-slate-300">
+                    <th scope="col" className="py-2 pr-4 font-semibold text-slate-800">Figure</th>
+                    {entries.map((d) => {
+                      const where = placeLabel?.(d.zcta) ?? d.label ?? d.zcta
+                      return (
+                        <th key={d.zcta} scope="col" className="min-w-40 px-3 py-2 font-semibold text-slate-800">
+                          <span className="font-mono">{d.zcta}</span>
+                          <span className="ml-2 font-normal text-slate-600">{where}</span>
+                        </th>
+                      )
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparableRows.map((row) => (
+                    <tr key={row.key} className="border-b border-slate-200 align-top">
+                      <th scope="row" className="max-w-64 py-3 pr-4 font-medium text-slate-800">
+                        {row.label}
+                        {row.note && <span className="mt-1 block text-xs font-normal text-slate-600">{row.note}</span>}
+                      </th>
+                      {row.values.map((metric, index) => {
+                        const margin = metric.quality.marginOfError
+                        return (
+                          <td key={`${entries[index]!.zcta}-${row.key}`} className="px-3 py-3 tabular-nums text-slate-800">
+                            {formatMetricValue(metric, metric.absentReason)}
+                            {margin !== undefined && isMetricDisplayable(metric.value, metric.unit) && (
+                              <span className="ml-1 text-xs font-normal text-slate-500">
+                                ±{formatMetricMargin(margin, metric.unit)}
+                              </span>
+                            )}
+                            {metric.geographyContext && (
+                              <span className="mt-1 block text-xs font-normal text-slate-600">
+                                <span className="font-medium">Geography: </span>{metric.geographyContext}
+                              </span>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
         {entries.map((d) => {
           /*
             The city is taken from the mapping rather than from `d.label`, which
@@ -92,12 +157,13 @@ export function Comparison({
 
             {d.hasSchools && (
               <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-600">
-                <span className="font-medium text-slate-700">About school data here:</span> district funding
-                and staffing figures cover all 50 states. Named-school detail — enrolment, graduation and
-                attendance for individual schools — is available for{' '}
-                <strong>New York</strong> so far, because no free licensed national source of per-school
-                results exists and each state publishes its own data differently. A graduation rate is blank for
-                schools that serve no graduating cohort, which means not applicable rather than poor.
+                <span className="font-medium text-slate-700">About school data here:</span> district staffing
+                and enrollment figures cover all 50 states. Near this location, the national source can show
+                up to eight nearest public schools within 3 km with a reportable 2019 four-year graduation-rate
+                midpoint; many records instead contain a published range, and missing or suppressed outcomes
+                are omitted.
+                NYC&rsquo;s separate DOE directory still supplies named-school enrollment, graduation and
+                attendance figures from 2018–19. Neither source is a school-quality rating.
               </p>
             )}
           </article>

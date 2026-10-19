@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { registry } from './core/useHousingQuery'
+import { registry } from './core/plugin-catalog'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '.')
 const headers = readFileSync(join(root, '..', 'public', '_headers'), 'utf8')
@@ -70,6 +70,7 @@ describe('CSP allowlist matches the code', () => {
     join(root, 'core', 'plugins', 'keyless.ts'),
     join(root, 'core', 'plugins', 'geography.ts'),
     join(root, 'core', 'plugins', 'schools.ts'),
+    join(root, 'core', 'plugins', 'school-outcomes.ts'),
     join(root, 'core', 'geocode.ts'),
     join(root, 'core', 'map', 'centroids.ts'),
     join(root, 'core', 'map', 'projection.ts'),

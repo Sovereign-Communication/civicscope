@@ -85,7 +85,7 @@ for (const [name, lat, lon] of PLACES) {
 }
 
 
-// Only New York has per-school data; one bounded query per NYC coordinate.
+// Named-school detail is NYC-only; one bounded query per NYC coordinate.
 for (const [name, lat, lon] of PLACES.slice(0, 4)) {
   const schools = await withNetworkRetry(`schools ${name}`, async () =>
     nearbySchools(lat, lon, new AbortController().signal, 4000),

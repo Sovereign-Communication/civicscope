@@ -19,7 +19,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { registry } from '../src/core/useHousingQuery'
+import { registry } from '../src/core/plugin-catalog'
 import { METRIC_DEFS_BY_KEY, acsHousingPlugin } from '../src/core/plugins/acs'
 import { SORTABLE_METRIC_KEYS, isSortableMetricKey } from '../src/core/sortable-surface'
 import { affordabilityIndex } from '../src/core/scoring'
