@@ -857,16 +857,15 @@ describe('e2e: per-ZIP EPA geography in comparison', () => {
 describe.skipIf(!KEY)('e2e: country-wide sweep with a real key', () => {
   it('loads a national set of ZIP codes in one request', async () => {
     await page.waitForSelector('#screen-heading', { timeout: 120000 })
-    await page.waitForFunction(
-      () => {
-        const el = document.querySelector('[role="status"][aria-live="polite"]')
-        return el?.textContent?.includes('ZIP codes') ?? false
-      },
-      { timeout: 180000 },
-    )
+    const nationalStatus = page
+      .locator('[role="status"][aria-live="polite"]')
+      .filter({ hasText: /^Loaded [\d,]+ ZIP codes for the whole country\.$/ })
+      .first()
+    await nationalStatus.waitFor({ state: 'attached', timeout: 180000 })
 
-    const text = await page.locator('[role="status"][aria-live="polite"]').first().innerText()
-    const n = Number(text.replace(/[^0-9]/g, ''))
+    const text = await nationalStatus.innerText()
+    const count = text.match(/^Loaded ([\d,]+) ZIP codes for the whole country\.$/)
+    const n = Number(count?.[1]?.replace(/,/g, '') ?? 0)
     // A national sweep must cover tens of thousands of areas, not a handful.
     expect(n).toBeGreaterThan(30000)
 
