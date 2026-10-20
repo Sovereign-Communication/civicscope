@@ -1,6 +1,6 @@
 # CivicScope Canonical Work Backlog
 
-**Updated:** 2026-10-16
+**Updated:** 2026-10-20
 **Purpose:** reconcile the audit, Jev-style alignment, use-case map, data-source research,
 legal analysis, and existing roadmap into one executable record.
 
@@ -41,19 +41,19 @@ roadmap row by itself.
 
 ## Executed work from this audit
 
-The rows below are implemented in this working tree. Status reflects the checks recorded
-at the end of this mission; source-owner and key-dependent checks remain separate open
-items.
+The rows below are implemented in this working tree. Status reflects evidence through
+2026-10-20. The four targeted Census-key browser checks are verified below; unrelated
+source-owner prerequisites and broader-suite coverage remain separately scoped.
 
 | ID | Rank | Work and current status | Truth owner / evidence |
 |---|---:|---|---|
-| CS-01 | 1 | **Complete by unit/build evidence.** Align the household count variable and methodology table: households are occupied housing units, ACS B25002_002E, not total units in B25001. The Census-key E2E remains unrun. | src/core/plugins/acs.ts; tests/metric-registry.test.ts; src/e2e/app.e2e.ts; README data table |
-| CS-02 | 2 | **Complete by unit/build evidence.** Start the national screen in ascending ZIP order. An explicit user choice may sort by one published measure; there is no universal best-area ordering. Full-sweep browser assertions remain skipped without a Census key. | src/core/sweep-sorting.ts; src/core/sweep-sorting.test.ts; src/ui/App.tsx; src/ui/SweepTable.tsx; national-screen E2E |
-| CS-03 | 3 | **Complete by unit/build evidence.** Add a shared comparison matrix that only combines the same measure, unit, publisher, dataset, table, and vintage across every selected area; keep margins of error beside estimates. Full-sweep caption assertion remains skipped without a Census key. | src/core/comparison.ts; src/core/comparison.test.ts; src/ui/Comparison.tsx; E2E caption assertion |
+| CS-01 | 1 | **Complete by unit, build, and targeted browser evidence.** Align the household count variable and methodology table: households are occupied housing units, ACS B25002_002E, not total units in B25001. The saved-key browser case confirmed different household counts across two ZIPs. | src/core/plugins/acs.ts; tests/metric-registry.test.ts; src/e2e/app.e2e.ts; README data table; 2026-10-20 verification record |
+| CS-02 | 2 | **Complete by unit/build and targeted browser evidence.** Start the national screen in ascending ZIP order. An explicit user choice may sort by one published measure; there is no universal best-area ordering. The saved-key browser case loaded over 30,000 ZIP codes and confirmed default ZIP order; a separate targeted browser case covered local sorting and Similarity presentation. | src/core/sweep-sorting.ts; src/core/sweep-sorting.test.ts; src/ui/App.tsx; src/ui/SweepTable.tsx; src/e2e/app.e2e.ts; 2026-10-20 verification record |
+| CS-03 | 3 | **Complete by unit/build and targeted browser evidence.** Add a shared comparison matrix that only combines the same measure, unit, publisher, dataset, table, and vintage across every selected area; keep margins of error beside estimates. The saved-key browser cases confirmed the comparison matrix and rendered published figures with margins of error. | src/core/comparison.ts; src/core/comparison.test.ts; src/ui/Comparison.tsx; src/e2e/app.e2e.ts; 2026-10-20 verification record |
 | CS-04 | 4 | **Complete by source, build, and accessibility evidence.** Correct the Fair Housing notice, methodology and README to describe actual controls and scores, explain that school information is not inherently unlawful to publish, and link HUD/DOJ plus HUD's FHAP agency directory. | src/ui/FairHousingNotice.tsx; src/ui/Methodology.tsx; GOVERNANCE.md; README.md; docs/fair-housing-design-decisions.md; audit/civicscope-legal-analysis-2026-10-16.md |
 | CS-05 | 5 | **Complete: attribution correction and source-terms review documented.** Correct NYC DOE attribution, dataset identity and geography; distinguish NYC Open Data's portal-wide no-restrictions policy from the dataset metadata's blank license identifier; retain source vintage and freshness caveats. | src/core/plugins/ny-schools.ts; tests/metric-registry.test.ts; src/ui/Methodology.tsx; README.md; docs/data-sources-research.md; official dataset metadata, FAQ, Technical Standards Manual and Terms of Use |
 | CS-06 | 6 | **Complete by source/build evidence.** Describe browser storage accurately, including the key, saved comparisons/preferences, and cached public responses; explain clearing browser data. | src/ui/Methodology.tsx; privacy section in legal analysis |
-| CS-07 | 7 | **Complete by unit/build evidence.** Correct school-data claims: NCES EDGE emits teacher count, students per teacher, enrolled students, and school count, not per-pupil spending or district funding. The live-school E2E is not claimed as run. | src/core/plugins/schools.ts; src/ui/MapView.tsx; src/ui/Comparison.tsx; README.md; E2E figure assertion; legal analysis |
+| CS-07 | 7 | **Complete by unit/build and targeted browser evidence.** Correct school-data claims: NCES EDGE emits teacher count, students per teacher, enrolled students, and school count, not per-pupil spending or district funding. The targeted live browser case confirms district staffing figures render; it does not verify the separate nearby public-school ACGR lane. | src/core/plugins/schools.ts; src/ui/MapView.tsx; src/ui/Comparison.tsx; README.md; src/e2e/app.e2e.ts; 2026-10-20 verification record; legal analysis |
 | CS-08 | 8 | **Complete by scans and source review.** Make all canonical planning notes point to this backlog for execution status and retain the roadmap as the phase-status authority. | README.md; GOVERNANCE.md; AGENTS.md; docs/jev-alignment-2026-10-16.md; docs/use-case-data-map.md; docs/data-sources-research.md |
 
 ## Closed research item
@@ -83,11 +83,56 @@ The research note records what each source establishes and the freshness/cache i
 
 ### Rank 2 — Keep the existing product understandable
 
-**Status: implemented for the CS-02 through CS-07 backlog items listed above.** Their
-recorded evidence is limited to the source, unit, build, and accessibility checks stated in
-those rows. Census-key national-sweep, comparison, and similarity browser checks remain
-**open**; `CIVICSCOPE-R2-SCHOOLS` is **partially addressed** with the source and coverage
-limits recorded above.
+**Status: implemented for the scoped CS-02 through CS-07 backlog items listed above.**
+Evidence remains limited to the source, unit, build, accessibility, and targeted browser
+checks named in those rows; detailed Census-key browser scope and results are recorded
+below.
+`CIVICSCOPE-R2-SCHOOLS` remains **partially addressed** with the source and coverage limits
+recorded above.
+
+**Open validation follow-up - broader live E2E suite:** the verification record below
+does not establish full browser-suite coverage. Run and reconcile the remaining live E2E
+files in a separately scoped pass before claiming full browser-suite coverage.
+
+**Blocked validation - real Windows unsafe-ACL refusal:** unit tests reject an
+Everyone ACE through the policy predicate, but do not exercise Windows ACL retrieval and
+refusal through `loadCensusKeyFromScmorc`. The required real-fixture proof remains
+blocked; see the verification record below for the exact execution limit. When an
+environment permits the fixture, assert the loader refuses before populating
+`CENSUS_KEY`; use only a temporary synthetic key, never the saved real key.
+
+**Completed focused parser check:** `src/core/census-key-loader.test.ts` now asserts that
+the parsed key equals the supplied synthetic value. The focused test and full verification
+passed; this does not change loader scope or roadmap status.
+
+**Resolved scope decisions:** the change is limited to loading an existing `.scmorc` key
+for the targeted Census browser run. The separate key-entry script was removed, as were
+the auto-load hooks from `tools/audit-all-data.mjs`, `tools/probe-moe-cost.mjs`, and
+`vitest.live.config.ts`. Those tools retain their existing explicit `CENSUS_KEY`
+environment-variable behavior. Removing the live-config hook also removes its
+import-time credential read and environment mutation. No verification is claimed or
+required for the removed hooks.
+
+**Jev cross-check - priority and completeness only, not evidence:** TypeSafe `jev-1.13.0`
+selected scope reconciliation before verification of retained paths (Choice probability
+0.81; confidence 0.75) and classified the live-config import-time credential effect as a
+distinct tracked action (probability 0.99; confidence 0.98). A broader aggregate
+completeness prompt fell out of pack and was discarded. These judgments help prioritize
+and check the action list; repository evidence remains authoritative, and no roadmap status
+or verification claim changes from model output.
+
+**Partial validation - runner failure cleanup:** the simplified runner's first attempt
+failed after preview startup because PowerShell argument passing changed the JSON test-title
+list. The run exited nonzero, and a process check afterward found no preview or Vitest
+process. The successful rerun also left no preview process or temporary log directory.
+Build/browser failure and interrupt cleanup have not both been exercised; keep this follow-up
+open until those paths are verified.
+
+**Completed maintenance follow-up - runner simplification:** the runner now has one
+preview/loader/Vitest path, checks each selected test exactly once, and redacts the loaded
+key from captured output. Removed the extra title-JSON substitution and asynchronous output
+plumbing; the verified success path remains intact.
+
 The seven-use-case review found that explanation and trust matter before adding more
 measures.
 
@@ -244,18 +289,39 @@ country, data budget, and architecture. The plan does not authorize code changes
   This verifies nationwide school-ID-addressable civil-rights/opportunity context, not a
   cross-origin product endpoint or a replacement for the implemented ACGR lane. No CRDC
   implementation or bundled data was added.
-- Census-key national-sweep, comparison and similarity browser checks remain **open**:
-  current Census API guidance requires a key, none is available in this preview or
-  configured local files, and the key-dependent run was not performed.
+- The four targeted Census-key national-sweep, household, published-figure/MOE, and
+  ordering/Similarity browser cases passed on 2026-10-20 using the saved local key path;
+  see the verification record below. This does not claim that the complete E2E suite or
+  every Census-dependent path passed.
 - HUD and FCC source lanes remain **open** for the account/session and direct browser-path
   blockers recorded above. EPA Rank 3 is complete for its six-field scope; the broader SLD
   catalog is explicitly outside that outcome.
 - Every other roadmap status remains controlled by docs/jev-roadmap.md and its evidence.
-- Verification for this execution requires `npm run verify`, the repository-required
-  emoji and mojibake scans, and a real browser check of the keyless EPA live path. Census-
-  key checks remain separate and must stay open when no user key is configured.
+- The verification record below is the single detailed source for Census-key browser
+  scope and results.
 
-**Verification record (2026-10-16):** `npm run verify` passed: 24 test files, 333 tests,
+**Verification record (2026-10-20):** after narrowing the loader change,
+`npm run verify` passed TypeScript, all 30 test files (363 tests), and the production build.
+`node tools/emoji-scan.mjs .` reported 0 emoji in
+130 scanned files; `node tools/mojibake-scan.mjs .` reported 0 findings in 147 scanned
+files. `git diff --check` passed. The focused
+`npx vitest run src/core/census-key-loader.test.ts` also passed all five policy tests,
+including exact equality with the synthetic parsed key, rejection of an ACL-shaped fixture that grants access to another SID, and
+rejection when the ACL check observes a different file identity. A disposable on-disk
+unsafe-ACL probe was declined by the local command policy, so this record does not claim
+that a real Windows file with a broad ACL was loaded and rejected. The real saved-key smoke
+path passed without printing the key. The targeted runner built the production app, then ran only these
+four browser cases: “loads a national set of ZIP codes
+in one request,” “shows household counts that differ between ZIP codes,” “renders real
+published figures with their margin of error,” and “keeps ZIP order by default, sorts
+locally, and renders Similarity matches without metric values.” All four passed exactly
+once; zero failed and zero skipped; the runner exited 0. The temporary preview process and
+its log directory were removed. The key value was not printed, placed in command arguments,
+or copied to another file. Auxiliary all-data audit, MOE probe, and live Vitest paths were
+not run and retain explicit environment-key handling. This record does not claim a
+full-suite E2E pass or close the separate school-breadth, HUD, or FCC items.
+
+**Historical verification record (2026-10-16):** `npm run verify` passed: 24 test files, 333 tests,
 and production build. `node tools/emoji-scan.mjs .` reported 0 emoji in 117 scanned files;
 `node tools/mojibake-scan.mjs .` reported 0 findings in 134 scanned files. Against the
 local preview, app shell, city search, guided-tour, and axe accessibility E2E files passed.

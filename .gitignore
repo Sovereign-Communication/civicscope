@@ -6,6 +6,7 @@ dist/
 .env
 .env.local
 .env.*.local
+/.scmorc
 
 # Agent skills are installed tooling, not project source. This one carries no
 # scripts, but agent directories should not be committed by default.

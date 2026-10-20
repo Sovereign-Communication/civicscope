@@ -78,10 +78,9 @@ source URLs cited inline so a later pass can re-check anything that matters.
 - **Product boundary and remaining limits:** at most eight nearest 2019 four-year adjusted cohort graduation outcomes from public schools with reportable values are displayed. A school must fall within 3 km of the selected point; missing, not-applicable, or suppressed records do not appear. The source is not an all-grade achievement measure, current-year directory, complete list of nearby schools, or school-quality rating. NYC DOE's 2018–19 enrollment, graduation, and attendance detail remains active as a separate local source. The change adds no backend, Census key requirement, or bundled data.
 - **Disposition:** `CIVICSCOPE-R2-SCHOOLS` is **partially addressed**. A direct, source-attributed nationwide lane is implemented for the outcome above; broader years, grades, school types, and outcome measures remain uncovered. The deterministic unit and production-browser tests stub NCES and Portal responses.
 
-### Census-key browser verification gate (reviewed 2026-10-16)
+### Census-key browser verification
 
-- The Census Bureau's current [API key guidance](https://www.census.gov/data/developers/guidance/microdata-api-user-guide/api-key.html) says a key is required for Census Data API queries; the [key form](https://api.census.gov/data/key_signup.html) issues one free of charge. The product keeps it in the browser. No key is configured in the running preview or in the recognized local development-key files; no key value was inspected or copied.
-- **Disposition:** the Census-key national sweep, comparison, and similarity browser checks remain unverified because they need the user's active key. Do not substitute cached output for a cold key-dependent run. Keyless ZIP/city search and the separate EPA query do not satisfy this gate.
+The Census Bureau's current [API key guidance](https://www.census.gov/data/developers/guidance/microdata-api-user-guide/api-key.html) requires a key for Census Data API queries; the [key form](https://api.census.gov/data/key_signup.html) issues one free of charge. The product keeps the key in the browser. Local saved-key loading and its exact verification scope are recorded in the [canonical backlog](canon-work-mission.md#L303).
 
 ## 2. What real users actually want (use-case lens)
 

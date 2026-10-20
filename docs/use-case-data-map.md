@@ -1,6 +1,6 @@
 # CivicScope Use Case and Data Source Map
 
-**Updated:** 2026-10-16
+**Updated:** 2026-10-20
 This is the current user-job map. Execution status and evidence owners live in
 [the canonical backlog](canon-work-mission.md); source candidates and research links live
 in [data-source research](data-sources-research.md). Nothing in this map authorizes a
@@ -66,7 +66,7 @@ new source, backend, data bundle, or scoring input.
 - **Job:** trace a figure to its publisher, table, vintage, uncertainty, and caveats.
 - **Current path:** Methodology, source attribution, metric notices, published margins of
   error, and the audit/changelog.
-- **Open issue:** NYC DOE dataset terms have not been confirmed; metadata has no license ID.
+- **Terms and attribution:** NYC Open Data's portal-wide policy permits application use without restrictions or licensing requirements; the directory's own metadata still has no named license identifier. Keep City/DOE attribution and the 2018–19 vintage; see [source-terms research](data-sources-research.md).
 
 ### UC-H — Resident looking for fair-housing help
 

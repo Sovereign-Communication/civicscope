@@ -406,3 +406,61 @@ city-search, tour, and axe browser checks passed against the local preview. The 
 browser run did not finish within three minutes, and national-sweep assertions were skipped
 without a Census key. The later 339-test verification, updated scans, and EPA live-path
 proof are recorded in the canonical backlog. No roadmap phase status was changed.
+
+## Canonical planning reconciliation — 2026-10-20
+
+### TypeSafe/Jev review
+
+I read the Typesafe AI skill and its live documentation index/API contract, then sent the
+planning set (`docs/original-request.txt`, the canonical backlog, roadmap, this alignment
+record, use-case map, data-source research, fair-housing decisions, worldwide-data plan,
+`GOVERNANCE.md`, and `README.md`) to `jev-latest` with the current repository evidence.
+The API resolved the alias to `jev-1.13.0`. The local key was read in memory from the
+existing user-level Jev configuration and was never printed or added to repository data.
+This was a typed judgment request: Jev supplied probabilities and a 0–3 Score, not a prose
+audit or authority to change roadmap status.
+
+For the first request, the Noul probabilities refer to the named condition being true:
+
+| Judgment | Probability | Interpretation |
+|---|---:|---|
+| Stale open/unrun claims | 0.67 | Current evidence contradicts at least one scoped open claim. |
+| A required action is missing | 0.75 | The canonical set may omit a material actionable item. |
+| Unsupported completion claim | 0.46 | Jev did not strongly resolve whether any completion is overbroad. |
+| NYC terms map is stale | 0.81 | The use-case map should distinguish portal policy from the blank dataset license field. |
+| School phase should remain partial | 0.97 | Broader school outcomes are not covered by the implemented lane. |
+| HUD/FCC immediately actionable | 0.04 | The documented credentials, access, geography, and terms prerequisites remain blockers. |
+| Worldwide expansion or legal review is active work | 0.10 | Keep expansion deferred and legal-review status disclosed unless an owner initiates it. |
+| A power-user lifecycle gap is demonstrated | 0.06 | No current defect is evidenced in the tested export/search/filter/URL paths. |
+
+Jev's register-completeness Score was **1.25/3**, with confidence 0 and probabilities
+0.38/0.18/0.26/0.18 across Score levels 0–3. Treat this as a low-confidence warning
+about the pre-edit document snapshot, not a measured quality score. A follow-up Choice
+judgment selected `broader_e2e_scope` with confidence 0.81 (probability 0.84) as the most
+material remaining record to preserve; see the [canonical verification record](canon-work-mission.md#L303)
+for the evidence and scoped follow-ups.
+
+### Evidence-led reconciliation
+
+The repository evidence, not the model output, determines the status updates in
+[the canonical backlog](canon-work-mission.md):
+
+- Census-key scope, verification outcomes, and remaining follow-ups are in the
+  [canonical backlog](canon-work-mission.md#L303); this alignment record preserves Jev's
+  planning cross-check without duplicating those details.
+- The use-case map's NYC terms line was stale: source research already established that
+  NYC Open Data's portal-wide policy permits application use, while this dataset's
+  metadata has no named license identifier. The map now preserves both facts and the
+  attribution/vintage requirement.
+- `CIVICSCOPE-R2-SCHOOLS` stays partially addressed. The current nearby-school lane is
+  2019 public-school ACGR with limits on type, geography, vintage, and reportable records;
+  the research-only alternatives lack a verified browser delivery path. No roadmap phase
+  was closed by this pass.
+- HUD/FCC remain gated by the documented external prerequisites. Worldwide expansion
+  remains a maintainer decision. No attorney review is claimed. Power-user work stays
+  closed absent a reproducible failure.
+
+The response used **43,903 input tokens and 182 output tokens** for the full planning-set
+review; the focused follow-up used 890 input and 94 output tokens. Because Jev's output is
+typed and its confidence on the overall Score was zero, the repository sources and direct
+test results remain the completion evidence.
