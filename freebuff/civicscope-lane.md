@@ -1,3 +1,9 @@
+## Launch config
+
+- **Backend:** Freebuff tokens
+- **Model:** 6.1 Sol (GPT-6 Luna fallback)
+- If this tab is running on a different backend/model, note it in your first status report.
+
 # CivicScope — Lane (paste-ready mission prompt)
 
 **Repo:** Sovereign-Communication/civicscope. **Scope: CivicScope ONLY.** Cross-repo matters go to main chat, never this lane.
