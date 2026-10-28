@@ -36,16 +36,36 @@ base branch (`contest/house-port`), with its pull request number.
 | Issue | Item | Status |
 | --- | --- | --- |
 | #33 | Registry, labeled pre-existing | Landed, PR #41, merged at 191d0288 |
-| #34 | Ask surface, text only | Landed, PR #45: intent-edit, AskPanel, IntentEditor, IntentChips, ClarificationPanel, FigureCard |
-| #35 | Explain, capability only | Landed: ExplainBox + ExplainOnAsk (PR #45), ViewFigure + views/spec-gap tests (PR #46) |
-| #36 | Validator (F4) | Landed (this PR): src/core/ai/validator.ts, src/core/ai/intent-schema.ts (shared Ask foundation) |
-| #37 | Meter and proxy (F0) | Landed: byo/meta-key/Byo UI (PR #45); meter.ts + functions/api/muse routes (PR #47). Per-client cap supported in code, value unset (S10) |
-| #38 | Harness fixtures and golden corpus | Landed (this PR): harness.ts + derive/shift/no-shift/adversarial-drift/dependency-direction tests |
-| #39 | Privacy and disclosure text | Landed (this PR): privacy.ts + docs/privacy-workbench.md (DRAFT workbench copy) + privacy tests |
-| #40 | Provider interface | Landed with the port foundation (PR #43): src/core/ai/provider.ts, src/core/ai/proxy-errors.ts |
+| #34 | Ask surface, text only | Landed, PR #45, merged at db2b191f: intent-edit, AskPanel, IntentEditor, IntentChips, ClarificationPanel, FigureCard |
+| #35 | Explain, capability only | Landed: ExplainBox + ExplainOnAsk (PR #45, merged at db2b191f), ViewFigure + views/spec-gap tests (PR #46, merged at cb811a53) |
+| #36 | Validator (F4) | Landed, PR #44, merged at f7329a6a: src/core/ai/validator.ts, src/core/ai/intent-schema.ts (shared Ask foundation) |
+| #37 | Meter and proxy (F0) | Landed: byo/meta-key/Byo UI (PR #45, merged at db2b191f); meter.ts + functions/api/muse routes (PR #47, merged at 097f1eff). Per-client cap supported in code, value unset (S10) |
+| #38 | Harness fixtures and golden corpus | Landed, PR #48, merged at 27974649: harness.ts + derive/shift/no-shift/adversarial-drift/dependency-direction tests |
+| #39 | Privacy and disclosure text | Landed, PR #48, merged at 27974649: privacy.ts + docs/privacy-workbench.md (DRAFT workbench copy) + privacy tests |
+| #40 | Provider interface | Landed, PR #43, merged at 676cfd32: src/core/ai/provider.ts, src/core/ai/proxy-errors.ts |
 
 ## Submission scope
 
 The submission is scoped to the House work only. This registry and the
 rest of the pre-existing application are the pad the House builds upon;
 they are not claimed as contest work in any submission material.
+
+## Port queue status (2026-10-28)
+
+The port queue (#33-#40) is complete on this branch: every item above
+landed through a pull request whose check-runs (verify, live-contracts,
+completion-gate) all concluded success, and every issue is closed with
+its merge evidence. Ported test setup: jsdom 26.1.0 devDependency (the
+workbench's jsdom 30 line cannot load on this repo's Node 20 CI) and
+tests/**/*.test.tsx in the vitest include list.
+
+Not ported, by recorded decision: the workbench onboarding files
+(onboarding.ts, OnboardingWizard.tsx) - built in the workbench but in
+no port issue and imported by nothing in the queue - and the workbench
+planning documents (house-plan.md, civicscope-audit.md).
+
+Still open at submission time, by design: the House layer is ported and
+tested in this repo but not yet mounted into the application shell
+(composition root is a separate decision); Pages Functions deploy
+wiring and the per-client cap value are S10; the Explain claim count
+is S11/S12; the privacy copy above is a draft pending final sign-off.
