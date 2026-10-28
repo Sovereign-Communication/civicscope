@@ -11,6 +11,10 @@
  */
 import { describe, expect, it } from 'vitest'
 
+import {
+  METRIC_KEYS as HOUSE_METRIC_KEYS,
+  SORTABLE_METRIC_KEYS as HOUSE_SORTABLE_METRIC_KEYS,
+} from '../src/core/civicscope-registry'
 import { METRIC_DEFS_BY_KEY, METRIC_KEYS } from '../src/core/plugins/acs'
 import { SORTABLE_METRIC_KEYS } from '../src/core/sortable-surface'
 
@@ -55,5 +59,15 @@ describe('contest registry pin (pre-existing, source 3aa7e10d)', () => {
       'median_household_income',
       'households',
     ])
+  })
+
+  it('the House registry module (ported copy) cannot drift from this registry', () => {
+    // src/core/civicscope-registry.ts is the workbench's labeled pre-existing
+    // copy of this same registry, ported byte-faithful for the House layer.
+    // Two copies exist by design of the port; this pin is the mechanical
+    // guarantee that they describe the same registry, so the duplication
+    // cannot silently become divergence.
+    expect([...HOUSE_METRIC_KEYS]).toEqual([...METRIC_KEYS])
+    expect([...HOUSE_SORTABLE_METRIC_KEYS]).toEqual([...SORTABLE_METRIC_KEYS])
   })
 })
