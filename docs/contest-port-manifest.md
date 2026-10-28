@@ -42,7 +42,7 @@ base branch (`contest/house-port`), with its pull request number.
 | #37 | Meter and proxy (F0) | Pending port |
 | #38 | Harness fixtures and golden corpus | Pending port |
 | #39 | Privacy and disclosure text | Pending port |
-| #40 | Provider interface | Landed with the port foundation (this PR): src/core/ai/provider.ts, src/core/ai/proxy-errors.ts |
+| #40 | Provider interface | Landed with the port foundation (PR #43): src/core/ai/provider.ts, src/core/ai/proxy-errors.ts |
 
 ## Submission scope
 
