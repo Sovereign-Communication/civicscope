@@ -38,7 +38,7 @@ base branch (`contest/house-port`), with its pull request number.
 | #33 | Registry, labeled pre-existing | Landed, PR #41, merged at 191d0288 |
 | #34 | Ask surface, text only | Pending port |
 | #35 | Explain, capability only | Pending port |
-| #36 | Validator (F4) | Pending port |
+| #36 | Validator (F4) | Landed (this PR): src/core/ai/validator.ts, src/core/ai/intent-schema.ts (shared Ask foundation) |
 | #37 | Meter and proxy (F0) | Pending port |
 | #38 | Harness fixtures and golden corpus | Pending port |
 | #39 | Privacy and disclosure text | Pending port |
