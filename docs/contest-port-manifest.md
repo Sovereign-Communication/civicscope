@@ -15,6 +15,7 @@ edits are the pre-existing label headers at the top of each file.
 | --- | --- | --- |
 | `src/core/plugins/acs.ts` | `METRIC_DEFS` (15 keys), `METRIC_DEFS_BY_KEY`, `METRIC_KEYS` | `Sovereign-Communication/civicscope` at `3aa7e10dc59e764a8636aa273d4ff86714a3e782` |
 | `src/core/sortable-surface.ts` | `SORTABLE_METRIC_KEYS` (5 keys) | `Sovereign-Communication/civicscope` at `3aa7e10dc59e764a8636aa273d4ff86714a3e782` |
+| `src/core/civicscope-registry.ts` | Same 15 + 5 keys, as the House layer's registry module | Pre-existing copy of the two files above, labelled as such in its own header; ported byte-faithful from the contest workbench, and pinned against drift from the registry above by `tests/contest-registry-pin.test.ts` |
 
 `tests/contest-registry-pin.test.ts` pins both key sets exactly, so any
 drift in the registry on the contest branch fails the suite instead of
@@ -34,14 +35,14 @@ base branch (`contest/house-port`), with its pull request number.
 
 | Issue | Item | Status |
 | --- | --- | --- |
-| #33 | Registry, labeled pre-existing | This manifest |
+| #33 | Registry, labeled pre-existing | Landed, PR #41, merged at 191d0288 |
 | #34 | Ask surface, text only | Pending port |
 | #35 | Explain, capability only | Pending port |
 | #36 | Validator (F4) | Pending port |
 | #37 | Meter and proxy (F0) | Pending port |
 | #38 | Harness fixtures and golden corpus | Pending port |
 | #39 | Privacy and disclosure text | Pending port |
-| #40 | Provider interface | Pending port |
+| #40 | Provider interface | Landed with the port foundation (this PR): src/core/ai/provider.ts, src/core/ai/proxy-errors.ts |
 
 ## Submission scope
 
