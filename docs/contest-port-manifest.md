@@ -36,10 +36,10 @@ base branch (`contest/house-port`), with its pull request number.
 | Issue | Item | Status |
 | --- | --- | --- |
 | #33 | Registry, labeled pre-existing | Landed, PR #41, merged at 191d0288 |
-| #34 | Ask surface, text only | Pending port |
-| #35 | Explain, capability only | Pending port |
+| #34 | Ask surface, text only | Landed (this PR): intent-edit, AskPanel, IntentEditor, IntentChips, ClarificationPanel, FigureCard |
+| #35 | Explain, capability only | Partial (with #34, dependency order): ExplainBox, ExplainOnAsk landed; completed by the views PR |
 | #36 | Validator (F4) | Landed (this PR): src/core/ai/validator.ts, src/core/ai/intent-schema.ts (shared Ask foundation) |
-| #37 | Meter and proxy (F0) | Pending port |
+| #37 | Meter and proxy (F0) | Partial (with #34, dependency order): byo.ts, meta-key.ts, ByoOffer, ByoSettings landed; completed by the meter/proxy PR |
 | #38 | Harness fixtures and golden corpus | Pending port |
 | #39 | Privacy and disclosure text | Pending port |
 | #40 | Provider interface | Landed with the port foundation (PR #43): src/core/ai/provider.ts, src/core/ai/proxy-errors.ts |
