@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useHousingQuery } from '../core/useHousingQuery'
+import { createStubProvider } from '../core/ai/provider'
 import { loadPlaceIndex, type PlaceIndex, type PlaceSuggestion } from '../core/zcta-place-index'
 import { FairHousingNotice } from './FairHousingNotice'
 import { GuidedTour, TourNotice, shouldShowTour } from './GuidedTour'
@@ -18,6 +19,7 @@ import { FundingSection } from './Funding'
 import { StateFilter } from './StateFilter'
 import { MapView } from './MapView'
 import { sortSweepRows } from '../core/sweep-sorting'
+import { AskPanel } from './ai/AskPanel'
 
 type View = 'explore' | 'map' | 'methodology'
 
@@ -37,6 +39,9 @@ const PRESETS: { id: string; label: string; sort: SortableMetricKey | null }[] =
 ]
 
 const DEFAULT_PRESET = PRESETS[0]!
+
+// The contest surface stays offline until the separately scoped live wiring is approved.
+const HOUSE_STUB_PROVIDER = createStubProvider()
 
 type ScreeningSort = {
   presetId: string
@@ -543,6 +548,9 @@ export default function App() {
           </>
         ) : (
           <>
+            <div className="mb-6 panel panel-padded">
+              <AskPanel provider={HOUSE_STUB_PROVIDER} />
+            </div>
             {searchPanel}
             {showKeylessGuidance && (
               <section className="mt-4 panel panel-padded">
