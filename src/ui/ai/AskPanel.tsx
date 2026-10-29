@@ -93,7 +93,12 @@ export function AskPanel({
    */
   byoProvider?: MuseProvider
   validator?: Validator
-  onExecute?: (intent: ValidatedIntent) => void
+  /**
+   * Runs the intent. May return a sentence for the reader: a mode can be
+   * validated and still land on a surface that cannot express one of its
+   * bounds, and saying so is better than changing nothing in silence.
+   */
+  onExecute?: (intent: ValidatedIntent) => string | void
   proxyError?: ProxyError | null
   clarificationCandidates?: ClarificationCandidates
   onOpenSettings?: () => void
@@ -106,6 +111,7 @@ export function AskPanel({
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [caughtError, setCaughtError] = useState<ProxyError | null>(null)
+  const [executionNote, setExecutionNote] = useState('')
 
   const errorNote = proxyErrorNote(proxyError) ?? note
 
@@ -215,9 +221,17 @@ export function AskPanel({
             />
           ) : (
             <>
-              <button type="button" disabled={!onExecute} onClick={() => onExecute?.(intent)}>
+              <button
+                type="button"
+                disabled={!onExecute}
+                onClick={() => {
+                  const said = onExecute?.(intent)
+                  setExecutionNote(typeof said === 'string' ? said : 'Running this request.')
+                }}
+              >
                 Run this request
               </button>
+              {executionNote && <p role="status">{executionNote}</p>}
               <ExplainOnAsk
                 intent={intent}
                 figures={figures}

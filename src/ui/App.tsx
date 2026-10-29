@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useHousingQuery } from '../core/useHousingQuery'
-import { createStubProvider } from '../core/ai/provider'
+import { createLiveProvider, META_API_BASE, MUSE_SPARK_MODEL } from '../core/ai/meta-client'
+import { getMetaKey } from '../core/ai/meta-key'
+import { DISPLAYABLE_KEYS } from '../core/ai/intent-schema'
+import type { ValidatedIntent } from '../core/ai/provider'
 import { loadPlaceIndex, type PlaceIndex, type PlaceSuggestion } from '../core/zcta-place-index'
 import { FairHousingNotice } from './FairHousingNotice'
 import { GuidedTour, TourNotice, shouldShowTour } from './GuidedTour'
@@ -41,8 +44,18 @@ const PRESETS: { id: string; label: string; sort: SortableMetricKey | null }[] =
 
 const DEFAULT_PRESET = PRESETS[0]!
 
-// The contest surface stays offline until the separately scoped live wiring is approved.
-const HOUSE_STUB_PROVIDER = createStubProvider()
+/**
+ * The live provider, proxy-first (plan section 5, D1/D2).
+ *
+ * The browser never holds the shared key: /api/muse/* spends it server-side.
+ * A visitor's own key is read lazily from localStorage and used only after the
+ * shared path reports itself shut off, so a key stored later in the visit works
+ * without remounting the app. The stub provider remains in provider.ts for
+ * tests; no shipped mount uses it.
+ */
+const HOUSE_PROVIDER = createLiveProvider({
+  direct: { baseUrl: META_API_BASE, model: MUSE_SPARK_MODEL, getApiKey: getMetaKey },
+})
 
 type ScreeningSort = {
   presetId: string
@@ -147,6 +160,8 @@ export default function App() {
     [placeIndex],
   )
 
+  const [similaritySeed, setSimilaritySeed] = useState('')
+
   const askFigures = useMemo(
     () =>
       Object.values(q.drilldowns).flatMap((detail) =>
@@ -170,6 +185,76 @@ export default function App() {
       void q.selectPlace({ name: place?.displayName ?? `ZIP ${zip}`, zip, state: place?.state })
     },
     [placeIndex, q.selectPlace],
+  )
+
+  /**
+   * Runs a parsed Ask intent into the view it names.
+   *
+   * This is the half of Ask that was missing: a validated intent used to have
+   * nowhere to go, so Run rendered disabled. Each mode now lands on the surface
+   * that already exists rather than on a new one.
+   *
+   * Two rules are enforced here rather than trusted to the model:
+   * - A geography is resolved through the same place index the search box uses;
+   *   an unresolvable name contributes nothing instead of a guessed ZIP.
+   * - A sweep bound the screening surface cannot express is dropped. The surface
+   *   offers a maximum for rent, burden and home value and a minimum for
+   *   households; turning "rent over $500" into "rent under $500" would answer
+   *   the opposite question, which is worse than not running it.
+   */
+  const executeIntent = useCallback(
+    (intent: ValidatedIntent): string => {
+      const zips: string[] = []
+      for (const geography of intent.geographies) {
+        const resolved = /^\d{5}$/.test(geography.trim())
+          ? geography.trim()
+          : placeIndex?.search(geography, 1)[0]?.zips[0]
+        if (resolved && !zips.includes(resolved)) zips.push(resolved)
+      }
+
+      if (intent.mode === 'lookup' || intent.mode === 'compare') {
+        if (zips.length === 0) {
+          return 'No ZIP code could be resolved from the places in this request, so nothing was opened.'
+        }
+        for (const zip of zips) addZip(zip)
+        setView('explore')
+        return `Opened ${zips.length === 1 ? '1 place' : `${zips.length} places`} in the comparison.`
+      }
+
+      if (intent.mode === 'sweep_filter') {
+        const next: Partial<Record<SortableMetricKey, number | null>> = {}
+        let dropped = 0
+        for (const filter of intent.filters) {
+          if (filter.metricKey === 'households' && filter.op === 'gt') {
+            next.households = filter.value
+          } else if (filter.metricKey !== 'households' && (filter.op === 'lt' || filter.op === 'eq_range')) {
+            next[filter.metricKey as SortableMetricKey] = filter.value
+          } else {
+            dropped += 1
+          }
+        }
+        if (Object.keys(next).length === 0) {
+          return 'This bound cannot be set on the screening table, which offers a maximum for rent, rent burden and home value and a minimum for households. Nothing was changed.'
+        }
+        setFigureFilters(next)
+        const preset = PRESETS.find((item) => item.sort === intent.metricKeys[0])
+        if (preset) setSorting({ presetId: preset.id, sortKey: preset.sort, ascending: true })
+        setView('explore')
+        return dropped === 0
+          ? 'Applied the bound to the screening table below.'
+          : `Applied ${Object.keys(next).length} bound(s); ${dropped} could not be expressed by the table and was not applied.`
+      }
+
+      const seed = zips[0]
+      if (!seed) {
+        return 'The place this similarity request starts from could not be resolved to a ZIP code.'
+      }
+      addZip(seed)
+      setSimilaritySeed(seed)
+      setView('explore')
+      return `Opened similar-ZIP search from ${seed}.`
+    },
+    [addZip, placeIndex],
   )
 
   /*
@@ -537,7 +622,7 @@ export default function App() {
                   rows={q.sweep}
                   loading={(q.sweepProgress?.done ?? 0) < (q.sweepProgress?.total ?? 0)}
                   selectedZctas={q.selectedZctas}
-                  explainProvider={HOUSE_STUB_PROVIDER}
+                  explainProvider={HOUSE_PROVIDER}
                   onSelect={(zctas) => {
                     for (const zcta of zctas.slice(0, 6)) {
                       const row = q.sweep.find((r) => r.zcta === zcta)
@@ -550,7 +635,7 @@ export default function App() {
                   drilldowns={q.drilldowns}
                   onDeselect={q.deselect}
                   placeLabel={placeLabel}
-                  explainProvider={HOUSE_STUB_PROVIDER}
+                  explainProvider={HOUSE_PROVIDER}
                 />
 
                 {q.sweepFromCache && (
@@ -572,7 +657,12 @@ export default function App() {
         ) : (
           <>
             <div className="mb-6 panel panel-padded">
-              <AskPanel provider={HOUSE_STUB_PROVIDER} figures={askFigures} />
+              <AskPanel
+                provider={HOUSE_PROVIDER}
+                figures={askFigures}
+                onExecute={executeIntent}
+                clarificationCandidates={{ geographies: [], metricKeys: [...DISPLAYABLE_KEYS] }}
+              />
             </div>
             {searchPanel}
             {showKeylessGuidance && (
@@ -776,10 +866,12 @@ export default function App() {
                     off state is the default view, not an absence.
                   */}
                   <SimilarityPanel
+                    key={similaritySeed || 'similarity'}
                     sweep={q.sweep}
                     selected={q.selectedZctas}
                     onAdd={(zcta) => addZip(zcta)}
-                    explainProvider={HOUSE_STUB_PROVIDER}
+                    explainProvider={HOUSE_PROVIDER}
+                    initialOriginZip={similaritySeed}
                   />
 
                   <SweepTable
@@ -799,7 +891,7 @@ export default function App() {
                     }}
                     selectedZctas={q.selectedZctas}
                     placeLabel={placeLabel}
-                    explainProvider={HOUSE_STUB_PROVIDER}
+                    explainProvider={HOUSE_PROVIDER}
                   />
                 </section>
 
@@ -807,7 +899,7 @@ export default function App() {
                   drilldowns={q.drilldowns}
                   onDeselect={q.deselect}
                   placeLabel={placeLabel}
-                  explainProvider={HOUSE_STUB_PROVIDER}
+                  explainProvider={HOUSE_PROVIDER}
                 />
               </>
             )}
@@ -839,7 +931,7 @@ export default function App() {
                 drilldowns={q.drilldowns}
                 onDeselect={q.deselect}
                 placeLabel={placeLabel}
-                explainProvider={HOUSE_STUB_PROVIDER}
+                explainProvider={HOUSE_PROVIDER}
               />
             )}
 
@@ -855,7 +947,7 @@ export default function App() {
             <SavedSearches
               selectedZctas={q.selectedZctas}
               onRestore={(zips) => zips.forEach(addZip)}
-              explainProvider={HOUSE_STUB_PROVIDER}
+              explainProvider={HOUSE_PROVIDER}
               figuresForSaved={savedViewFigures}
             />
 

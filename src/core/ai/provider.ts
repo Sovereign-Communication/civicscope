@@ -37,7 +37,15 @@ export interface ExplainRequest {
 }
 /** The same request ceiling enforced by the explain proxy parser. */
 export const MAX_EXPLAIN_VALUES = 24
-export interface ExplainResult { prose: string }
+export interface ExplainResult {
+  prose: string
+  /**
+   * True when the proxy's validator refused the model's prose. The figures are
+   * still shown; the wording is not. Carried as a state rather than an empty
+   * string so a withheld answer is never mistaken for a missing one.
+   */
+  withheld?: boolean
+}
 
 export interface BriefingRequest { figureSetId: string }
 export interface BriefingResult { prose: string }

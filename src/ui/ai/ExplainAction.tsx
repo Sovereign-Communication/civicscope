@@ -39,6 +39,10 @@ export async function requestValidatedExplanation(
       { figureSetId, values },
       new AbortController().signal,
     )
+    // A withheld verdict is the proxy's own validator refusing the prose. It is
+    // not an absence and must not read as one, so it becomes a withheld state
+    // before the empty-prose check below.
+    if (result?.withheld) return { explanation: { withheld: true } }
     if (typeof result?.prose !== 'string' || result.prose.trim() === '') {
       return { message: 'The wording helper returned no explanation.' }
     }
