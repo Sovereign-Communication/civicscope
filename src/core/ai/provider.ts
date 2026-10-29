@@ -35,6 +35,8 @@ export interface ExplainRequest {
   figureSetId: string
   values: { key: string; value: number | null; marginOfError?: number }[]
 }
+/** The same request ceiling enforced by the explain proxy parser. */
+export const MAX_EXPLAIN_VALUES = 24
 export interface ExplainResult { prose: string }
 
 export interface BriefingRequest { figureSetId: string }

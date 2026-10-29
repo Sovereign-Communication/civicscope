@@ -8,7 +8,8 @@ import type { ProxyError } from '../../core/ai/proxy-errors'
 import { ByoOffer } from './ByoOffer'
 import { ClarificationPanel, type ClarificationCandidates } from './ClarificationPanel'
 import { IntentEditor } from './IntentEditor'
-import { ExplainOnAsk, type ExplanationState } from './ExplainOnAsk'
+import { ExplainOnAsk } from './ExplainOnAsk'
+import type { ExplanationState } from './ExplainBox'
 import type { FigureInput } from './FigureCard'
 
 export const RAW_TEXT_DISCLOSURE =
@@ -186,7 +187,11 @@ export function AskPanel({
           onChange={(e) => setText(e.target.value)}
           autoComplete="off"
         />
-        <button type="submit" disabled={busy}>
+        <button
+          type="submit"
+          disabled={busy}
+          className="min-h-[44px] rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+        >
           Ask
         </button>
       </form>
@@ -218,6 +223,7 @@ export function AskPanel({
                 figures={figures}
                 explanation={explanation}
                 onExplain={onExplain}
+                provider={provider}
               />
             </>
           )}
