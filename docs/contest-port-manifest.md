@@ -37,7 +37,7 @@ base branch (`contest/house-port`), with its pull request number.
 | --- | --- | --- |
 | #33 | Registry, labeled pre-existing | Landed, PR #41, merged at 191d0288 |
 | #34 | Ask surface, text only | Components, PR #45, merged at db2b191f: intent-edit, AskPanel, IntentEditor, IntentChips, ClarificationPanel, FigureCard; Explore shell mount and stub-provider wiring, PR #50, merged at aab2c87 |
-| #35 | Explain, capability only | ExplainBox + ExplainOnAsk (PR #45, merged at db2b191f), ViewFigure + views/spec-gap tests (PR #46, merged at cb811a53); runtime action and app wiring follow-up, PR #52, checks pending |
+| #35 | Explain, capability only | ExplainBox + ExplainOnAsk (PR #45, merged at db2b191f), ViewFigure + views/spec-gap tests (PR #46, merged at cb811a53); validated runtime action and app wiring, PR [#52](https://github.com/Sovereign-Communication/civicscope/pull/52), merged at `cb87560f23f7c56a6a72bbc4d60bc5607f542eae`; [issue evidence](https://github.com/Sovereign-Communication/civicscope/issues/35#issuecomment-6487019606) |
 | #36 | Validator (F4) | Landed, PR #44, merged at f7329a6a: src/core/ai/validator.ts, src/core/ai/intent-schema.ts (shared Ask foundation) |
 | #37 | Meter and proxy (F0) | Landed: byo/meta-key/Byo UI (PR #45, merged at db2b191f); meter.ts + functions/api/muse routes (PR #47, merged at 097f1eff). Per-client cap supported in code, value unset (S10) |
 | #38 | Harness fixtures and golden corpus | Landed, PR #48, merged at 27974649: harness.ts + derive/shift/no-shift/adversarial-drift/dependency-direction tests |
@@ -50,12 +50,13 @@ The submission is scoped to the House work only. This registry and the
 rest of the pre-existing application are the pad the House builds upon;
 they are not claimed as contest work in any submission material.
 
-## Port queue status (2026-10-29)
+## Port queue status (2026-10-28)
 
-Items #33-#34 and #36-#40 are landed on this branch, with their issues
-closed and evidence recorded. Issue #35 was reopened after a runtime wiring
-audit found that its earlier component-only PRs did not fulfill the acceptance
-criteria. Follow-up PR #52 is open; the port queue is not yet complete. Ported
+Items #33-#40 are landed on this branch, with their issues closed and evidence
+recorded. The #35 runtime wiring follow-up landed in PR #52 at
+`cb87560f23f7c56a6a72bbc4d60bc5607f542eae`; issue #35 is closed with the
+implementation and check evidence linked above. The port queue is complete;
+the Pass 3 submission-readiness checklist remains to be recorded. Ported
 test setup: jsdom 26.1.0 devDependency (the
 workbench's jsdom 30 line cannot load on this repo's Node 20 CI) and
 tests/**/*.test.tsx in the vitest include list.
