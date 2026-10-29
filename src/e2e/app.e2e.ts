@@ -28,7 +28,7 @@ let page: Page
 
 async function searchFor(zip: string) {
   await page.fill('#place', zip)
-  await page.click('button[type="submit"]')
+  await page.locator('form').filter({ has: page.locator('#place') }).locator('button[type="submit"]').click()
 }
 
 beforeAll(async () => {
@@ -192,7 +192,7 @@ describe('e2e: keyless ZIP guidance', () => {
       expect(await guidanceText.innerText()).not.toContain('Add a ZIP code above')
 
       await keylessPage.fill('#place', '35950')
-      await keylessPage.click('button[type="submit"]')
+      await keylessPage.locator('form').filter({ has: keylessPage.locator('#place') }).locator('button[type="submit"]').click()
       await keylessPage.getByRole('heading', { name: 'Comparing 1 area', exact: true }).waitFor({ timeout: 60000 })
       await Promise.race([
         firstOutcomeStarted,
@@ -200,7 +200,7 @@ describe('e2e: keyless ZIP guidance', () => {
       ])
 
       await keylessPage.fill('#place', '35203')
-      await keylessPage.click('button[type="submit"]')
+      await keylessPage.locator('form').filter({ has: keylessPage.locator('#place') }).locator('button[type="submit"]').click()
       await keylessPage.getByRole('heading', { name: 'Comparing 2 areas', exact: true }).waitFor({ timeout: 60000 })
       await Promise.race([
         secondOutcomeStarted,
