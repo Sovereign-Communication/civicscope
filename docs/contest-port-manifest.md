@@ -37,7 +37,7 @@ base branch (`contest/house-port`), with its pull request number.
 | --- | --- | --- |
 | #33 | Registry, labeled pre-existing | Landed, PR #41, merged at 191d0288 |
 | #34 | Ask surface, text only | Components, PR #45, merged at db2b191f: intent-edit, AskPanel, IntentEditor, IntentChips, ClarificationPanel, FigureCard; Explore shell mount and stub-provider wiring, PR #50, merged at aab2c87 |
-| #35 | Explain, capability only | Landed: ExplainBox + ExplainOnAsk (PR #45, merged at db2b191f), ViewFigure + views/spec-gap tests (PR #46, merged at cb811a53) |
+| #35 | Explain, capability only | ExplainBox + ExplainOnAsk (PR #45, merged at db2b191f), ViewFigure + views/spec-gap tests (PR #46, merged at cb811a53); runtime action and app wiring follow-up, PR #52, checks pending |
 | #36 | Validator (F4) | Landed, PR #44, merged at f7329a6a: src/core/ai/validator.ts, src/core/ai/intent-schema.ts (shared Ask foundation) |
 | #37 | Meter and proxy (F0) | Landed: byo/meta-key/Byo UI (PR #45, merged at db2b191f); meter.ts + functions/api/muse routes (PR #47, merged at 097f1eff). Per-client cap supported in code, value unset (S10) |
 | #38 | Harness fixtures and golden corpus | Landed, PR #48, merged at 27974649: harness.ts + derive/shift/no-shift/adversarial-drift/dependency-direction tests |
@@ -50,12 +50,13 @@ The submission is scoped to the House work only. This registry and the
 rest of the pre-existing application are the pad the House builds upon;
 they are not claimed as contest work in any submission material.
 
-## Port queue status (2026-10-28)
+## Port queue status (2026-10-29)
 
-The port queue (#33-#40) is complete on this branch: every item above
-landed through a pull request whose check-runs (verify, live-contracts,
-completion-gate) all concluded success, and every issue is closed with
-its merge evidence. Ported test setup: jsdom 26.1.0 devDependency (the
+Items #33-#34 and #36-#40 are landed on this branch, with their issues
+closed and evidence recorded. Issue #35 was reopened after a runtime wiring
+audit found that its earlier component-only PRs did not fulfill the acceptance
+criteria. Follow-up PR #52 is open; the port queue is not yet complete. Ported
+test setup: jsdom 26.1.0 devDependency (the
 workbench's jsdom 30 line cannot load on this repo's Node 20 CI) and
 tests/**/*.test.tsx in the vitest include list.
 
