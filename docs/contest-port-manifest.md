@@ -36,7 +36,7 @@ base branch (`contest/house-port`), with its pull request number.
 | Issue | Item | Status |
 | --- | --- | --- |
 | #33 | Registry, labeled pre-existing | Landed, PR #41, merged at 191d0288 |
-| #34 | Ask surface, text only | Components, PR #45, merged at db2b191f: intent-edit, AskPanel, IntentEditor, IntentChips, ClarificationPanel, FigureCard; Explore shell mount and stub-provider wiring, follow-up PR #50 |
+| #34 | Ask surface, text only | Components, PR #45, merged at db2b191f: intent-edit, AskPanel, IntentEditor, IntentChips, ClarificationPanel, FigureCard; Explore shell mount and stub-provider wiring, PR #50, merged at aab2c87 |
 | #35 | Explain, capability only | Landed: ExplainBox + ExplainOnAsk (PR #45, merged at db2b191f), ViewFigure + views/spec-gap tests (PR #46, merged at cb811a53) |
 | #36 | Validator (F4) | Landed, PR #44, merged at f7329a6a: src/core/ai/validator.ts, src/core/ai/intent-schema.ts (shared Ask foundation) |
 | #37 | Meter and proxy (F0) | Landed: byo/meta-key/Byo UI (PR #45, merged at db2b191f); meter.ts + functions/api/muse routes (PR #47, merged at 097f1eff). Per-client cap supported in code, value unset (S10) |
@@ -67,4 +67,4 @@ planning documents (house-plan.md, civicscope-audit.md).
 Still open at submission time, by design: Pages Functions deploy wiring
 and the per-client cap value are S10; the Explain claim count is S11/S12;
 the privacy copy above is a draft pending final sign-off. The Ask shell
-mount and stub-provider wiring are tracked in follow-up PR #50.
+mount and stub-provider wiring landed in PR #50 at aab2c87.
