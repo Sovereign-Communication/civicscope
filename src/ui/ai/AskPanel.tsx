@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { decideAskPath } from '../../core/ai/byo'
 import { hasMetaKey } from '../../core/ai/meta-key'
 import type { IntentResult, MuseProvider, ValidatedIntent } from '../../core/ai/provider'
+import { diagnostics } from '../../core/ai/diagnostics'
 import { canRun, validateIntent, withRunnability } from '../../core/ai/intent-schema'
 import { DISCLOSURE_TEXT, hermeticStubValidator, type Validator } from '../../core/ai/validator'
 import type { ProxyError } from '../../core/ai/proxy-errors'
@@ -118,6 +119,9 @@ export function AskPanel({
   function accept(result: IntentResult) {
     const check = validateIntent(result.intent)
     if (!check.ok) {
+      // Count the class only. The model's output and the reader's words are
+      // deliberately not recorded anywhere.
+      diagnostics.recordIntentFailure('schema_invalid')
       setNote('That request cannot be run as asked. Try the manual search below.')
       return
     }
@@ -127,6 +131,7 @@ export function AskPanel({
     if (result.prose) {
       const verdict = validator.validate(result.prose, [])
       if (!verdict.pass) {
+        diagnostics.recordWithhold(verdict.failure)
         setNote('Wording was withheld for failing verification. Figures are shown without it.')
       }
     }
@@ -151,6 +156,10 @@ export function AskPanel({
       accept(await provider.intent(request, new AbortController().signal))
     } catch (err) {
       const known = extractProxyError(err)
+      // A proxy failure is counted even when the BYO retry below recovers: the
+      // shared path did fail, and hiding that would understate its error rate.
+      diagnostics.recordIntentFailure(known ?? 'unexpected')
+      diagnostics.recordErrorState(known ?? 'unexpected')
       if (
         known &&
         byoProvider &&

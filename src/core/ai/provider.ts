@@ -3,6 +3,7 @@
  * post-contest swap (provider swap, not rewrite) stays cheap. Validator,
  * meter, and disclosure import nothing from this file.
  */
+import type { ValidatorFailure } from './validator'
 
 export type IntentMode = 'lookup' | 'compare' | 'sweep_filter' | 'similarity'
 
@@ -45,6 +46,11 @@ export interface ExplainResult {
    * string so a withheld answer is never mistaken for a missing one.
    */
   withheld?: boolean
+  /**
+   * The validator class behind a proxy withhold, when the deployment reports
+   * one. Closed union, so it can be counted without storing the prose.
+   */
+  withholdClass?: ValidatorFailure
 }
 
 export interface BriefingRequest { figureSetId: string }

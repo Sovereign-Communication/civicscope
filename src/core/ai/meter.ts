@@ -54,6 +54,27 @@ export class Meter {
     }
   }
 
+  /**
+   * Configuration the diagnostics surface may report. The per-client cap is
+   * deliberately a boolean: S10 is the owner's number, and an operator
+   * endpoint does not need to publish it to prove whether one is configured.
+   */
+  configSnapshot(): {
+    budgetCapMicroUsd: number
+    perClientCapConfigured: boolean
+    perRequestTokenCeiling: number
+    breakerFailureThreshold: number
+    breakerCooldownMs: number
+  } {
+    return {
+      budgetCapMicroUsd: this.cfg.budgetCapMicroUsd,
+      perClientCapConfigured: this.cfg.perClientCapMicroUsd !== undefined,
+      perRequestTokenCeiling: this.cfg.perRequestTokenCeiling,
+      breakerFailureThreshold: this.cfg.breakerFailureThreshold,
+      breakerCooldownMs: this.cfg.breakerCooldownMs,
+    }
+  }
+
   breakerState(now = Date.now()): BreakerState {
     if (this.breaker === 'open' && now - this.breakerOpenedAt >= this.cfg.breakerCooldownMs) {
       this.breaker = 'half-open'

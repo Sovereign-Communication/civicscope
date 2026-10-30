@@ -89,6 +89,8 @@ describe('live provider: proxy path', () => {
     const result = await provider(impl, false).explain(EXPLAIN_REQUEST, new AbortController().signal)
     expect(result.withheld).toBe(true)
     expect(result.prose).toBe('')
+    // The class travels as a closed enum so diagnostics can count it.
+    expect(result.withholdClass).toBe('invented_numeral')
   })
 
   it('refuses an over-long query before spending a request', async () => {

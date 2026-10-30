@@ -30,6 +30,10 @@ export interface MuseEnv {
   MUSE_BUDGET_CAP_MICRO_USD?: string
   /** S10 owner value. Unset means no per-client cap is applied. */
   MUSE_PER_CLIENT_CAP_MICRO_USD?: string
+  /** Pages platform metadata, read by the diagnostics surface. Public values. */
+  CF_PAGES?: string
+  CF_PAGES_BRANCH?: string
+  CF_PAGES_COMMIT_SHA?: string
 }
 
 /** Minimal Pages Function context shape; avoids a types dependency for one file. */
@@ -49,7 +53,12 @@ function parsePositiveInt(raw: string | undefined): number | undefined {
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : undefined
 }
 
-function meterFor(env: MuseEnv): Meter {
+/**
+ * The meter is shared by every route in the isolate on purpose: the aggregate
+ * shutoff is a property of the deployment, not of one route. Diagnostics reads
+ * the same instance rather than keeping a second set of totals.
+ */
+export function meterFor(env: MuseEnv): Meter {
   if (sharedMeter) return sharedMeter
   const base = defaultMeterConfig()
   const perClient = parsePositiveInt(env.MUSE_PER_CLIENT_CAP_MICRO_USD)
@@ -59,6 +68,12 @@ function meterFor(env: MuseEnv): Meter {
     ...(perClient === undefined ? {} : { perClientCapMicroUsd: perClient }),
   })
   return sharedMeter
+}
+
+/** Test seam: the singleton is per-process, so route tests that change config
+ * need a way to start from a fresh meter. Never called by shipped code. */
+export function resetMeterForTests(): void {
+  sharedMeter = null
 }
 
 /** Null when the deployment has no key: the route reports provider_down. */

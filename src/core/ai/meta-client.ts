@@ -31,6 +31,7 @@ import type {
   TranscribeResult,
 } from './provider'
 import { PROXY_ERRORS, type ProxyError } from './proxy-errors'
+import { VALIDATOR_FAILURES, type ValidatorFailure } from './validator'
 
 /** Meta Model API origin and shape (dev.meta.ai docs, verified 2026-10-29). */
 export const META_API_BASE = 'https://api.meta.ai/v1'
@@ -358,8 +359,20 @@ export function createLiveProvider(options: LiveProviderOptions = {}): MuseProvi
           signal,
         )
         // The proxy withholds validator-failed prose; surface that state rather
-        // than an empty string, so the UI can say "withheld" honestly.
-        if (reply.withheld) return { prose: '', withheld: true }
+        // than an empty string, so the UI can say "withheld" honestly. The
+        // failure class travels as a closed enum so the client can count it
+        // without ever seeing the refused prose.
+        if (reply.withheld) {
+          const failure = (reply as { failure?: unknown }).failure
+          const withholdClass =
+            typeof failure === 'string' &&
+            (VALIDATOR_FAILURES as readonly string[]).includes(failure)
+              ? (failure as ValidatorFailure)
+              : undefined
+          return withholdClass
+            ? { prose: '', withheld: true, withholdClass }
+            : { prose: '', withheld: true }
+        }
         return reply
       } catch (e) {
         const code = e instanceof ProviderCallError ? e.code : null

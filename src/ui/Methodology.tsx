@@ -3,6 +3,7 @@ import { SCORE_RULES, SCORE_VERSION } from '../core/scoring'
 import { CENSUS_ATTRIBUTION } from '../core/censusKey'
 import { METRIC_DEFS_BY_KEY, METRIC_KEYS, tableOfMetric, VINTAGE } from '../core/plugins/acs'
 import { isSortableMetricKey } from '../core/sortable-surface'
+import { DiagnosticsPanel } from './ai/DiagnosticsPanel'
 
 /**
  * The methodology page is generated from the plugin registry and the scoring
@@ -66,6 +67,13 @@ export function Methodology() {
           <li>No accounts, analytics, advertising, third-party scripts, or cookies.</li>
         </ul>
       </section>
+
+      {/*
+        F7 diagnostics live on the page a reader visits to understand what the
+        product does. The panel records counts only, and the export is rebuilt
+        from validated scalars so it cannot carry a question or a key.
+      */}
+      <DiagnosticsPanel />
 
       <section aria-labelledby="stewardship-heading">
         <h2 id="stewardship-heading" className="section-title">
