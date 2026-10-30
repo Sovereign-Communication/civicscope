@@ -66,7 +66,12 @@ Not ported, by recorded decision: the workbench onboarding files
 no port issue and imported by nothing in the queue - and the workbench
 planning documents (house-plan.md, civicscope-audit.md).
 
-Still open at submission time, by design: Pages Functions deploy wiring
-and the per-client cap value are S10; the Explain claim count is S11/S12;
-the privacy copy above is a draft pending final sign-off. The Ask shell
-mount and stub-provider wiring landed in PR #50 at aab2c87.
+Pages Functions deploy wiring is demonstrated on a preview deployment
+(`submission` branch, lane head `d4a7dc6`, 2026-10-30): all three
+`/api/muse/*` routes answer from the served build, and the only missing
+ingredient there is the shared key. Getting that build onto the production
+alias still needs the owner's merge to `main` plus a manual `npm run deploy`;
+see `docs/submission-path-deploy.md`. The per-client cap value remains S10 and
+unset; the Explain claim count is S11/S12; the privacy copy above is a draft
+pending final sign-off. The Ask shell mount and stub-provider wiring landed in
+PR #50 at aab2c87.
