@@ -11,10 +11,14 @@
  * expectation. Use run-live.mjs for that.
  */
 import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
-const result = spawnSync(
-  process.platform === 'win32' ? 'npx.cmd' : 'npx',
-  ['vitest', 'run', 'tests/ai/golden-eval.test.ts'],
-  { stdio: 'inherit' },
-)
+// Run the repo's own vitest entry with the current Node, not `npx` through a
+// shell: spawnSync('npx.cmd') fails with EINVAL on Node 24/Windows, which made
+// this script exit 1 with no output while the suite underneath was green. A
+// runner that lies about a pass is worse than one that fails loudly.
+const vitest = fileURLToPath(new URL('../../node_modules/vitest/vitest.mjs', import.meta.url))
+const result = spawnSync(process.execPath, [vitest, 'run', 'tests/ai/golden-eval.test.ts'], {
+  stdio: 'inherit',
+})
 process.exit(result.status ?? 1)
