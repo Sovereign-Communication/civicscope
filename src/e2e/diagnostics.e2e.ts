@@ -62,20 +62,32 @@ it('downloads observed diagnostics without the key or the question', async () =>
   expect(artifact.schema).toBe('civicscope.diagnostics.v1')
   expect(Number.isNaN(Date.parse(artifact.generatedAt))).toBe(false)
   expect(artifact.origin).toBe(new URL(BASE).origin)
-  expect(artifact.server.outcome).toBe('reported')
-  expect(typeof artifact.server.sharedKeyPresent).toBe('boolean')
-
-  // The probe shape is accepted by the route and rejected by its validator, so
-  // a keyed deployment reports refused_shape and a keyless one no_shared_key.
-  const expected = artifact.server.sharedKeyPresent ? 'refused_shape' : 'no_shared_key'
-  expect(artifact.routes.intent).toEqual({ status: artifact.routes.intent.status, outcome: expected })
-  expect(artifact.routes.explain).toEqual({
-    status: artifact.routes.explain.status,
-    outcome: expected,
-  })
-
-  expect(typeof artifact.local.withholds.invented_numeral).toBe('number')
+  // A static host has no Functions and must say so; a served Functions build
+  // must report. Either is honest, but the artifact may not invent the other.
+  expect(['reported', 'unavailable']).toContain(artifact.server.outcome)
   expect(Array.isArray(artifact.unknowns)).toBe(true)
+  expect(typeof artifact.local.withholds.invented_numeral).toBe('number')
+
+  if (artifact.server.outcome === 'reported') {
+    expect(typeof artifact.server.sharedKeyPresent).toBe('boolean')
+    expect(artifact.unknowns).not.toContain('server-diagnostics-unavailable')
+    // The probe shape is accepted by the route and rejected by its validator,
+    // so a keyed deployment reports refused_shape and a keyless one no_shared_key.
+    const expected = artifact.server.sharedKeyPresent ? 'refused_shape' : 'no_shared_key'
+    expect(artifact.routes.intent).toEqual({
+      status: artifact.routes.intent.status,
+      outcome: expected,
+    })
+    expect(artifact.routes.explain).toEqual({
+      status: artifact.routes.explain.status,
+      outcome: expected,
+    })
+  } else {
+    expect(artifact.server.sharedKeyPresent).toBeNull()
+    expect(artifact.server.requests).toBeNull()
+    expect(artifact.unknowns).toContain('server-diagnostics-unavailable')
+    expect(artifact.unknowns).toContain('shared-key-state-unknown')
+  }
 
   console.log(
     'diagnostics e2e:',
