@@ -162,6 +162,29 @@ const EXPLAIN_SYSTEM_PROMPT = [
   'Never claim a difference is real when the margins of error overlap. Plain prose only.',
 ].join(' ')
 
+const BRIEFING_SYSTEM_PROMPT = [
+  'You write the narrative for a briefing pack whose figures were already retrieved by a',
+  'deterministic data tool and re-verified against their sources before you were called.',
+  'Write a short plain paragraph about what the supplied figures show, for a reader who',
+  'will use the pack to brief other people. Use only numbers that appear in the supplied',
+  'figures. Do not compute or introduce any number. Do not rank places, recommend a place,',
+  'or describe people. Do not call any place good, bad, safe, or desirable. If a margin of',
+  'error is wide relative to the figure, say the estimate is uncertain. Never claim a',
+  'difference is real when the margins of error overlap. Plain prose only.',
+].join(' ')
+
+function briefingUserPrompt(req: BriefingRequest): string {
+  const rows = req.values.map((v) => {
+    const moe =
+      typeof v.marginOfError === 'number'
+        ? ` plus or minus ${v.marginOfError}`
+        : ' (no margin published)'
+    const value = v.value === null ? 'no reportable value' : String(v.value)
+    return `- ${v.key}: ${value}${moe}`
+  })
+  return [`Briefing pack: ${req.figureSetId}`, 'Verified figures:', ...rows].join('\n')
+}
+
 function intentUserPrompt(req: IntentRequest): string {
   const parts: string[] = []
   if (req.queryText) parts.push(`Question: ${req.queryText}`)
@@ -284,10 +307,20 @@ export function createMetaDirectProvider(options: MetaDirectOptions): MuseProvid
       return { prose: text.trim() }
     },
 
-    async briefing(_req: BriefingRequest, _signal: AbortSignal): Promise<BriefingResult> {
-      // F6 is commit-fully-or-cut (plan section L1.3); it is not in the shipped
-      // path, so the client refuses rather than inventing a partial answer.
-      throw new ProviderCallError('provider_down')
+    async briefing(req: BriefingRequest, signal: AbortSignal): Promise<BriefingResult> {
+      const reply = await complete(
+        {
+          messages: [
+            { role: 'system', content: BRIEFING_SYSTEM_PROMPT },
+            { role: 'user', content: briefingUserPrompt(req) },
+          ],
+          temperature: 0.2,
+        },
+        signal,
+      )
+      const text = contentOf(reply)
+      if (!text) throw new ProviderCallError('provider_down')
+      return { prose: text.trim() }
     },
 
     async transcribe(_req: TranscribeRequest, _signal: AbortSignal): Promise<TranscribeResult> {
@@ -385,8 +418,32 @@ export function createLiveProvider(options: LiveProviderOptions = {}): MuseProvi
       return direct.explain(req, signal)
     },
 
-    async briefing(_req: BriefingRequest, _signal: AbortSignal): Promise<BriefingResult> {
-      throw new ProviderCallError('provider_down')
+    async briefing(req: BriefingRequest, signal: AbortSignal): Promise<BriefingResult> {
+      try {
+        const reply = await viaProxy<BriefingResult>(
+          '/api/muse/briefing',
+          { figureSetId: req.figureSetId, values: req.values },
+          signal,
+        )
+        // Same withhold contract as explain: the proxy's validator refused
+        // the prose, so the pack ships its figures without the wording.
+        if (reply.withheld) {
+          const failure = (reply as { failure?: unknown }).failure
+          const withholdClass =
+            typeof failure === 'string' &&
+            (VALIDATOR_FAILURES as readonly string[]).includes(failure)
+              ? (failure as ValidatorFailure)
+              : undefined
+          return withholdClass
+            ? { prose: '', withheld: true, withholdClass }
+            : { prose: '', withheld: true }
+        }
+        return reply
+      } catch (e) {
+        const code = e instanceof ProviderCallError ? e.code : null
+        if (!code || !BYO_FALLBACK_ERRORS.has(code) || !direct) throw e
+      }
+      return direct.briefing(req, signal)
     },
 
     async transcribe(_req: TranscribeRequest, _signal: AbortSignal): Promise<TranscribeResult> {

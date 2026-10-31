@@ -23,6 +23,7 @@ import { isFilterLegal } from './intent-schema'
 import { FIGURE_FILTERS } from '../figure-filters'
 import { realValidator } from './validator'
 import type { FigureForValidation } from './validator'
+import { deterministicBriefingProse } from './provider'
 import type { IntentMode, MuseProvider, ValidatedIntent } from './provider'
 
 export interface GoldenIntentCase {
@@ -151,8 +152,8 @@ export function createReplayProvider(corpus: GoldenCorpus): MuseProvider {
     async explain() {
       return { prose: '' }
     },
-    async briefing() {
-      return { prose: '' }
+    async briefing(req) {
+      return { prose: deterministicBriefingProse(req) }
     },
     async transcribe() {
       return { transcript: '', confidence: 0 }

@@ -53,8 +53,47 @@ export interface ExplainResult {
   withholdClass?: ValidatorFailure
 }
 
-export interface BriefingRequest { figureSetId: string }
-export interface BriefingResult { prose: string }
+export interface BriefingRequest {
+  figureSetId: string
+  /**
+   * The pack's figures, already re-verified against their SourceRefs by
+   * briefing.ts before this call. The model narrates these and only these;
+   * it is never handed an unverified figure (plan section 6.2.7).
+   */
+  values: { key: string; value: number | null; marginOfError?: number }[]
+}
+/** The same request ceiling enforced by the briefing proxy parser. */
+export const MAX_BRIEFING_VALUES = 64
+export interface BriefingResult {
+  prose: string
+  /**
+   * True when the proxy's validator refused the model's prose. The pack's
+   * figures and appendix still ship; the wording does not. Same contract as
+   * ExplainResult.withheld, for the same reason.
+   */
+  withheld?: boolean
+  /** The validator class behind a proxy withhold, when reported. */
+  withholdClass?: ValidatorFailure
+}
+
+/**
+ * Deterministic narrative for the hermetic providers (stub + replay).
+ * Slot-templated from the request only: it names the figure keys and
+ * states no numeral, so it passes the F4 validator against any figure
+ * set the caller supplies. A test double that returned free prose would
+ * be a second, weaker path around the validator; this is not one.
+ */
+export function deterministicBriefingProse(req: BriefingRequest): string {
+  const keys = req.values.map((v) => v.key).filter((k, i, all) => all.indexOf(k) === i)
+  if (keys.length === 0) {
+    return 'This briefing pack contains no figures. Every figure CivicScope includes in a pack is re-checked against its source at generation time.'
+  }
+  return (
+    `This briefing pack covers ${keys.join(', ')}. ` +
+    'Every figure in the pack was re-checked against its source at generation time, ' +
+    'and the figures below are shown exactly as published, with their margins of error and sources.'
+  )
+}
 
 export interface TranscribeRequest {
   audio: ArrayBuffer
@@ -91,8 +130,8 @@ export function createStubProvider(
     async explain() {
       return { prose: '' }
     },
-    async briefing() {
-      return { prose: '' }
+    async briefing(req: BriefingRequest) {
+      return { prose: deterministicBriefingProse(req) }
     },
     async transcribe() {
       return { transcript: '', confidence: 0 }
