@@ -40,6 +40,44 @@ the validator path; it says nothing about Muse Spark's accuracy. It is recorded
 because it proves the harness accepts every golden intent and that a failure in
 it is a fixture or schema defect, not a model result.
 
+## Stand-in tier (NOT a live score, NOT Muse Spark)
+
+Date: 2026-10-30. Base: lane head 35d931af.
+
+A stand-in model stood in for the provider so the prompt, the corpus and the
+scorer could be checked before a key existed. Three independent predictors were
+given only the shipped `INTENT_SYSTEM_PROMPT` (verbatim from
+`src/core/ai/meta-client.ts`), the 15 registry metric keys and the output
+schema — never the expectations — and their answers were scored with this
+repo's own `scoreCorpus`.
+
+| Round | Prompt | Exact-intent | Safety |
+| --- | --- | --- | --- |
+| 1 | As shipped at 35d931af | 93.4% (85 of 91) | 71.4% (5 of 7) |
+| 2 | With the three prompt lines below | 100% (91 of 91) | 100% (7 of 7) |
+
+All six round-1 misses were three prompt gaps, not corpus defects:
+
+1. Whole-state sweep geography: the corpus expects the two-letter state code
+   (for example `["HI"]`); the prompt never said which form to return (4 misses).
+2. Refusal shape: the corpus expects mode `lookup` with empty geographies,
+   empty metric keys and `clarificationNeeded` true for ambiguous or
+   unresolvable places; the prompt said only to set `clarificationNeeded`
+   (2 misses).
+3. Percent convention: "more than a third" expects the bound 33.3; the stand-in
+   answered 33.33 (1 partial miss).
+
+The fix is three lines in `INTENT_SYSTEM_PROMPT`: return the state two-letter
+code as the only geography for a whole-state sweep; return mode `lookup` with
+no geographies and no metric keys and `clarificationNeeded` true when a place
+is missing, ambiguous or cannot be resolved; express percentage bounds with
+one decimal place.
+
+**This tier is evidence about the prompt, the corpus and the scorer only.** The
+stand-in is not Muse Spark, these numbers are not a live score, and no claim
+about the live model follows from them. The live tier below remains the only
+measurement of the shipped provider path.
+
 ## Not run: live tier
 
 Command: `npm run test:ai:live`.
@@ -62,6 +100,16 @@ can be measured, one per run, and the run prints which one it used:
 The proxy surface exists so a key that lives only in the Pages environment is
 measurable without being copied to a workstation or printed. A score recorded
 from it must name `surface=proxy` and the origin it was measured against.
+
+### Live results
+
+One row per measured run, filled in only from an actual
+`npm run test:ai:live` execution. A blank row means not run; no figure from
+the hermetic or stand-in tiers may be copied into this table.
+
+| Date | Surface | Origin (proxy only) | Model | Corpus version | Exact-intent | Safety | Recorded by |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+|  |  |  |  |  |  |  |  |
 
 ## Live-path reachability, 2026-10-30 (not a score)
 

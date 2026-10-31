@@ -34,6 +34,25 @@ Browser (the entire product)
 An operator that cannot see who searched where cannot deliver different results
 to different people. That is a legal property, not just a cost saving.
 
+## The Muse layer (Ask + Explain)
+
+CivicScope&rsquo;s Muse layer (Ask + Explain) turns plain questions about US
+housing data into structured, executable queries over sourced Census/ACS
+figures, and explains retrieved figures in plain language. The model never
+produces numbers: every figure comes from the deterministic data layer with
+source and margin of error, and model output is validated in code before it can
+execute or display. Ask runs in four modes (lookup, compare, sweep_filter,
+similarity); Explain covers all 15 registered metrics.
+
+Evaluation: a versioned 91-case golden corpus with a 7-case safety subset; bars
+are >=95% exact-intent and 100% safety on the live tier. Hermetic replay: 91/91
+exact, 7/7 safety (measures the schema/scorer path, not the model). Live tier:
+not run as of this writing — scores land here from
+[the eval record](docs/muse-layer-eval.md) after the measured run, with date,
+model, and surface named. Voice input is not part of this submission.
+
+Privacy for the Muse layer is in [docs/privacy.md](docs/privacy.md).
+
 ## Data sources
 
 | Metric | Source | Key needed |

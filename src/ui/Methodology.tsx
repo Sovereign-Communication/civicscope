@@ -75,6 +75,31 @@ export function Methodology() {
       */}
       <DiagnosticsPanel />
 
+      {/*
+        The assistant section states the mechanism, not an assurance: the
+        measures come from the same registry this page is generated from,
+        filters are allowlisted, and wording is validated against the
+        retrieved figures. A reader deciding whether to trust Ask or Explain
+        needs those three facts, stated where the figures are defined.
+      */}
+      <section aria-labelledby="ai-heading">
+        <h2 id="ai-heading" className="section-title">
+          The assistant (Ask and Explain)
+        </h2>
+        <div className="mt-2 space-y-3 text-sm leading-relaxed text-slate-700">
+          <p>
+            The AI layer is generated from the same metric registry as the data layer, so the measures the
+            assistant can use cannot drift from the measures the site displays. The assistant may only use the{' '}
+            {METRIC_KEYS.length} registered metrics; ranking, recommendation, and demographic characterisation
+            requests are refused by construction (allowlisted filters, validated output, withheld wording).
+          </p>
+          <p>
+            Every AI-produced sentence is checked against the retrieved figures before display; a sentence
+            containing a number that was not retrieved is withheld.
+          </p>
+        </div>
+      </section>
+
       <section aria-labelledby="stewardship-heading">
         <h2 id="stewardship-heading" className="section-title">
           Who owns this
