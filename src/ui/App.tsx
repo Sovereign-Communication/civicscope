@@ -23,7 +23,13 @@ import { StateFilter } from './StateFilter'
 import { MapView } from './MapView'
 import { sortSweepRows } from '../core/sweep-sorting'
 import { AskPanel } from './ai/AskPanel'
-import { figureInputsFromAreaRows, figureInputsFromMetrics } from './ai/figure-input'
+import { BriefingView } from './ai/BriefingView'
+import {
+  briefingFiguresFromMetrics,
+  figureInputsFromAreaRows,
+  figureInputsFromMetrics,
+} from './ai/figure-input'
+import type { FigureResolver } from '../core/ai/briefing'
 
 type View = 'explore' | 'map' | 'methodology'
 
@@ -171,6 +177,32 @@ export default function App() {
         ),
       ),
     [q.drilldowns, placeLabel],
+  )
+  const briefingFigures = useMemo(
+    () =>
+      Object.values(q.drilldowns).flatMap((detail) =>
+        briefingFiguresFromMetrics(detail.metrics, detail.zcta),
+      ),
+    [q.drilldowns],
+  )
+  const briefingPlaces = useMemo(
+    () => Object.values(q.drilldowns).map((detail) => detail.label || detail.zcta),
+    [q.drilldowns],
+  )
+  /**
+   * Pack re-verification re-reads the figure from the data layer's
+   * current drilldown state at generation time — not from the snapshot
+   * the panel rendered with — so a figure changed since render fails
+   * its check instead of shipping.
+   */
+  const resolveBriefingFigure: FigureResolver = useCallback(
+    async (figure) => {
+      const detail = q.drilldowns[figure.geography]
+      const metric = detail?.metrics.find((m) => m.key === figure.key)
+      if (!metric) return null
+      return { value: metric.value, marginOfError: metric.quality.marginOfError }
+    },
+    [q.drilldowns],
   )
   const savedViewFigures = useCallback(
     (zips: readonly string[]) =>
@@ -662,6 +694,16 @@ export default function App() {
                 figures={askFigures}
                 onExecute={executeIntent}
                 clarificationCandidates={{ geographies: [], metricKeys: [...DISPLAYABLE_KEYS] }}
+              />
+            </div>
+            <div className="mb-6 panel panel-padded">
+              <BriefingView
+                provider={HOUSE_PROVIDER}
+                title="Selected places"
+                viewKind="drilldown selection"
+                places={briefingPlaces}
+                figures={briefingFigures}
+                resolveFigure={resolveBriefingFigure}
               />
             </div>
             {searchPanel}
