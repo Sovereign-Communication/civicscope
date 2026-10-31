@@ -57,6 +57,11 @@ export function Methodology() {
             to Census.gov.
           </li>
           <li>
+            This site is deployed with the project&rsquo;s own shared Census application key, so the full dataset
+            works with no setup. That key identifies the application, not you, and a key you add yourself
+            replaces it.
+          </li>
+          <li>
             Saved comparisons and display preferences stay in this browser. CivicScope does not receive them or
             keep a search history.
           </li>
