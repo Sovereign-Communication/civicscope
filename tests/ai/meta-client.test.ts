@@ -170,15 +170,24 @@ describe('live provider: BYO fallback', () => {
 })
 
 describe('live provider: cut features refuse rather than invent', () => {
-  it('refuses briefing and transcribe', async () => {
+  it('refuses transcribe (voice stays cut, issue #61)', async () => {
     const { impl, calls } = fakeFetch([{ body: {} }])
     const live = provider(impl, false)
-    await expect(
-      live.briefing({ figureSetId: 'x' }, new AbortController().signal),
-    ).rejects.toBeInstanceOf(ProviderCallError)
     await expect(
       live.transcribe({ audio: new ArrayBuffer(0), mimeType: 'audio/webm' }, new AbortController().signal),
     ).rejects.toMatchObject({ code: 'provider_down' })
     expect(calls).toHaveLength(0)
+  })
+
+  it('briefing is no longer cut (F6, issue #58): it goes through the proxy route', async () => {
+    const { impl, calls } = fakeFetch([{ body: { prose: 'Households number 3400 here.' } }])
+    const live = provider(impl, false)
+    const result = await live.briefing(
+      { figureSetId: 'x', values: [{ key: 'households', value: 3400 }] },
+      new AbortController().signal,
+    )
+    expect(result.prose).toContain('3400')
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.url).toBe('/api/muse/briefing')
   })
 })
