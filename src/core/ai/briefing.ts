@@ -315,7 +315,7 @@ export async function generateBriefingPack(
   textLines.push('', 'Methodology and citations:')
   for (const line of appendix) textLines.push(`- ${line}`)
   textLines.push('', FAIR_HOUSING_NOTE)
-  if (req.packUrl) textLines.push('', `This pack's view: ${req.packUrl}`)
+  if (req.packUrl) textLines.push('', `This pack\u2019s view: ${req.packUrl}`)
 
   return {
     coverLine,

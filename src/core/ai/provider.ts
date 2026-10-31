@@ -91,7 +91,7 @@ export function deterministicBriefingProse(req: BriefingRequest): string {
   return (
     `This briefing pack covers ${keys.join(', ')}. ` +
     'Every figure in the pack was re-checked against its source at generation time, ' +
-    'and the figures below are shown exactly as published, with their margins of error and sources.'
+    'and the figures below are shown as published, with their margins of error and sources.'
   )
 }
 

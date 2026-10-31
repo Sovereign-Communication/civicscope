@@ -111,7 +111,7 @@ export const METHODOLOGY_CORPUS: CorpusEntry[] = [
     answer:
       'Every survey figure here is an estimate, and the margin of error printed beside it ' +
       'is the range around that estimate at the 90 percent confidence level. A wide margin ' +
-      'means the true figure could sit well above or below the printed one. When margins ' +
+      'means the true figure could sit well above or below the printed figure. When margins ' +
       'of error overlap between places, the difference between them may not be real, and ' +
       'CivicScope wording says so instead of treating the printed order as exact.',
     figures: [MOE_CONFIDENCE_FIGURE],
@@ -247,25 +247,43 @@ function isDataQuestion(normalized: string): boolean {
   return !METHODOLOGY_MARKERS.some((m) => normalized.includes(m))
 }
 
-/** Registry metrics a question names, by key or by full label. */
+/**
+ * Registry metrics a question names, by key or by full label. When
+ * labels nest ("Households" inside "Households with no internet
+ * access"), only the longest match counts: the specific metric is the
+ * one the question is about.
+ */
 function mentionedMetrics(normalized: string): MetricDef[] {
-  return METRIC_DEFS.filter(
+  const matches = METRIC_DEFS.filter(
     (def) =>
       normalized.includes(def.key.replace(/_/g, ' ')) ||
       normalized.includes(normalize(def.label)),
   )
+  if (matches.length <= 1) return matches
+  const longest = Math.max(...matches.map((m) => normalize(m.label).length))
+  return matches.filter((m) => normalize(m.label).length === longest)
 }
 
-function scoreEntry(entry: CorpusEntry, normalized: string, mentioned: MetricDef[]): number {
+interface EntryScore {
+  score: number
+  /** Distinct topic phrases matched — the specificity tie-break. */
+  phrases: number
+}
+
+function scoreEntry(entry: CorpusEntry, normalized: string, mentioned: MetricDef[]): EntryScore {
   let score = 0
+  let phrases = 0
   for (const topic of entry.topics) {
     const phrase = normalize(topic)
-    if (phrase && normalized.includes(phrase)) score += phrase.split(' ').length
+    if (phrase && normalized.includes(phrase)) {
+      score += phrase.split(' ').length
+      phrases += 1
+    }
   }
   if (entry.metricKeys && mentioned.some((m) => entry.metricKeys?.includes(m.key))) {
     score += 3
   }
-  return score
+  return { score, phrases }
 }
 
 /**
@@ -287,11 +305,16 @@ export function answerMethodologyQuestion(
   const mentioned = mentionedMetrics(normalized)
   let best: CorpusEntry | undefined
   let bestScore = 0
+  let bestPhrases = 0
   for (const entry of corpus) {
-    const score = scoreEntry(entry, normalized, mentioned)
-    if (score > bestScore) {
+    // Score first; on a tie, the entry matching more distinct topic
+    // phrases is the more specific one ("no graduation rate" beats the
+    // generic missing-figure entry for a graduation question).
+    const { score, phrases } = scoreEntry(entry, normalized, mentioned)
+    if (score > bestScore || (score === bestScore && phrases > bestPhrases)) {
       best = entry
       bestScore = score
+      bestPhrases = phrases
     }
   }
 
