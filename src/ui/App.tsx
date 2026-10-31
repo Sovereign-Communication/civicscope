@@ -30,6 +30,7 @@ import {
   figureInputsFromMetrics,
 } from './ai/figure-input'
 import type { FigureResolver } from '../core/ai/briefing'
+import { AgentHandoff } from './ai/agent-handoff'
 
 type View = 'explore' | 'map' | 'methodology'
 
@@ -532,6 +533,13 @@ export default function App() {
                 <KeyPrompt onDismiss={() => setShowKeyPrompt(false)} autoFocus={false} />
         </div>
       )}
+
+      {/* F5a entry point: agent-guided setup, confirmed only by the app's
+          own key events. Its manual button lands on the same KeyPrompt the
+          workflow's abort path hands off to. */}
+      <div className="mt-4">
+        <AgentHandoff onOpenManual={() => setShowKeyPrompt(true)} />
+      </div>
     </>
   )
 

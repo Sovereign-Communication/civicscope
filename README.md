@@ -142,6 +142,16 @@ reported as a bad key.
 during render instead produces a constant value, so the effect keyed on it can
 never fire.
 
+**An agent can walk a user through key setup.** The in-app "Set up with your
+agent" entry point points an AI agent at a versioned workflow —
+[`docs/agent-onboarding/workflow.v1.json`](docs/agent-onboarding/workflow.v1.json) —
+covering both the Census key and an optional personal Meta key. The key never
+transits CivicScope and is never accepted as an agent report: setup success is
+confirmed only by the app's own re-validation events (`civicscope:census-key`,
+`civicscope:meta-key-changed`), and an unexpected screen aborts the workflow to
+the manual path at the equivalent step. Run records live in
+[`docs/agent-onboarding/run-record.md`](docs/agent-onboarding/run-record.md).
+
 **A production deploy is not immediately live.** Pages promotes the new
 deployment to the production alias a few seconds after upload, and during this
 work the alias repeatedly served the previous build — including a stale
