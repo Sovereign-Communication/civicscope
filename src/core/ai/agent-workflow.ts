@@ -177,7 +177,7 @@ export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
 
     // Reachability: walk next-links and failure gotos from the first step.
     const reachable = new Set<string>()
-    const queue = [steps[0].id]
+    const queue = [(steps[0] as WorkflowStep).id]
     while (queue.length > 0) {
       const id = queue.pop() as string
       if (reachable.has(id)) continue
@@ -240,6 +240,7 @@ function stepOf(graph: WorkflowGraph, run: WorkflowRun): WorkflowStep {
 
 export function startRun(graph: WorkflowGraph, pathId: WorkflowPathId): WorkflowRun {
   const first = graph.paths[pathId][0]
+  if (!first) throw new Error(`workflow path ${pathId} has no steps`)
   return {
     pathId,
     stepId: first.id,
