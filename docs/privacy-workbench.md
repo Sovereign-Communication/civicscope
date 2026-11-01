@@ -6,7 +6,7 @@ This document is working copy for the product surface only. It describes what th
 
 ## What is counted (Q1 aggregate counter)
 
-Metering uses one Durable Object that keeps an aggregate counter. It counts only requests, tokens, spend, and error classes in total.
+Metering uses an in-memory aggregate counter kept per isolate. It counts only requests, tokens, spend, and error classes in total, and its operator totals reset when an isolate cold-starts. A single durable aggregate store is the recorded post-launch fast-follow.
 
 It never stores searches, keys, query text, IP addresses, or content. There is no per-search or per-person record in this store: only the running totals needed to operate the service and to stop it when the allowance is used up.
 
