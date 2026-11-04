@@ -1,3 +1,17 @@
+# CivicScope + Muse — Meta Global AI Developer Hackathon submission
+
+The judged build is live at https://civicscope-muse-portal.pages.dev — pre-keyed for judging (a shared key sits in the deployment's environment; judges handle no keys), one surface, zero setup.
+
+What the hackathon layer adds: natural-language Ask and validated Explain over this repo's deterministic Census data layer — the model proposes intent and prose, deterministic code owns every number, and a validator gates model output before it renders.
+
+Solo contributor for the submission: Lucas Ballek. AI systems were build tools, not contributors.
+
+Provenance: this repository is the pre-existing open-source CivicScope tool (the base); the hackathon submission build (the Muse layer and portal) was developed on Entire (entire.io) during the contest window, on top of this base at commit 3aa7e10.
+
+For the base tool itself, see the documentation below.
+
+---
+
 # CivicScope
 
 Free, auditable US housing and neighbourhood data. Fetches directly from the
