@@ -1116,6 +1116,22 @@ const REQUIREMENT_LINE =
   REQUIREMENTS.map((r) => r.req + ' (proven by ' + r.proofs.join(', ') + ')').join('; ') +
   '. Every deterministic check, including the ones not cited here, is listed in deterministic_results.'
 
+// The judge was asked one aggregate question, so a low `requirements_met` could
+// report the single aspect it liked least but never what it thought of each
+// one, and an aggregate with one objection attached is not a list of what is
+// uncredited. These are the aspects its own `unmet_requirement` choice already
+// names, asked one at a time, so the run carries a verdict and a confidence per
+// aspect. They are asked in a second call that never enters the score.
+const JUDGE_ASPECTS = [
+  { key: 'distribution', ask: 'The way figures are distributed or delivered, for example the country-wide screen is slow or a payload is large' },
+  { key: 'school_depth', ask: 'School data depth: per-school or per-state detail on drilldown' },
+  { key: 'ownership', ask: 'Stewardship: whether the project is genuinely nobody-owned, or only documented as such' },
+  { key: 'domain', ask: 'The domain name has been chosen and carries a clear message' },
+  { key: 'donations', ask: 'Donations routing to personal accounts rather than a public collective, so the balance is not public' },
+  { key: 'verification', ask: 'Every element independently verified against real data' },
+  { key: 'breadth', ask: 'Data sources and metrics the request implies are present' },
+]
+
 // The margins statement is graded by a deterministic check that asserts every
 // country-wide figure carries its margin, so the summary must not say margins
 // are absent from that screen. It did say exactly that, against a passing check
@@ -1377,6 +1393,45 @@ if (TYPESAFE_KEY) {
   } catch (err) {
     jev = { error: String(err.message) }
   }
+
+  // Diagnostic only: these answers never enter `score`, so adding them cannot
+  // move the bar in either direction. A second call keeps the scored questions
+  // byte-identical to every earlier reading of this gate.
+  if (jev && !jev.error) {
+    const profileQuestions = {}
+    REQUIREMENTS.forEach((r, i) => {
+      profileQuestions[`clause_${i + 1}`] = {
+        type: 'noul',
+        instructions:
+          'Judging only the evidence in `deliverable_summary` and `deterministic_results`, is this specific part of `original_request` addressed with passing evidence? The part: ' +
+          r.req,
+        criteria: { true: 'Addressed with passing evidence.', false: 'Missing, partial, or unevidenced.' },
+      }
+    })
+    for (const aspect of JUDGE_ASPECTS) {
+      profileQuestions[`aspect_${aspect.key}`] = {
+        type: 'noul',
+        instructions:
+          'Judging only `deliverable_summary`, `known_limitations` and `deterministic_results`, is this aspect of `original_request` fully delivered? The aspect: ' +
+          aspect.ask,
+        criteria: { true: 'Fully delivered.', false: 'Not fully delivered.' },
+      }
+    }
+    try {
+      const profileRes = await fetch('https://api.typesafe.ai/v1/systemone', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${TYPESAFE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state, model: 'jev-latest', questions: profileQuestions }),
+      })
+      if (profileRes.ok) {
+        const profileBody = await profileRes.json()
+        jev.profile = profileBody.answers ?? null
+        jev.profileUsage = profileBody.usage ?? null
+      }
+    } catch {
+      /* Diagnostic only: a profile failure must not change the verdict. */
+    }
+  }
 } else {
   console.log(`${c.d}Jev review skipped: TYPESAFE_API_KEY not set. Deterministic layer ran alone.${c.x}\n`)
 }
@@ -1403,6 +1458,15 @@ if (jev?.error) {
           ? `score=${v.score}/3 conf=${v.confidence}`
           : `choice=${v.choice} conf=${v.confidence}`
     console.log(`  ${c.d}${k}: ${line}${c.x}`)
+  }
+  if (jev.profile) {
+    console.log(`\n${c.b}Per-requirement profile${c.x} ${c.d}(diagnostic, not part of the score)${c.x}`)
+    for (const [name, answer] of Object.entries(jev.profile)) {
+      const conf = answer?.confidence !== undefined ? ` conf=${answer.confidence}` : ""
+      const value =
+        answer?.type === 'noul' ? `noul=${answer.noul}` : answer?.type === 'score' ? `score=${answer.score}/3` : `choice=${answer?.choice}`
+      console.log(`  ${c.d}${name}: ${value}${conf}${c.x}`)
+    }
   }
   console.log(
     `  ${c.d}note: this scores the supplied evidence, not reality. A high number means the` +
