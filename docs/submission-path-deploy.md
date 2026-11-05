@@ -17,6 +17,11 @@ because moving the production alias is owner-reserved.
 | Functions | `wrangler pages functions build` compiled the Worker, then the deploy uploaded the Functions bundle |
 | Tool | wrangler 4.143.0, project `civicscope` |
 
+A later preview on the same branch, deployment `1cb4c184` from `35d931a`
+(2026-10-30), adds `/api/muse/diagnostics` and the F7 export. Its diagnostics
+route was exercised on the alias; the served-surface table below remains the
+measured record for `390579ff` / `d4a7dc6`, not a claim about the current alias.
+
 The command was `npx wrangler pages deploy dist --project-name civicscope
 --branch submission`; `--branch main` was deliberately not used, because that
 would move the production alias without the owner's merge.

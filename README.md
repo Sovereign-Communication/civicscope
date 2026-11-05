@@ -21,8 +21,8 @@ whole premise.
 ## Architecture
 
 ```
-Browser (the entire product)
-  ├─ No runtime backend, no database, no user accounts, no search logging
+Browser (the data product)
+  ├─ Data fetched directly from publishers; no database, no accounts, no search logging
   ├─ The user's own Census API key → localStorage, never sent to us
   ├─ Plugin registry: declarative (geography, requires, source, legal)
   ├─ DAG executor → request dedup + concurrent fan-out

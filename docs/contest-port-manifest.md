@@ -67,11 +67,14 @@ no port issue and imported by nothing in the queue - and the workbench
 planning documents (house-plan.md, civicscope-audit.md).
 
 Pages Functions deploy wiring is demonstrated on a preview deployment
-(`submission` branch, lane head `d4a7dc6`, 2026-10-30): all three
+(`submission` branch, lane head `35d931a`, deployment `1cb4c184`, 2026-10-30): the three POST
 `/api/muse/*` routes answer from the served build, and the only missing
-ingredient there is the shared key. Getting that build onto the production
+ingredient there is the shared key. A fourth GET route,
+`/api/muse/diagnostics`, reports status and is deployed there too. Getting that
+build onto the production
 alias still needs the owner's merge to `main` plus a manual `npm run deploy`;
 see `docs/submission-path-deploy.md`. The per-client cap value remains S10 and
 unset; the Explain claim count is S11/S12; the privacy copy above is a draft
-pending final sign-off. The Ask shell mount and stub-provider wiring landed in
+pending final sign-off and checked against the shipped config in
+`docs/privacy-verification-checklist.md`. The Ask shell mount and stub-provider wiring landed in
 PR #50 at aab2c87.
