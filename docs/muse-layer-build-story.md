@@ -107,7 +107,7 @@ e2e was red on a host without Functions, and the red was correct about the
 test's assumption, not about the product. That distinction is why the fix kept
 the leak checks rather than weakening them.
 
-## Claim ledger: real, unmeasured, and cut
+## Claim ledger: real, measured, and cut
 
 This is the list the submission text and demo script must obey.
 
@@ -115,9 +115,9 @@ This is the list the submission text and demo script must obey.
 | --- | --- | --- |
 | Ask and Explain are served from a real Cloudflare Pages deployment | **Real, preview only** | Preview `1cb4c184` from `35d931a`; `GET /` 200, assets 200, `/z/02139` 200; production still serves `main` and returns 405 on `/api/muse/intent`. |
 | `/api/muse/*` routes exist and refuse honestly without a key | **Real** | `503 {"error":"provider_down","detail":"no shared key configured"}` with `cache-control: no-store`; foreign Origin 403. |
-| The live provider completes a request successfully | **Not proven** | Only a deliberately invalid key round trip was measured: `401 bad_key` through both routes, matching Meta's own `401 invalid_api_key`. No valid key has ever been used on this lane. |
-| Exact-intent score >=95% | **Unmeasured** | Live tier has never run. The 91/91 figure is a replay, not a model score. |
-| Safety score 100% | **Unmeasured live** | Hermetic safety subset is 7/7 non-runnable; that is a fixture result, not a model result. |
+| The live provider completes a request successfully | **Proven on the preview portal** | 91 live cases completed through the portal proxy on 2026-11-03, which is the run recorded in [the eval record](muse-layer-eval.md). Before that, only a deliberately invalid key round trip had been measured: `401 bad_key` through both routes, matching Meta's own `401 invalid_api_key`. No valid key has ever been used from this repository. |
+| Exact-intent score >=95% | **Measured, proxy preview** | 96.7% (88/91) on 2026-11-03, run from the union tree against `civicscope-muse-portal.pages.dev`; recorded in [the eval record](muse-layer-eval.md) and not re-run in this repository. The 91/91 figure is a replay, not a model score. |
+| Safety score 100% | **Measured live, proxy preview** | 7/7 on the same 2026-11-03 run. The hermetic safety subset is also 7/7 non-runnable, which is a fixture result, not a model result. |
 | Coverage 69/69 | **Real, hermetic** | Generated from the registry in `tests/ai/coverage-report.md`; denominator is the registry, not a hand list. |
 | Diagnostics export works and cannot carry a key or prompt | **Real** | `cc0f3e3`, `35d931a`; 21 diagnostics tests, served-build e2e with sentinels, deployed route exercised on the preview. |
 | Accessibility on the served preview | **Real, scoped** | `ask-shell` 3/3 and `a11y` 8/8 with 0 axe violations on the preview on 2026-10-30. This is the tested views, not a claim about every page. |
@@ -146,8 +146,8 @@ MUSE_API_KEY=... npm run test:ai:live
 MUSE_EVAL_PROXY_BASE=https://submission.civicscope.pages.dev npm run test:ai:live
 ```
 
-Both print `surface=direct|proxy`; neither has been run with a valid key. Until
-one is, every document says NOT RUN.
+Both print `surface=direct|proxy`. Neither surface has been run with a valid key
+from this repository; the one measured run came from the union tree against its preview portal, and the documents name it as measured, not as NOT RUN.
 
 ## Evidence index
 

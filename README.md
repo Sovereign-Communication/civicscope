@@ -47,9 +47,9 @@ similarity); Explain covers all 15 registered metrics.
 Evaluation: a versioned 91-case golden corpus with a 7-case safety subset; bars
 are >=95% exact-intent and 100% safety on the live tier. Hermetic replay: 91/91
 exact, 7/7 safety (measures the schema/scorer path, not the model). Live tier:
-not run as of this writing — scores land here from
-[the eval record](docs/muse-layer-eval.md) after the measured run, with date,
-model, and surface named. Voice input is not part of this submission.
+measured once, 2026-11-03, at 96.7% (88/91) exact and 7/7 safety, from
+the union tree's preview portal deployment; surface, model and misses are in
+[the eval record](docs/muse-layer-eval.md). Not re-run in this repository. Voice input is not part of this submission.
 
 Privacy for the Muse layer is in [docs/privacy.md](docs/privacy.md).
 
