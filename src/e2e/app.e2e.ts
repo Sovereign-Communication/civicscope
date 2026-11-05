@@ -385,7 +385,12 @@ describe('e2e: deterministic screening and explain surfaces', () => {
 
       await sortPage.getByRole('button', { name: 'Explore', exact: true }).click()
       await sortPage.getByRole('textbox', { name: 'Ask in plain language' }).fill('rent in 10002')
-      await sortPage.getByRole('button', { name: 'Ask', exact: true }).click()
+      // Scoped to the Ask panel for the same reason as ask-shell: the briefing
+      // surface's "Methodology questions" region also has an "Ask" submit.
+      await sortPage
+        .getByRole('region', { name: 'Ask CivicScope' })
+        .getByRole('button', { name: 'Ask', exact: true })
+        .click()
       await sortPage.getByText('lookup', { exact: true }).waitFor()
       expect(await sortPage.getByRole('button', { name: 'Remove place 10002' }).count()).toBe(1)
       expect(await sortPage.getByRole('button', { name: 'Remove measure median_gross_rent' }).count()).toBe(1)

@@ -59,7 +59,13 @@ it('mounts the text-only Ask surface', async () => {
 
 it('parses a real query through the live client and shows the validated intent', async () => {
   await page.getByLabel('Ask in plain language').fill('What is the rent in Pahoa?')
-  await page.getByRole('button', { name: 'Ask', exact: true }).click()
+  // Scoped to the Ask panel: the briefing surface's "Methodology questions"
+  // region ships its own "Ask" submit, so an unscoped role query matches two
+  // buttons and Playwright refuses to guess. The assertion is unchanged.
+  await page
+    .getByRole('region', { name: 'Ask CivicScope' })
+    .getByRole('button', { name: 'Ask', exact: true })
+    .click()
 
   await page.getByText('lookup', { exact: true }).waitFor()
   expect(await page.getByRole('button', { name: 'Remove place 96778' }).count()).toBe(1)
