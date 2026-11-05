@@ -87,7 +87,7 @@ export function useHousingQuery() {
    * The previous implementation issued one wildcard request for every ZCTA,
    * which is roughly 34x the number of geographies the Census API accepts in a
    * single call. It failed or timed out. It is now chunked at the measured
-   * ceiling of 1,000 ZCTAs per request, with each chunk cached independently,
+   * ceiling of 800 ZCTAs per request (CHUNK_SIZE in src/core/sweep/chunk.ts), with each chunk cached independently,
    * so a dropped connection costs one chunk rather than the whole load.
    */
   const loadSweep = useCallback(async (scope: SweepScope = { states: [] }) => {

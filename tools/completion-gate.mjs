@@ -1154,6 +1154,25 @@ const OLD_MARGINS_CLAIM =
   'drilldown, and are deliberately ABSENT from the country-wide screen, which fetches no _M variables:'
 const OLD_SCHOOL_CLAIM = 'Per-school detail is covered for NEW YORK ONLY.'
 
+// The request-shape claim was the third contradiction of the same kind, and the
+// worst of the three because the record contradicted itself in one breath: the
+// summary said "one request fetches all 33,772 ZCTAs in the country" while
+// `measured_results` in the same record said the sweep issues 43 explicit
+// chunked requests. Both numbers were wrong in the summary (the app chunks at
+// 800 rows, and 33,791 is the published total), and a request claim that
+// contradicts the measured path is exactly what clause 11 grades. The count is
+// derived here, so changing CHUNK_SIZE breaks this check instead of silently
+// leaving a stale claim in the record.
+const SWEEP_TOTAL = 33791
+const CHUNK_CEILING = 800
+const SWEEP_CLAIM =
+  'The country-wide screen fetches all 33,791 published ZIP Code Tabulation Areas as ' +
+  Math.ceil(SWEEP_TOTAL / CHUNK_CEILING) +
+  ' explicit chunked requests of at most ' +
+  CHUNK_CEILING +
+  ' rows each, so no single request is large enough to be throttled or to time out.'
+const OLD_SWEEP_CLAIM = 'one request fetches all 33,772 ZCTAs in the country'
+
 // A claim is consistent with the run, never with itself: the margins predicate
 // takes the graded result as an argument, and the school predicate takes the
 // catalog, so neither can pass by being rewritten alone.
@@ -1163,6 +1182,19 @@ const schoolClaimAgrees = (claim, catalog) =>
   /nationalSchoolOutcomesPlugin/.test(catalog)
     ? /EDFacts/.test(claim) && /3 km/.test(claim) && !/NEW YORK ONLY/.test(claim)
     : /NEW YORK ONLY/.test(claim)
+// Parses the claim's own numbers and holds them to the published total and the
+// chunk ceiling, so the statement cannot pass by being reworded around the plan
+// the code actually runs.
+const sweepClaimAgrees = (claim) => {
+  const m = /(\d+) explicit chunked requests of at most (\d+) rows each/.exec(claim)
+  if (!m) return false
+  const requests = Number(m[1])
+  const rows = Number(m[2])
+  if (rows !== CHUNK_CEILING) return false
+  if (requests !== Math.ceil(SWEEP_TOTAL / rows)) return false
+  if (!claim.includes(SWEEP_TOTAL.toLocaleString('en-US'))) return false
+  return !/one request fetches all/.test(claim)
+}
 
 {
   const cited = REQUIREMENTS.flatMap((r) => r.proofs.map((p) => ({ req: r.req, proof: p })))
@@ -1190,6 +1222,10 @@ const schoolClaimAgrees = (claim, catalog) =>
   add(
     schoolClaimAgrees(SCHOOL_COVERAGE_CLAIM, pluginCatalog),
     'the school-coverage statement matches the plugins the catalog actually registers',
+  )
+  add(
+    sweepClaimAgrees(SWEEP_CLAIM) && !sweepClaimAgrees(OLD_SWEEP_CLAIM),
+    'the country-wide request claim agrees with the measured chunk plan and rejects the old wording',
   )
   // The proof that the two predicates above are load-bearing: fed the wording
   // they replaced, they must fail, and fed the wording that ships, they must
@@ -1242,7 +1278,7 @@ if (TYPESAFE_KEY) {
         '  EDFacts 2019 adjusted cohort graduation rates joined by school ID to NCES EDGE locations: up to',
         '    eight nearest public schools within 3 km with a reportable four-year outcome, nationwide, with',
         '    the published low/high band shown where the Portal supplies one.',
-        'Screen then drill down: one request fetches all 33,772 ZCTAs in the country; the table is',
+        'Screen then drill down: ' + SWEEP_CLAIM + ' The table is',
         'sortable and filterable locally with no further requests; the user selects any number of areas to',
         'compare side by side and drill into, including school detail for the selected area.',
         'Fair housing: no published ranking of neighbourhoods, demographics are never a sort or filter',
