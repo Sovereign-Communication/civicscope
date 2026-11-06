@@ -73,6 +73,7 @@ this table was executed from the lineage in this session.
 | I9 | General and flexible answer lanes | `functions/api/muse/general.ts`, `flexible.ts`, `src/core/ai/general.ts`, `flexible.ts`, `geography-gate.ts` (1075) | Absent | Largest port. Lands after I4 and I7 so the deterministic and grounding layers already exist underneath | S6 |
 | I10 | Conversational plumbing | `bookends.ts`, `hourglass-packets.ts`, `decision-branches.ts`, `run-progress.ts`, `onboarding.ts`, `area-mention.ts`, `near-frame.ts`, `nearby.ts`, `explain-view.ts`, `intent-url.ts`, `usage.ts`, `census-key.ts` | Absent | Land each with the slice that first needs it, not as a block | with S4/S6 |
 | I11 | Security middleware | `functions/_middleware.ts` | Superseded: this repo ships `public/_headers` | **Evaluated, not transferred.** Two mechanisms for one job; adopting both would let them disagree | none |
+| I12 | Map-outline cure | commit `c3f4609`: `src/ui/map/ResultMap.tsx` (+115) and `tests/ai/result-map.test.tsx` (+107), subject "map outline cure: draw the referenced state's outline under the result choropleth" — parent `9403faa`, one commit, two files | Absent: the cure was the final portal-side commit and never flowed back, which is why this mirror and the GitHub copy top at `9403faa` | Port with I3 in S2; source = owner-side sync from the portal lineage (the commit exists only there and in the oversight clone) | S2 |
 | X1 | Agent toolchain | `.entire/`, `.agents/`, `.codex/`, `.opencode/`, `packs/`, `skills-lock.json` | Absent | Out of product scope; owner decision, not lane work | none |
 | X2 | Static assets | `public/og-image.png`, `public/favicon.svg`, `map-zoomed.png` | Not carried | Transfer only if a slice actually references them | none |
 
@@ -102,7 +103,7 @@ Overdue rows are blockers. A row is closed only by the method named in it.
 
 | # | Assumption | Owner | Verify by | Method | State |
 | --- | --- | --- | --- | --- | --- |
-| A1 | `c3f4609` is the final production commit | oversight | 2026-11-06 | `git cat-file -t` in both clones + remote `main` read | **OPEN BLOCKER**: object absent; `9403faa` used instead |
+| A1 | `c3f4609` is the final production commit | oversight | 2026-11-06 | `git cat-file -t` in both clones + remote `main` read | **CLOSED** 2026-11-06 on oversight's read: the object is real, parent `9403faa`, one commit touching two files; it is absent from this mirror because it never flowed back, so the measurement basis was short by exactly that cure. Its content is row I12. |
 | A2 | The lineage's tests pass at `9403faa` | lane | per slice | Run the ported test in this repo, not there | OPEN |
 | A3 | `civicscope.pages.dev` serves this tool repo, not the lineage | lane | 2026-11-06 | Primary read of the served bundle's contents | OPEN |
 | A4 | Durable-object metering needs a deployment-shape change the owner has not approved | owner | before S5 | Re-read this project's Pages config, not the lineage's | OPEN |
@@ -111,8 +112,9 @@ Overdue rows are blockers. A row is closed only by the method named in it.
 ## 6. What is not claimed
 
 No slice is landed. No capability here is asserted to work in this repo. The
-counts above are file and line reads of the lineage at `9403faa`, and the
-"this repo today" column is a file-set comparison at `da989b0`, not a
-behavioural review of each module. The gate's current red (semantic 61.6/61.8
-against a threshold of 99) is unaffected by this document and is tracked on the
-PR.
+counts above are file and line reads of the lineage at `9403faa` plus the single
+`c3f4609` delta recorded as I12, and the "this repo today" column is a file-set
+comparison at `da989b0`, not a behavioural review of each module. The gate's red
+last measured before the instrument repair was semantic 62.8/100 against a
+threshold of 99 (CircleCI pipeline 6); the repair commit scores the fourteen
+clause verdicts instead of one holistic answer and is tracked on the PR.
