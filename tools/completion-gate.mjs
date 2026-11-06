@@ -1295,8 +1295,14 @@ if (TYPESAFE_KEY) {
       process.env.GATE_SUMMARY ??
       [
         'A free, client-side US housing and neighbourhood data tool deployed at civicscope.pages.dev.',
-        'Architecture: no runtime backend, no database, no accounts, no search logging. The visitor supplies',
-        'their own Census API key, stored only in their browser. Requests originate from the visitor, not us.',
+        'Architecture: the housing data path has no runtime backend, no database, no accounts and no search',
+        'logging. The visitor supplies their own Census API key, stored only in their browser, and the Census',
+        'requests originate from the visitor rather than from us. The one server-side surface is a set of',
+        'same-origin proxy routes under /api/muse (Pages Functions in functions/api/muse/): they exist so a',
+        'provider key never reaches the browser, they accept only an allowlisted request shape, they gate on a',
+        'budget and a breaker, they store no request or response bodies (counts only), and their meter lives in',
+        'one isolate rather than durably. They are not on the data path: every figure on the page comes from',
+        "the visitor's own Census requests.",
         'Data sources, all live and all verified against the real APIs:',
         '  ACS 5-year via api.census.gov — median gross rent, median home value, median household income,',
         '    median rent as a share of income, occupied households, population, renter-occupied units.',
