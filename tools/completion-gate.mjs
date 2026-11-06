@@ -23,6 +23,37 @@
  * not a measurement of reality, so it is a useful cross-check and a poor sole
  * gate. The deterministic layer measures things that cannot be argued with.
  *
+ * SCORING, AND WHAT `requirements_met` IS:
+ *
+ *   score = 100 * (0.4 * (is_a_99/3) + 0.3 * requirements_met + 0.3 * overclaiming)
+ *   and the gate passes at 99.
+ *
+ *   `requirements_met` in that formula is the arithmetic mean of the fourteen
+ *   per-requirement clause verdicts (clause_1..clause_14), asked one at a time
+ *   so each requirement's own read enters the number. It used to be a single
+ *   holistic noul over the whole dossier. That version could not respond to any
+ *   individual requirement: on 2026-11-05 the fourteen clauses read 0.56-0.97
+ *   while the holistic answer read 0.35, and at the observed overclaiming reads
+ *   the formula's ceiling was about 87 even with a perfect rubric - so no cure
+ *   to any single requirement could move the score, and a six-pipeline series
+ *   (60.2, 61.6, 61.8, 62.1, 63.2, 62.8) was reading the instrument rather
+ *   than the work. The aggregate is deterministic: the same clause verdicts
+ *   produce the same number, with no weighting, smoothing or extra judgement of
+ *   its own.
+ *
+ *   The holistic question is still asked and recorded, as a diagnostic that no
+ *   longer enters the score, so its series stays comparable across the repair
+ *   and the `unmet_requirement` choice keeps its context. The seven aspect
+ *   questions stay diagnostic in the same way. What is unchanged by the repair:
+ *   the criteria text, the overclaiming and is_a_99 components, the 0.4 / 0.3 /
+ *   0.3 weights, and the 99 threshold.
+ *
+ *   Fail-closed: if the per-requirement call fails, or any clause comes back
+ *   without a numeric verdict, there is no measured `requirements_met` and the
+ *   semantic layer reports an error instead of falling back to the holistic
+ *   answer. A gate that quietly reverted to the instrument it replaced would
+ *   report a score nobody could name.
+ *
  * Usage:
  *   node tools/completion-gate.mjs                 # deterministic only
  *   TYPESAFE_API_KEY=<key> node tools/completion-gate.mjs   # + Jev review
@@ -1121,7 +1152,9 @@ const REQUIREMENT_LINE =
 // one, and an aggregate with one objection attached is not a list of what is
 // uncredited. These are the aspects its own `unmet_requirement` choice already
 // names, asked one at a time, so the run carries a verdict and a confidence per
-// aspect. They are asked in a second call that never enters the score.
+// aspect. The aspects remain diagnostic and do not enter the score; the
+// per-requirement questions asked alongside them in the same call do enter it,
+// as the `requirements_met` aggregate documented in this file's header.
 const JUDGE_ASPECTS = [
   { key: 'distribution', ask: 'The way figures are distributed or delivered, for example the country-wide screen is slow or a payload is large' },
   { key: 'school_depth', ask: 'School data depth: per-school or per-state detail on drilldown' },
@@ -1363,6 +1396,9 @@ if (TYPESAFE_KEY) {
   }
 
   const questions = {
+    // Diagnostic since the instrument repair: the scored `requirements_met` is
+    // the clause aggregate (see the file header). The question is kept asked
+    // and recorded so its own series stays comparable across the repair.
     requirements_met: {
       type: 'noul',
       instructions:
@@ -1405,6 +1441,7 @@ if (TYPESAFE_KEY) {
     },
   }
 
+  let decisive = null
   try {
     const res = await fetch('https://api.typesafe.ai/v1/systemone', {
       method: 'POST',
@@ -1413,27 +1450,19 @@ if (TYPESAFE_KEY) {
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`.slice(0, 200))
     const body = await res.json()
-    const a = body.answers ?? {}
-
-    // 0-3 rubric, weighted with the two hard gates dominant so a confident
-    // "yes" on an unaddressed requirement cannot be averaged away.
-    const rubric = (a.is_a_99?.score ?? 0) / 3
-    const score = (0.4 * rubric + 0.3 * (a.requirements_met?.noul ?? 0) + 0.3 * (a.overclaiming?.noul ?? 0)) * 100
-    jev = {
-      score: Math.round(score * 10) / 10,
-      model: body.model,
-      answers: a,
-      usage: body.usage,
-    }
+    decisive = body
     console.log(`${c.d}Jev: ${body.model} · ${body.usage?.input_tokens ?? '?'} in / ${body.usage?.output_tokens ?? '?'} out${c.x}\n`)
   } catch (err) {
     jev = { error: String(err.message) }
   }
 
-  // Diagnostic only: these answers never enter `score`, so adding them cannot
-  // move the bar in either direction. A second call keeps the scored questions
-  // byte-identical to every earlier reading of this gate.
-  if (jev && !jev.error) {
+  // The per-requirement verdicts are asked BEFORE the score is computed,
+  // because their aggregate is the scored `requirements_met` component. A
+  // failure here is no longer diagnostic: without a measured aggregate there is
+  // no requirements_met to score, and the layer fails rather than substituting
+  // the holistic answer the aggregate replaced.
+  if (decisive) {
+    const a = decisive.answers ?? {}
     const profileQuestions = {}
     REQUIREMENTS.forEach((r, i) => {
       profileQuestions[`clause_${i + 1}`] = {
@@ -1453,6 +1482,8 @@ if (TYPESAFE_KEY) {
         criteria: { true: 'Fully delivered.', false: 'Not fully delivered.' },
       }
     }
+    let profile = null
+    let profileUsage = null
     try {
       const profileRes = await fetch('https://api.typesafe.ai/v1/systemone', {
         method: 'POST',
@@ -1461,11 +1492,58 @@ if (TYPESAFE_KEY) {
       })
       if (profileRes.ok) {
         const profileBody = await profileRes.json()
-        jev.profile = profileBody.answers ?? null
-        jev.profileUsage = profileBody.usage ?? null
+        profile = profileBody.answers ?? null
+        profileUsage = profileBody.usage ?? null
       }
     } catch {
-      /* Diagnostic only: a profile failure must not change the verdict. */
+      /* Reported below as a failed semantic verdict, not as a low score. */
+    }
+
+    const clauseValues = []
+    for (let i = 1; i <= REQUIREMENTS.length; i += 1) {
+      const answer = profile?.[`clause_${i}`]
+      // A clause that is missing, of the wrong type, or outside [0, 1] is not a
+      // zero: it is an unmeasured clause. Averaging over whichever clauses did
+      // answer would report a number the record cannot support.
+      const value =
+        answer?.type === 'noul' && typeof answer.noul === 'number' && answer.noul >= 0 && answer.noul <= 1
+          ? answer.noul
+          : null
+      if (value === null) {
+        jev = {
+          error:
+            `per-requirement clause_${i} has no numeric verdict, so the scored requirements_met aggregate ` +
+            `is unavailable (${clauseValues.length}/${REQUIREMENTS.length} clauses measured); fail-closed`,
+          profile,
+        }
+        break
+      }
+      clauseValues.push(value)
+    }
+
+    if (jev === null) {
+      const requirementsMet = clauseValues.reduce((sum, v) => sum + v, 0) / clauseValues.length
+      // 0-3 rubric, weighted with the two hard gates dominant so a confident
+      // "yes" on an unaddressed requirement cannot be averaged away. The
+      // weights and the rubric are unchanged by the repair; what changed is only
+      // what fills `requirements_met` - the mean of the clause verdicts rather
+      // than one holistic answer.
+      const rubric = (a.is_a_99?.score ?? 0) / 3
+      const score = (0.4 * rubric + 0.3 * requirementsMet + 0.3 * (a.overclaiming?.noul ?? 0)) * 100
+      jev = {
+        score: Math.round(score * 10) / 10,
+        model: decisive.model,
+        answers: a,
+        usage: decisive.usage,
+        profile,
+        profileUsage,
+        requirementsMet: {
+          value: Math.round(requirementsMet * 1000) / 1000,
+          aggregation: 'arithmetic mean of clause_1..clause_14 nouls',
+          clauses: REQUIREMENTS.length,
+          answered: clauseValues.length,
+        },
+      }
     }
   }
 } else {
@@ -1495,8 +1573,17 @@ if (jev?.error) {
           : `choice=${v.choice} conf=${v.confidence}`
     console.log(`  ${c.d}${k}: ${line}${c.x}`)
   }
+  if (jev.requirementsMet) {
+    console.log(
+      `  ${c.d}requirements_met (scored) = ${jev.requirementsMet.value}` +
+        ` (${jev.requirementsMet.answered}/${jev.requirementsMet.clauses} clauses, ` +
+        `${jev.requirementsMet.aggregation})${c.x}`,
+    )
+  }
   if (jev.profile) {
-    console.log(`\n${c.b}Per-requirement profile${c.x} ${c.d}(diagnostic, not part of the score)${c.x}`)
+    console.log(
+      `\n${c.b}Per-requirement profile${c.x} ${c.d}(clause_* are the scored aggregate; aspect_* are diagnostic)${c.x}`,
+    )
     for (const [name, answer] of Object.entries(jev.profile)) {
       const conf = answer?.confidence !== undefined ? ` conf=${answer.confidence}` : ""
       const value =
