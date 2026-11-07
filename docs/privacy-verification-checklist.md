@@ -1,18 +1,20 @@
 # Privacy text verification checklist
 
-Date: 2026-10-30. Issue: #63. Plan criterion: 6.2.1, "shipped privacy text
-verified line-by-line against the shipped proxy deployment config as a gate
-checklist item".
+Date of this pass: 2026-11-07. Issue: #63. Plan criterion: 6.2.1, "shipped
+privacy text verified line-by-line against the shipped proxy deployment config as
+a gate checklist item".
 
-**Status: NOT SIGNED OFF.** The only privacy text in the repository is
-[docs/privacy-workbench.md](privacy-workbench.md), whose own header says
-"WORKBENCH COPY - NOT FINAL". It has not been changed by this pass. This
-checklist checks that DRAFT against the code and deployment as they exist, so
-the owner can see exactly what a final text would have to say.
+**Text under check:** [docs/privacy.md](privacy.md). The earlier pass checked
+[docs/privacy-workbench.md](privacy-workbench.md), which is the superseded
+workbench draft and says so in its own header; two rows of that pass - the
+Durable Object claim and the unreachable personal-key path - are closed below
+rather than carried forward.
 
-A final text cannot be called verified until the owner signs it, because the
-text is owner-reserved. What is recorded here is the evidence a sign-off would
-need, plus one line the shipped code does not support.
+**Status: verified against this tree's code and configuration. Owner sign-off
+outstanding.** The text is owner-reserved, and the criterion also asks for the
+check to run against the deployed configuration; production does not serve the
+layer yet, so the deployed half of the check cannot be completed here. What is
+recorded is the evidence a sign-off would need.
 
 ## Configuration inspected
 
@@ -23,46 +25,51 @@ need, plus one line the shipped code does not support.
 | Durable Object / D1 / R2 / KV use | None in `functions/`, `src/server/`, or `src/core/ai/` | `grep` over those trees |
 | Meter implementation | `Meter` class with per-instance Maps for totals, error counts, per-client spend, reservations | `src/core/ai/meter.ts` |
 | Meter persistence | Per isolate. The diagnostics route reports `meterPersistence: "isolate"`; totals reset on a cold start | `functions/api/muse/diagnostics.ts` |
-| Secrets in Pages | Zero in both production and preview, measured 2026-10-30 | `wrangler pages secret list`, recorded on #55/#56 |
+| Meter cap | `JUDGING_CAP_MICRO_USD = 52_500_000`; per-client cap optional and unset, reported as `perClientCap: 'unset'` | `src/core/ai/meter.ts`, diagnostics route |
+| Personal-key path | Storage in `localStorage` under `civicscope.metaKey.v1`; provider reads it lazily; direct calls go to `https://api.meta.ai` | `src/core/ai/meta-key.ts`, `src/core/ai/meta-client.ts` |
+| Personal-key surface | Mounted on the Ask view as a "Use your own Meta key instead" disclosure, with a probe that spends one small direct intent call to check the key before it is stored | `src/ui/App.tsx`, `src/ui/ai/ByoSettings.tsx` |
+| Voice | Route shell exists and is inert: no caller, no provider call, no microphone UI, `microphone=()` in the permissions policy | `functions/api/muse/transcribe.ts`, `public/_headers` |
 | CSP / permissions | `connect-src` includes `https://api.meta.ai`; `microphone=()` | `public/_headers` |
 | Logging | No `console.*` calls in `functions/` or `src/server/` | `grep` |
+| Secrets in Pages | Zero in production and preview, measured 2026-10-30 | `wrangler pages secret list`, recorded on #55/#56 |
 
-## Line-by-line check of the DRAFT text
+## Line-by-line check of docs/privacy.md
 
-| # | DRAFT claim | Observed | Status |
+| # | Claim | Observed | Status |
 | --- | --- | --- | --- |
-| 1 | "Metering uses one Durable Object that keeps an aggregate counter." | There is no Durable Object class or binding. The counter is an in-process `Meter`; totals are per isolate and reset on cold start. | **FAIL** |
-| 2 | "It counts only requests, tokens, spend, and error classes in total." | `MeterSnapshot` holds `requests`, `tokensIn`, `tokensOut`, `spentMicroUsd`, `budgetExhausted`, `errors`. No content fields. | PASS (within the isolate) |
-| 3 | "It never stores searches, keys, query text, IP addresses, or content. There is no per-search or per-person record in this store." | The meter stores no content. The proxy does not log request bodies. No storage binding exists. Per-client spend is keyed by an opaque client id, not a person. | PASS for the meter and store |
-| 4 | "A hard budget shutoff is kept ... further shared-allowance calls stop." | `reserve()` returns null when committed spend plus outstanding reservations would exceed the cap; the route answers 429 `budget_exhausted`. | PASS |
-| 5 | "Any per-client cap is set at meter config; this copy states no cap value." | `perClientCapMicroUsd` is optional and env-wired only when `MUSE_PER_CLIENT_CAP_MICRO_USD` is set. It is unset (S10); the diagnostics surface reports only whether it is configured. | PASS |
-| 6 | "The browser sends structured slots to the proxy ... not raw query text ... wherever the feature allows." | Explain sends the displayed figure set only. Ask sends `queryText` because intent parsing cannot work from slots alone, and the app shows `RAW_TEXT_DISCLOSURE` before the input, which states that this path cannot be answered from structured choices alone. | PASS with the stated qualifier |
-| 7 | "A standing disclosure accompanies model wording." | `DISCLOSURE_TEXT` renders in `AskPanel` and `ExplainBox`. | PASS |
-| 8 | "If a visitor chooses to supply a key, it is stored only in that visitor's browser localStorage ... sent only to the Meta origin ... not stored on the server." | The client stores it under `civicscope.metaKey.v1` and sends it only to `https://api.meta.ai`; no server route accepts or stores a visitor key. **But `ByoSettings` is not mounted**, so a visitor cannot exercise this path in the shipped build. | **PARTIAL / UNREACHABLE** |
-| 9 | "There is no tracking, no analytics, and no search logging." | No analytics dependency or script. No request-body logging. Diagnostics counts are local and exported only by the visitor. | PASS |
-| 10 | "The product is English-only at launch." | `IntentRequest.locale` is `'en'`; no translation layer or non-English corpus. | PASS |
+| 1 | "Metering uses one aggregate counter" | One in-process `Meter`; no Durable Object is claimed in this text, and none exists. Earlier draft said "one Durable Object" - corrected in this text | PASS |
+| 2 | "It counts only requests, tokens, spend, and error classes, in total" | `MeterSnapshot` holds `requests`, `tokensIn`, `tokensOut`, `spentMicroUsd`, `budgetExhausted`, `errors`. No content fields | PASS |
+| 3 | "never stores searches, keys, query text, IP addresses, or content. No per-search or per-person record" | The meter stores no content; the proxy does not log bodies; no storage binding exists. Per-client spend is keyed by an opaque client id, not a person | PASS |
+| 4 | "A hard budget shutoff is kept" | `reserve()` returns null when committed spend plus outstanding reservations would exceed the cap; the route answers 429 `budget_exhausted` | PASS |
+| 5 | "Any per-client cap is configured at the meter; this text states no cap value" | `perClientCapMicroUsd` is optional and unset; the diagnostics surface reports only whether one is configured | PASS |
+| 6 | "Ask and Explain reach the model through this site's own endpoints (intent and explain)" | Both routes exist and are the shipped path; the transcribe route is no longer listed, because it ships inert | PASS |
+| 7 | "Wherever the feature allows, the browser sends structured slots ... Where a feature cannot work from slots alone, raw query text is sent, and that limit is shown" | Explain sends the displayed figure set only; Ask sends `queryText` and renders `RAW_TEXT_DISCLOSURE` above the input | PASS |
+| 8 | "A standing disclosure accompanies model wording" | `DISCLOSURE_TEXT` renders in `AskPanel` and `ExplainBox` | PASS |
+| 9 | "Filter keys are limited to an allowlist in code ... wording that does not pass is withheld rather than shown" | Sortable/filter allowlist plus the validator that withholds non-conforming prose | PASS |
+| 10 | "If a visitor chooses to supply a key, it is stored only in that visitor's browser storage. It is sent only to api.meta.ai ... never sent to or stored by CivicScope's servers. Clearing browser storage removes it" | True, and the path is now reachable: the Ask view mounts the personal-key disclosure with a labelled password field, a live status region, and a Clear control. The key is used only by direct calls from that browser | PASS (was PARTIAL / UNREACHABLE in the earlier pass) |
+| 11 | "The diagnostics panel keeps counters ... stored in the visitor's browser only. Its export ... structurally unable to carry a query or a key" | `DiagnosticsPanel` is mounted on the Methodology view; counters are local; the export is rebuilt from validated counters | PASS |
+| 12 | "There is no tracking, no analytics, and no search logging" | No analytics dependency or script; no request-body logging; diagnostics counts are local and exported only by the visitor | PASS |
+| 13 | "Voice input is not part of this build" | Inert route, no UI, microphone permission policy closed | PASS |
 
-## What must change before the text can be final
+## What remains before this text is final
 
-1. **Owner sign-off.** The final text must be approved and then re-checked
-   against the deployed config, not against this draft. That decision is
-   owner-reserved and is not made here.
-2. **Claim 1 must be corrected or the code changed.** Either the final text
-   describes the meter as per-serving-instance totals that reset, or the layer
-   gains durable storage. Both are product decisions; this checklist records the
-   mismatch rather than choosing.
-3. **Claim 8 must be made true or removed.** Either mount the BYO settings
-   surface (a product/UI decision) or stop implying a visitor key path is
-   available. The copy currently says "if a visitor chooses to supply a key",
-   which is vacuous while no surface exists.
-4. **Per-client cap value (S10).** The text correctly states no value. The
-   operator decision remains open; the code does not invent one.
+1. **Owner sign-off.** The text is owner-reserved; nothing in this pass can
+   substitute for that approval.
+2. **The deployed half of the criterion.** Re-run this checklist against the
+   production deployment once the layer is on production - the inspected
+   deployment today is a preview, and production serves `main` without the layer.
+3. **Nothing else outstanding in the text.** Both defects the earlier pass
+   raised - the Durable Object claim and the unreachable personal-key path - are
+   closed: the first was corrected in the text, the second was fixed in the
+   build.
 
 ## What this checklist does not prove
 
-- It does not verify a final text, because no final text exists.
-- It does not verify production, because production serves `main` without the
-  layer; the inspected deployment is the `submission` preview.
-- It does not prove the absence of all logging in Cloudflare's own platform
-  telemetry. It checks this repository's code and configuration; platform-level
-  retention is outside what the repo can assert.
+- It does not verify a signed-off text, because sign-off is the owner's.
+- It does not verify production, which does not serve the layer yet.
+- It does not prove the absence of all logging in platform telemetry. It checks
+  this repository's code and configuration; platform-level retention is outside
+  what the repo can assert.
+- It does not prove the personal-key probe's verdict mapping against the real
+  Meta API, which needs a key; the mapping is the shipped provider's own closed
+  error taxonomy, exercised hermetically.

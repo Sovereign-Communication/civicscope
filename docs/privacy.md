@@ -20,7 +20,10 @@ the operator's setting, not a property of the product.
 ## What is sent to the model
 
 Ask and Explain reach the model through this site's own endpoints
-(`/api/muse/intent`, `/api/muse/explain`, `/api/muse/transcribe`). Wherever
+(`/api/muse/intent` and `/api/muse/explain`). Voice input is not part of this
+build: there is no microphone interface, no recording permission is requested,
+and the transcription route ships without a caller, a provider call, or a
+button. Wherever
 the feature allows, the browser sends structured slots — mode, geography hints,
 and metric hints drawn from the allowlist — not raw query text. Where a feature
 cannot work from slots alone, raw query text is sent, and that limit is shown
