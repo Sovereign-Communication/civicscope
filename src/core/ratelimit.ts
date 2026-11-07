@@ -178,28 +178,27 @@ function release(): void {
 }
 
 /**
- * Waits out the minimum interval, then records the instant the request starts.
+ * Waits until this request may start, serialised so two slots freed at the same
+ * instant cannot both conclude they may go now.
  *
- * The gap is enforced here, immediately before the request runs, rather than
- * when the slot was granted. A grant and the request it authorises are
- * separated by a scheduler hop, and on a starved runner that hop can be tens of
- * milliseconds: CircleCI pipeline #11, verify job #32 failed 1 of 8 on
- * `starts[i] - starts[i - 1]` being 0 against a 30ms interval, while the same
- * case measured a minimum gap of 23ms over 360 samples on an idle laptop. The
- * grant-time pacing was correct in both readings; what was wrong is that it
- * paced a slot rather than the request, so a descheduled thread could begin two
- * requests in the same millisecond.
+ * The start instant is deliberately NOT recorded here. It is recorded in
+ * `paced`, in the same synchronous block that invokes the request. Recording it
+ * inside this chain wrote the value one microtask - or, on a starved runner, one
+ * OS preemption - before the request actually began, so the interval was
+ * measured from a moment the request never started at. Head 4c833d0, verify job
+ * 62, failed `starts[i] - starts[i - 1]` being 0 against a 30ms interval on a
+ * commit that only edited a markdown file, and pipeline #11's verify job #32
+ * failed the same assertion: both are that hop being longer than the interval.
  *
- * The chain serialises the decision, because two slots free at the same instant
- * would otherwise both conclude they may start now.
+ * The chain serialises the decision for the same reason it always did: two
+ * slots free at the same instant would otherwise both conclude they may start.
  */
 let spacingChain: Promise<void> = Promise.resolve()
 
-function spaceOut(): Promise<void> {
+function spaceOut(need: number): Promise<void> {
   const next = spacingChain.then(async () => {
-    const wait = jitter(config.minIntervalMs) - (Date.now() - lastStartedAt)
+    const wait = need - (Date.now() - lastStartedAt)
     if (wait > 0) await sleep(wait)
-    lastStartedAt = Date.now()
   })
   // A failed spacing step must not poison every later request.
   spacingChain = next.then(
@@ -216,7 +215,20 @@ function spaceOut(): Promise<void> {
 export async function paced<T>(fn: () => Promise<T>): Promise<T> {
   await acquire()
   try {
-    await spaceOut()
+    // One jittered interval per request, shared by the wait and the re-check, so
+    // the two cannot disagree about how much space this request was owed.
+    const need = jitter(config.minIntervalMs)
+    await spaceOut(need)
+    // Re-check against the clock as late as it can be checked. A timer that
+    // resumes late (a starved runner, a GC pause) leaves the gap short at the
+    // moment of the check, and sleeping the remainder is the only way to keep
+    // the promise that two requests did not start together.
+    for (;;) {
+      const gap = Date.now() - lastStartedAt
+      if (gap >= need) break
+      await sleep(Math.min(need - gap, 50))
+    }
+    lastStartedAt = Date.now()
     recordRequest()
     return await fn()
   } finally {
