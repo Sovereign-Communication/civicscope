@@ -156,28 +156,18 @@ function pump(): void {
   next()
 }
 
+/** Reserves a concurrency slot. The interval is applied at start, in paced(). */
 async function acquire(): Promise<void> {
   if (budgetState().remaining <= 0) throw new QuotaExhaustedError(budgetState())
 
   if (active < config.maxConcurrency) {
     active += 1
-    // Enforce a minimum gap between starts, but do not serialise the body.
-    const wait = jitter(config.minIntervalMs) - (Date.now() - lastStartedAt)
-    if (wait > 0) await sleep(wait)
-    lastStartedAt = Date.now()
     return
   }
 
+  // The slot is reserved by pump(), so the waiter resumes holding it.
   await new Promise<void>((resolve) => {
-    queue.push(() => {
-      void (async () => {
-        const wait = jitter(config.minIntervalMs) - (Date.now() - lastStartedAt)
-        if (wait > 0) await sleep(wait)
-        lastStartedAt = Date.now()
-        // The slot was already reserved by pump(), so it is not claimed again.
-        resolve()
-      })()
-    })
+    queue.push(resolve)
     pump()
   })
 }
@@ -188,12 +178,45 @@ function release(): void {
 }
 
 /**
+ * Waits out the minimum interval, then records the instant the request starts.
+ *
+ * The gap is enforced here, immediately before the request runs, rather than
+ * when the slot was granted. A grant and the request it authorises are
+ * separated by a scheduler hop, and on a starved runner that hop can be tens of
+ * milliseconds: CircleCI pipeline #11, verify job #32 failed 1 of 8 on
+ * `starts[i] - starts[i - 1]` being 0 against a 30ms interval, while the same
+ * case measured a minimum gap of 23ms over 360 samples on an idle laptop. The
+ * grant-time pacing was correct in both readings; what was wrong is that it
+ * paced a slot rather than the request, so a descheduled thread could begin two
+ * requests in the same millisecond.
+ *
+ * The chain serialises the decision, because two slots free at the same instant
+ * would otherwise both conclude they may start now.
+ */
+let spacingChain: Promise<void> = Promise.resolve()
+
+function spaceOut(): Promise<void> {
+  const next = spacingChain.then(async () => {
+    const wait = jitter(config.minIntervalMs) - (Date.now() - lastStartedAt)
+    if (wait > 0) await sleep(wait)
+    lastStartedAt = Date.now()
+  })
+  // A failed spacing step must not poison every later request.
+  spacingChain = next.then(
+    () => undefined,
+    () => undefined,
+  )
+  return next
+}
+
+/**
  * Runs a request under the pacing rules: concurrency-capped, spaced, and
  * counted against the daily budget.
  */
 export async function paced<T>(fn: () => Promise<T>): Promise<T> {
   await acquire()
   try {
+    await spaceOut()
     recordRequest()
     return await fn()
   } finally {
@@ -206,5 +229,6 @@ export function _resetPacing(): void {
   active = 0
   lastStartedAt = 0
   queue.length = 0
+  spacingChain = Promise.resolve()
   budget = { used: 0, day: today() }
 }

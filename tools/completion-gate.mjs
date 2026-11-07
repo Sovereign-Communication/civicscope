@@ -1617,4 +1617,29 @@ console.log(`\n${c.b}Overall: ${overall}/100${c.x}  ${c.d}(report: ${OUT})${c.x}
 
 const passed = detOk && (jev === null || jev.score >= THRESHOLD)
 console.log(passed ? `${c.g}GATE PASSED${c.x}` : `${c.r}GATE FAILED${c.x}`)
+
+/*
+ * Exit only once the report has actually left this process.
+ *
+ * Measured on CircleCI pipeline #11, completion-gate job #33: the step ran 8m04s,
+ * exited 1, and its log held only the banner printed eight minutes earlier — no
+ * score, no failing requirement, no reason. The exit code was earned: the only
+ * exit in this file is the line below, and it is reached only after the report
+ * prints. What was lost is the report. Node writes to a pipe asynchronously on
+ * POSIX (synchronous on Windows, which is why the same run on the maintenance
+ * laptop never lost a line), so `process.exit()` discards whatever is still
+ * queued in the pipe. A gate that fails without saying why is precisely the
+ * failure mode this file exists to remove, so the streams are drained first,
+ * with a bound so a closed pipe cannot hang the step.
+ */
+const drained = (stream) =>
+  new Promise((resolve) => {
+    const timer = setTimeout(resolve, 2000)
+    stream.write('', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+
+await Promise.all([drained(process.stdout), drained(process.stderr)])
 process.exit(passed ? 0 : 1)
