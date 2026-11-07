@@ -195,9 +195,27 @@ const gates = [
  */
 let auditGate = null
 
+/*
+ * Name each gate as it starts, before it runs.
+ *
+ * Measured on CircleCI job #40 (head 904f89b): the step reported `Too long with
+ * no output (exceeded 15m0s)` and nothing else, because every sub-gate captures
+ * its output and the report is printed only at the end. The same gate finished
+ * in 8m08s one head earlier. A timeout that cannot name the step it timed out in
+ * is the same defect as a failure that cannot name its reason, so each gate now
+ * announces itself first: the next timeout will say which one it was.
+ */
+function announce(label, index, total) {
+  console.log(`${c.d}[${index}/${total}] ${label} ...${c.x}`)
+}
+
+let gateIndex = 0
 for (const [label, cmd, args, env] of gates) {
+  gateIndex += 1
+  announce(label, gateIndex, gates.length + (e2eSkip ? 0 : 1))
   const r = run(label, cmd, args, env)
   add(r.ok, r.label, r.detail)
+  console.log(`       ${r.ok ? pass('done') : fail('failed')}`)
 }
 
 if (!e2eSkip) {
@@ -284,8 +302,10 @@ if (!e2eSkip) {
 }
 
 if (auditGate) {
+  announce(auditGate[0], gates.length + 1, gates.length + 1)
   const r = run(auditGate[0], auditGate[1], auditGate[2], auditGate[3])
   add(r.ok, r.label, r.detail)
+  console.log(`       ${r.ok ? pass('done') : fail('failed')}`)
 }
 
 // --- structural invariants that unit tests cannot see as a whole

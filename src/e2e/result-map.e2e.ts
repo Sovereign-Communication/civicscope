@@ -26,12 +26,42 @@ const ZIPS = ['00901', '00920']
 let browser: Browser
 let page: Page
 
+/**
+ * Clears a first-run overlay so it cannot intercept the nav click.
+ *
+ * The guided tour and the "new here" notice both sit over the header on a first
+ * visit, and Playwright waits for an element to be actionable rather than
+ * clicking through: without this the click burns its whole timeout and the suite
+ * fails for a reason that has nothing to do with the map. Found in CI, where
+ * every run is a first visit and this laptop's browser had already dismissed
+ * both.
+ */
+async function settleFirstRun(opened: Page): Promise<void> {
+  for (const name of ['Skip', 'Dismiss', 'Not now']) {
+    const button = opened.getByRole('button', { name, exact: true })
+    if (await button.count()) {
+      await button.first().click({ timeout: 2000 }).catch(() => undefined)
+    }
+  }
+}
+
+/**
+ * Opens the map view for a set of ZIP codes, with bounded waits.
+ *
+ * The timeouts are deliberately small. The completion gate runs this suite with
+ * a 15-minute no-output limit, and a suite that waits five minutes per case can
+ * consume that budget on its own without printing anything - which is how the
+ * gate timed out at head 904f89b. A slow failure here must be a failure, not a
+ * silence.
+ */
 async function openMap(zips: readonly string[]): Promise<Page> {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
   const target = new URL(BASE)
   target.searchParams.set('z', zips.join(','))
   const opened = await context.newPage()
+  opened.setDefaultTimeout(15000)
   await opened.goto(target.toString(), { waitUntil: 'domcontentloaded' })
+  await settleFirstRun(opened)
   await opened.getByRole('button', { name: 'Map', exact: true }).click()
   return opened
 }
@@ -78,7 +108,7 @@ describe('e2e: result map', () => {
     expect(box.height).toBeLessThan(560)
     expect(box.x).toBeGreaterThan(-80)
     expect(box.y).toBeGreaterThan(-80)
-  }, 120000)
+  }, 60000)
 
   it('places each selected ZIP inside the drawn area, at distinct positions', async () => {
     const marks = page.locator('[data-result-map-mark]')
@@ -99,7 +129,7 @@ describe('e2e: result map', () => {
 
     const [a, b] = centres as [{ x: number; y: number }, { x: number; y: number }]
     expect(Math.hypot(a.x - b.x, a.y - b.y), 'the two marks landed on one point').toBeGreaterThan(1)
-  }, 120000)
+  }, 60000)
 
   it('names the reference state in text, for a reader who cannot see the drawing', async () => {
     const caption = await page.locator('[data-result-map] figcaption').innerText()
@@ -108,7 +138,7 @@ describe('e2e: result map', () => {
     // only path to the answer.
     const items = page.locator('[data-result-map] ul li')
     expect(await items.count()).toBe(ZIPS.length)
-  }, 120000)
+  }, 60000)
 
   it('reports an absent basemap as absent rather than drawing nothing quietly', async () => {
     // Same page, basemap request refused: the points must still plot and the
@@ -119,7 +149,9 @@ describe('e2e: result map', () => {
       const target = new URL(BASE)
       target.searchParams.set('z', ZIPS.join(','))
       const opened = await context.newPage()
+      opened.setDefaultTimeout(15000)
       await opened.goto(target.toString(), { waitUntil: 'domcontentloaded' })
+      await settleFirstRun(opened)
       await opened.getByRole('button', { name: 'Map', exact: true }).click()
 
       const figure = opened.locator('[data-result-map]')
@@ -137,5 +169,5 @@ describe('e2e: result map', () => {
     } finally {
       await context.close()
     }
-  }, 120000)
+  }, 60000)
 })
