@@ -74,7 +74,14 @@ ingredient there is the shared key. A fourth GET route,
 build onto the production
 alias still needs the owner's merge to `main` plus a manual `npm run deploy`;
 see `docs/submission-path-deploy.md`. The per-client cap value remains S10 and
-unset; the Explain claim count is S11/S12; the privacy copy above is a draft
+unset, and the ramification is recorded here rather than left implicit: with no
+per-client cap, the only ceiling on any one visitor is the judging-window cap of
+$52.50 (`JUDGING_CAP_MICRO_USD`), and because the meter's counters live in the
+isolate (`meterPersistence: 'isolate'`), that ceiling is per isolate rather than
+global, so a burst spread across isolates multiplies it. The diagnostics route
+states which case applies rather than leaving a reader to infer it:
+`perClientCap: 'unset'`. Setting a value is an owner decision with a cost basis;
+issue #55 records the absence, not a chosen number. The Explain claim count is S11/S12; the privacy copy above is a draft
 pending final sign-off and checked against the shipped config in
 `docs/privacy-verification-checklist.md`. The Ask shell mount and stub-provider wiring landed in
 PR #50 at aab2c87.
