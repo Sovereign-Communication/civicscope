@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useHousingQuery } from '../core/useHousingQuery'
-import { createLiveProvider, META_API_BASE, MUSE_SPARK_MODEL } from '../core/ai/meta-client'
-import { getMetaKey } from '../core/ai/meta-key'
+import {
+  createLiveProvider,
+  createMetaDirectProvider,
+  META_API_BASE,
+  MUSE_SPARK_MODEL,
+  ProviderCallError,
+} from '../core/ai/meta-client'
+import { getMetaKey, type MetaKeyFetcher } from '../core/ai/meta-key'
 import { DISPLAYABLE_KEYS } from '../core/ai/intent-schema'
 import type { ValidatedIntent } from '../core/ai/provider'
 import { loadPlaceIndex, type PlaceIndex, type PlaceSuggestion } from '../core/zcta-place-index'
@@ -25,6 +31,7 @@ import { ResultMap } from './ResultMap'
 import { sortSweepRows } from '../core/sweep-sorting'
 import { AskPanel } from './ai/AskPanel'
 import { BriefingView } from './ai/BriefingView'
+import { ByoSettings } from './ai/ByoSettings'
 import {
   briefingFiguresFromMetrics,
   figureInputsFromAreaRows,
@@ -64,6 +71,38 @@ const DEFAULT_PRESET = PRESETS[0]!
 const HOUSE_PROVIDER = createLiveProvider({
   direct: { baseUrl: META_API_BASE, model: MUSE_SPARK_MODEL, getApiKey: getMetaKey },
 })
+
+/**
+ * Checks a pasted personal key through the shipped provider, not a guessed
+ * endpoint.
+ *
+ * `ByoSettings` takes a probe so that a key is never stored as if it had been
+ * checked: a rejected key (401 or `invalid_api_key`) is reported as rejected and
+ * nothing is saved, and an unreachable provider is reported as a network verdict
+ * rather than as a bad key. The probe is one small intent request through the
+ * same direct client the visitor's own calls use, so success means the key
+ * actually works for this app's calls - which is the only claim the settings
+ * surface makes.
+ */
+const metaKeyProbe: MetaKeyFetcher = async (key) => {
+  const probe = createMetaDirectProvider({
+    baseUrl: META_API_BASE,
+    model: MUSE_SPARK_MODEL,
+    getApiKey: () => key,
+  })
+  try {
+    await probe.intent(
+      { slots: { geographyHints: [], metricHints: [] }, queryText: 'check this key', locale: 'en' },
+      new AbortController().signal,
+    )
+    return { ok: true, bodyValid: true }
+  } catch (error) {
+    if ((error as ProviderCallError).code === 'bad_key') return { ok: false, bodyValid: true }
+    // Anything else is the provider or the network talking, so the verdict is
+    // "could not check" and the key stays out of storage.
+    throw error
+  }
+}
 
 type ScreeningSort = {
   presetId: string
@@ -721,6 +760,29 @@ export default function App() {
                 onExecute={executeIntent}
                 clarificationCandidates={{ geographies: [], metricKeys: [...DISPLAYABLE_KEYS] }}
               />
+              {/*
+                The personal-key settings used to be exported and mounted
+                nowhere, which made two written promises unreachable: the
+                privacy text's "if a visitor chooses to supply a key" and the
+                agent workflow's manual hand-off for the Meta key, which points
+                at exactly this surface. A disclosure rather than an always-open
+                form: shared mode needs no key, so the key field is one deliberate
+                disclosure away instead of competing with the question box.
+                details/summary is used rather than a scripted toggle because it is
+                keyboard-operable and announced as a disclosure without any JS.
+              */}
+              <details className="mt-4 rounded-md border border-slate-200 px-3 py-2">
+                <summary className="cursor-pointer text-sm font-medium text-slate-900">
+                  Use your own Meta key instead
+                </summary>
+                <p className="mt-2 text-xs text-slate-600">
+                  Optional. The shared allowance needs no key. A personal key stays in this browser,
+                  is sent only to api.meta.ai by your own calls, and reaches no CivicScope server.
+                </p>
+                <div className="mt-3">
+                  <ByoSettings fetcher={metaKeyProbe} />
+                </div>
+              </details>
             </div>
             <div className="mb-6 panel panel-padded">
               <BriefingView
