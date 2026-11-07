@@ -21,6 +21,7 @@
  */
 import {
   geoAlbersUsa,
+  geoArea,
   geoConicEqualArea,
   geoPath,
   type GeoPermissibleObjects,
@@ -87,25 +88,113 @@ export function buildResultMapFit(
    * asking `albersUsa` for a PR coordinate returns null, which is why the first
    * version of this fit silently produced an empty panel for the territory.
    */
-  const projection = projectionFor(state).fitExtent(
-    [
-      [padding, padding],
-      [Math.max(padding, width - padding), Math.max(padding, height - padding)],
-    ],
-    (feature ?? { type: 'MultiPoint', coordinates: placed.map((p) => [p.lon, p.lat]) }) as GeoPermissibleObjects,
-  )
+  const projection = projectionFor(state)
 
-  // A degenerate target (one point, or points at one coordinate) makes d3 divide
-  // by a zero extent and answer Infinity, which then draws nothing anywhere.
-  if (!Number.isFinite(projection.scale()) || !Number.isFinite(projection.translate()[0])) return null
+  /*
+   * The scale is solved from the geometry's own coordinates, not from
+   * `fitExtent`, and that is a correction with a measurement behind it.
+   *
+   * `fitExtent` takes its extent from `geoPath().bounds()`. On the committed
+   * basemap the Puerto Rico polygon's bounds cover far more than the island, so
+   * `fitExtent` answered scale 82.4 for a 600x400 box - about 1.4 pixels per
+   * degree - and both San Juan ZIP codes in the acceptance test projected to the
+   * same pixel (measured 0.07px apart, 2026-11-07). Fitting the vertices gives
+   * the island the box it should have and cannot be misled by a ring's winding.
+   * `projection.ts` already fits this way for the same reason.
+   */
+  const drawn = feature ? asDrawn(feature) : null
+  const vertices = drawn ? featureVertices(drawn) : []
+  const targets: [number, number][] = [
+    ...vertices,
+    ...placed.map((p): [number, number] => [p.lon, p.lat]),
+  ]
+
+  projection.scale(1).translate([0, 0])
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const [lon, lat] of targets) {
+    const at = projection([lon, lat])
+    if (!at || !Number.isFinite(at[0]) || !Number.isFinite(at[1])) continue
+    if (at[0] < minX) minX = at[0]
+    if (at[0] > maxX) maxX = at[0]
+    if (at[1] < minY) minY = at[1]
+    if (at[1] > maxY) maxY = at[1]
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null
+
+  const dx = maxX - minX
+  const dy = maxY - minY
+  const availableX = Math.max(0, width - padding * 2)
+  const availableY = Math.max(0, height - padding * 2)
+  const k = Math.min(dx > 0 ? availableX / dx : Infinity, dy > 0 ? availableY / dy : Infinity)
+  // Both extents zero is a single position: there is no view to fit.
+  if (!Number.isFinite(k) || k <= 0) return null
+
+  projection.scale(k).translate([
+    padding + (availableX - k * dx) / 2 - k * minX,
+    padding + (availableY - k * dy) / 2 - k * minY,
+  ])
 
   const path = geoPath(projection)
   return {
-    outline: feature ? (path(feature as unknown as GeoPermissibleObjects) ?? '') : '',
+    outline: drawn ? (path(drawn as unknown as GeoPermissibleObjects) ?? '') : '',
     project: projectWith(projection),
     fromBasemap: feature !== null,
     state: feature ? String(feature.properties?.STUSAB ?? state ?? '') : null,
   }
+}
+
+/**
+ * The feature with any ring d3 would read as its own complement reversed.
+ *
+ * d3 reads spherical polygons by the right-hand rule, so a ring wound the other
+ * way is the whole globe *minus* the shape. `geoArea` states which reading a
+ * ring gets, and the committed basemap trips it: Puerto Rico measures 37.7
+ * steradians as committed, against the island's real 0.0003, and the resulting
+ * path spanned 89,902 units in a 600-unit box - a pale wash over the panel with
+ * its stroke off-screen. Reversing such a polygon's rings drops it to 0.0003 and
+ * the path to island size (measured 2026-11-07). The canvas map never showed
+ * this because `albersUsa` clips each inset, which hides a complement ring.
+ */
+function asDrawn(feature: Basemap['features'][number]): Basemap['features'][number] {
+  const geometry = feature.geometry as { type?: string; coordinates?: unknown }
+  const polygons =
+    geometry.type === 'Polygon'
+      ? [geometry.coordinates as number[][][]]
+      : geometry.type === 'MultiPolygon'
+        ? (geometry.coordinates as number[][][][])
+        : null
+  if (!polygons) return feature
+
+  const fixed = polygons.map((rings) => {
+    const area = geoArea({ type: 'Polygon', coordinates: rings } as unknown as GeoPermissibleObjects)
+    return area > 2 * Math.PI ? rings.map((ring) => [...ring].reverse()) : rings
+  })
+
+  return {
+    ...feature,
+    geometry: {
+      ...(feature.geometry as { type: string }),
+      coordinates: geometry.type === 'Polygon' ? fixed[0] : fixed,
+    },
+  }
+}
+
+/** Every vertex of a feature's geometry, flattened. */
+function featureVertices(feature: Basemap['features'][number]): [number, number][] {
+  const out: [number, number][] = []
+  const walk = (node: unknown): void => {
+    if (!Array.isArray(node)) return
+    if (typeof node[0] === 'number' && typeof node[1] === 'number') {
+      out.push([node[0], node[1]])
+      return
+    }
+    for (const child of node) walk(child)
+  }
+  walk((feature.geometry as { coordinates?: unknown }).coordinates)
+  return out
 }
 
 /** The projection a state's outline and its points must share. */

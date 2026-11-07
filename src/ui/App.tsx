@@ -21,6 +21,7 @@ import { Comparison } from './Comparison'
 import { FundingSection } from './Funding'
 import { StateFilter } from './StateFilter'
 import { MapView } from './MapView'
+import { ResultMap } from './ResultMap'
 import { sortSweepRows } from '../core/sweep-sorting'
 import { AskPanel } from './ai/AskPanel'
 import { BriefingView } from './ai/BriefingView'
@@ -647,6 +648,23 @@ export default function App() {
         ) : view === 'map' ? (
           <>
             {searchPanel}
+
+            {/*
+              * Outside the sweep branch on purpose: the result map answers "where
+              * are the places I selected", which a selected place already answers.
+              * Waiting for the country-wide sweep to finish first would hide it
+              * behind 43 requests the reader never asked for.
+              */}
+            {q.selected.length > 0 && (
+              <ResultMap
+                places={q.selected.flatMap((place) =>
+                  place.zip ? [{ zip: place.zip, name: place.name }] : [],
+                )}
+                metricsByZip={Object.fromEntries(
+                  Object.entries(q.drilldowns).map(([zip, state]) => [zip, state.metrics]),
+                )}
+              />
+            )}
 
             {q.sweepStatus === 'needs-key' ? (
               <p className="mt-6 text-sm text-slate-700">

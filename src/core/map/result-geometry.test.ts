@@ -10,6 +10,8 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { geoArea } from 'd3-geo'
+
 import { buildResultMapFit, stateFeature, RESULT_MAP_PADDING } from './result-geometry'
 import type { Basemap } from './projection'
 
@@ -113,6 +115,52 @@ describe('result map: the fit', () => {
     const fit = buildResultMapFit(basemap, 'PR', [{ lon: -66.1, lat: 18.47 }], 300, 200)!
     expect(fit.fromBasemap).toBe(true)
     expect(fit.project(-66.1, 18.47)).not.toBeNull()
+  })
+})
+
+/**
+ * Numbers in d3 path data are absolute screen coordinates, so a number far
+ * outside the box is a shape drawn far outside the panel.
+ */
+function pathNumbers(d: string): number[] {
+  return (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number)
+}
+
+describe('result map: a ring wound the wrong way', () => {
+  it('keeps the real basemap outline inside the panel', async () => {
+    /*
+     * The case the browser found. Read from the committed asset rather than a
+     * fixture, because the defect was in that file's winding rather than in the
+     * code's reading of it - and a fixture cannot be made to reproduce it: a
+     * deliberately reversed square measures 0.011 steradians either way, so d3
+     * reads both of its windings as the small square. The real multipolygon is
+     * the only honest fixture, so this asserts the defect is present in the file
+     * and then that the fit survives it.
+     */
+    const { readFileSync } = await import('node:fs')
+    const real = JSON.parse(readFileSync('public/map/us-states.json', 'utf8')) as Basemap
+    const prFeature = real.features.find((f) => f.properties?.STUSAB === 'PR')!
+    expect(geoArea(prFeature as never), 'the basemap no longer has the complement winding').toBeGreaterThan(
+      2 * Math.PI,
+    )
+
+    const fit = buildResultMapFit(
+      real,
+      'PR',
+      [
+        { lon: -66.108, lat: 18.467 },
+        { lon: -66.092, lat: 18.4233 },
+      ],
+      600,
+      400,
+    )!
+    expect(fit.fromBasemap).toBe(true)
+    for (const value of pathNumbers(fit.outline)) expect(Math.abs(value)).toBeLessThan(1200)
+
+    const a = fit.project(-66.108, 18.467)!
+    const b = fit.project(-66.092, 18.4233)!
+    // Two San Juan ZIP codes, about five kilometres apart: they must not collapse.
+    expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeGreaterThan(5)
   })
 })
 
