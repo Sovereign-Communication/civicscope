@@ -21,8 +21,8 @@ whole premise.
 ## Architecture
 
 ```
-Browser (the entire product)
-  ├─ No runtime backend, no database, no user accounts, no search logging
+Browser (the data product)
+  ├─ Data fetched directly from publishers; no database, no accounts, no search logging
   ├─ The user's own Census API key → localStorage, never sent to us
   ├─ Plugin registry: declarative (geography, requires, source, legal)
   ├─ DAG executor → request dedup + concurrent fan-out
@@ -33,6 +33,25 @@ Browser (the entire product)
 
 An operator that cannot see who searched where cannot deliver different results
 to different people. That is a legal property, not just a cost saving.
+
+## The Muse layer (Ask + Explain)
+
+CivicScope&rsquo;s Muse layer (Ask + Explain) turns plain questions about US
+housing data into structured, executable queries over sourced Census/ACS
+figures, and explains retrieved figures in plain language. The model never
+produces numbers: every figure comes from the deterministic data layer with
+source and margin of error, and model output is validated in code before it can
+execute or display. Ask runs in four modes (lookup, compare, sweep_filter,
+similarity); Explain covers all 15 registered metrics.
+
+Evaluation: a versioned 91-case golden corpus with a 7-case safety subset; bars
+are >=95% exact-intent and 100% safety on the live tier. Hermetic replay: 91/91
+exact, 7/7 safety (measures the schema/scorer path, not the model). Live tier:
+measured once, 2026-11-03, at 96.7% (88/91) exact and 7/7 safety, from
+the union tree's preview portal deployment; surface, model and misses are in
+[the eval record](docs/muse-layer-eval.md). Not re-run in this repository. Voice input is not part of this submission.
+
+Privacy for the Muse layer is in [docs/privacy.md](docs/privacy.md).
 
 ## Data sources
 
@@ -122,6 +141,16 @@ reported as a bad key.
 `civicscope:census-key`; the app listens and reloads the sweep. Reading the key
 during render instead produces a constant value, so the effect keyed on it can
 never fire.
+
+**An agent can walk a user through key setup.** The in-app "Set up with your
+agent" entry point points an AI agent at a versioned workflow —
+[`docs/agent-onboarding/workflow.v1.json`](docs/agent-onboarding/workflow.v1.json) —
+covering both the Census key and an optional personal Meta key. The key never
+transits CivicScope and is never accepted as an agent report: setup success is
+confirmed only by the app's own re-validation events (`civicscope:census-key`,
+`civicscope:meta-key-changed`), and an unexpected screen aborts the workflow to
+the manual path at the equivalent step. Run records live in
+[`docs/agent-onboarding/run-record.md`](docs/agent-onboarding/run-record.md).
 
 **A production deploy is not immediately live.** Pages promotes the new
 deployment to the production alias a few seconds after upload, and during this

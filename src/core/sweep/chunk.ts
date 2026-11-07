@@ -132,7 +132,13 @@ export interface ZctasByPrefix {
   zctas: string[]
 }
 
-const STATE_NAMES: Record<string, string> = {
+/*
+ * Exported for reverse lookup: the placeless screen has to recognise "Texas" in
+ * a question and this is the only state list in the tree. A copy there would let
+ * the two disagree about what a prefix means, which is how a ZIP gets labelled
+ * with the wrong state on one surface and the right one on another.
+ */
+export const STATE_NAMES: Record<string, string> = {
   '01': 'Alabama', '02': 'Alaska', '04': 'Arizona', '05': 'Arkansas', '06': 'California',
   '08': 'Colorado', '09': 'Connecticut', '10': 'Delaware', '11': 'District of Columbia',
   '12': 'Florida', '13': 'Georgia', '15': 'Hawaii', '16': 'Idaho', '17': 'Illinois',
