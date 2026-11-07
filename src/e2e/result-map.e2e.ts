@@ -15,7 +15,7 @@
  * basemap, centroids and county index, all served from the same origin, so this
  * suite is keyless by construction and never measures a figure - only placement.
  */
-import { chromium, type Browser, type Page } from 'playwright'
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:4173'
@@ -25,6 +25,17 @@ const ZIPS = ['00901', '00920']
 
 let browser: Browser
 let page: Page
+/**
+ * Every context this suite opens, so none outlives it.
+ *
+ * The audit gate runs all of `src/e2e` in one serialised process, so a context
+ * left open here is still running the app - a country-wide load on arrival,
+ * a basemap, a county index - while the suites after this one measure timing on.
+ * On a two-core CI runner that is what makes an unrelated suite's wait fail: the
+ * first CI run of this file took `url-state.e2e.ts` down with it. Closing them in
+ * `afterAll` keeps this suite's cost inside this suite.
+ */
+const contexts: BrowserContext[] = []
 
 /**
  * Clears a first-run overlay so it cannot intercept the nav click.
@@ -56,6 +67,7 @@ async function settleFirstRun(opened: Page): Promise<void> {
  */
 async function openMap(zips: readonly string[]): Promise<Page> {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  contexts.push(context)
   const target = new URL(BASE)
   target.searchParams.set('z', zips.join(','))
   const opened = await context.newPage()
@@ -72,6 +84,7 @@ beforeAll(async () => {
 }, 180000)
 
 afterAll(async () => {
+  for (const context of contexts) await context.close().catch(() => undefined)
   await browser?.close()
 })
 
